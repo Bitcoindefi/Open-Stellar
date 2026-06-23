@@ -1,4 +1,8 @@
-name: Auto-assign on comment
+name: Claim issue on comment
+
+# Acepta a quien quiera resolver un issue SIN darle acceso al repo:
+# los contribuidores externos no son "assignees" válidos en GitHub, así que
+# usamos una etiqueta `claimed` + un comentario con marcador como fuente de verdad.
 
 on:
   issue_comment:
@@ -8,43 +12,63 @@ permissions:
   issues: write
 
 jobs:
-  assign:
-    # Ignore comments on pull requests; only act on issues
+  claim:
     if: ${{ !github.event.issue.pull_request }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v7
         with:
           script: |
+            const CLAIM_LABEL = 'claimed';
             const body = (context.payload.comment.body || '').trim().toLowerCase();
             const commenter = context.payload.comment.user.login;
-            const issue = context.payload.issue;
             const { owner, repo } = context.repo;
-            const issue_number = issue.number;
+            const issue_number = context.payload.issue.number;
+            const isMaintainer = ['owner', 'member', 'collaborator'].includes(
+              context.payload.comment.author_association.toLowerCase());
 
-            const wantsAssign = /(^|\s)(\/assign|\/take|\.take)(\s|$)/.test(body)
+            const wantsClaim = /(^|\s)(\/assign|\/take|\.take)(\s|$)/.test(body)
               || body.includes('assign me') || body.includes('assign to me');
-            const wantsUnassign = /(^|\s)(\/unassign|\/drop)(\s|$)/.test(body);
+            const wantsRelease = /(^|\s)(\/unassign|\/drop|\/release)(\s|$)/.test(body);
+            if (!wantsClaim && !wantsRelease) return;
 
-            if (wantsUnassign) {
-              await github.rest.issues.removeAssignees({ owner, repo, issue_number, assignees: [commenter] });
+            // Reconstruir el dueño actual leyendo marcadores en los comentarios.
+            const comments = await github.paginate(github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 });
+            let claimant = null;
+            for (const c of comments) {
+              const m = c.body && c.body.match(/<!--\s*claim:\s*([A-Za-z0-9-]+)\s*-->/);
+              if (m) claimant = m[1];
+              if (c.body && /<!--\s*release\s*-->/.test(c.body)) claimant = null;
+            }
+
+            if (wantsRelease) {
+              if (claimant && claimant.toLowerCase() !== commenter.toLowerCase() && !isMaintainer) {
+                await github.rest.issues.createComment({ owner, repo, issue_number,
+                  body: `@${commenter} only the current owner (@${claimant}) or a maintainer can release this issue.` });
+                return;
+              }
+              try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: CLAIM_LABEL }); } catch (e) {}
               await github.rest.issues.createComment({ owner, repo, issue_number,
-                body: `@${commenter} you have been unassigned. The issue is open again.` });
+                body: `Issue released and open again. 🟢\n<!-- release -->` });
               return;
             }
 
-            if (!wantsAssign) return;
-
-            const current = (issue.assignees || []).map(a => a.login);
-            if (current.length && !current.includes(commenter)) {
-              await github.rest.issues.createComment({ owner, repo, issue_number,
-                body: `@${commenter} this issue is already assigned to @${current[0]}. ` +
-                      `Comment \`/unassign\` if you are the current assignee and want to drop it.` });
+            // wantsClaim
+            if (claimant) {
+              if (claimant.toLowerCase() === commenter.toLowerCase()) {
+                await github.rest.issues.createComment({ owner, repo, issue_number,
+                  body: `@${commenter} you already own this issue. 👍` });
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number,
+                  body: `@${commenter} this issue is already claimed by @${claimant}. ` +
+                        `It will reopen if they release it (\`/unassign\`) or become inactive.` });
+              }
               return;
             }
 
-            await github.rest.issues.addAssignees({ owner, repo, issue_number, assignees: [commenter] });
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [CLAIM_LABEL] });
             await github.rest.issues.createComment({ owner, repo, issue_number,
-              body: `@${commenter} you are now assigned to this issue. 🎯\n` +
+              body: `✅ Accepted — @${commenter}, this issue is yours. ` +
                     `Please open a PR that references \`#${issue_number}\`. ` +
-                    `If you become inactive, a maintainer may reassign it.` });
+                    `Comment \`/unassign\` to release it.\n<!-- claim: ${commenter} -->` });
