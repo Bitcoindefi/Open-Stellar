@@ -6,6 +6,7 @@ import { PixelCity, type FloatingOverlay, type TxAnimation } from "@/components/
 import { SidebarPanel } from "@/components/sidebar-panel"
 import { PriceTicker } from "@/components/price-display"
 import { DISTRICTS, createAgents, generateChatMessage, getRandomTask } from "@/lib/data"
+import { LEGAL_LINKS } from "@/lib/legal-links"
 import type { PublishedSystemEvent } from "@/lib/events/system-events"
 import type { ChatMessage, LogEntry, MoltbotAgent, WalletTransaction } from "@/lib/types"
 
@@ -165,6 +166,31 @@ function OnboardingModal({ onDone }: { onDone: () => void }) {
         >
           skip
         </button>
+
+        <div style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: 10,
+          flexWrap: "wrap",
+          marginTop: 16,
+          borderTop: "1px solid #1f2a44",
+          paddingTop: 14,
+        }}>
+          {LEGAL_LINKS.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              style={{
+                color: "#64748b",
+                fontFamily: "monospace",
+                fontSize: 10,
+                textDecoration: "none",
+              }}
+            >
+              {link.shortLabel}
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -668,6 +694,37 @@ export function OpenStellarHub() {
         >
           {sidebarOpen ? "›" : "‹"}
         </button>
+
+        <footer style={{
+          position: "absolute",
+          left: 12,
+          bottom: 10,
+          zIndex: 4,
+          display: "flex",
+          gap: 12,
+          flexWrap: "wrap",
+          alignItems: "center",
+          padding: "7px 9px",
+          background: "rgba(3,7,18,0.78)",
+          border: "1px solid rgba(42,58,82,0.86)",
+          borderRadius: 6,
+          backdropFilter: "blur(6px)",
+        }}>
+          {LEGAL_LINKS.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              style={{
+                color: "#94a3b8",
+                fontFamily: "monospace",
+                fontSize: 10,
+                textDecoration: "none",
+              }}
+            >
+              {link.label}
+            </a>
+          ))}
+        </footer>
       </div>
 
       {/* Sidebar — conditionally rendered */}
@@ -688,4 +745,3 @@ export function OpenStellarHub() {
     </div>
   )
 }
-
