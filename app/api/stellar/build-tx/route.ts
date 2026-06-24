@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import * as StellarSdk from "@stellar/stellar-sdk"
+import { isMockMode } from "@/lib/mock/mock-mode"
+import { mockStellar } from "@/lib/mock/stellar-mock"
 
 const HORIZON = "https://horizon-testnet.stellar.org"
 
@@ -9,6 +11,7 @@ export async function POST(req: Request) {
     if (!sourcePublic || !destination || !amount) {
       return NextResponse.json({ error: "Missing params" }, { status: 400 })
     }
+    if (isMockMode()) return NextResponse.json(await mockStellar.buildTx({ sourcePublic, destination, amount }))
 
     const parsedAmount = parseFloat(amount)
     if (!parsedAmount || parsedAmount <= 0 || parsedAmount > 900_000_000) {
@@ -38,3 +41,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }
 }
+
