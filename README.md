@@ -171,6 +171,14 @@ Build de producción:
 npm run build
 ```
 
+Pruebas de carga:
+
+```bash
+k6 run load-tests/x402-settle.js
+```
+
+Ver [load-tests/README.md](load-tests/README.md) para los escenarios de x402, orquestación, SSE y heartbeats.
+
 ---
 
 ## Deploy a Vercel
