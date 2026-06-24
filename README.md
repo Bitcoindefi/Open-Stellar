@@ -109,6 +109,10 @@ Relevant files: [lib/prices/coingecko.ts](lib/prices/coingecko.ts), [app/api/pri
 
 Accesible en `/admin`. Tres tabs:
 
+## Accessibility
+
+The canvas exposes keyboard-focusable agent targets with ARIA labels, the sidebar agent list uses listbox/option semantics, and `prefers-reduced-motion` disables transaction line animations. Color-blind status shapes can be enabled with `?colorblind=true` or persisted through the sidebar toggle, which stores `colorblind-mode` in localStorage.
+
 ### Orchestration Overview
 
 Vista operativa del stack como SaaS: squads de agentes por distrito, telemetría de CPU/memoria, planes de suscripción (Starter $49/mo → Growth $249/mo → Command custom), uso mensual de requests y API key con scope completo.
@@ -270,3 +274,4 @@ npm run deploy:soroban:guide  # guía interactiva Soroban
 ## Licencia
 
 MIT
+

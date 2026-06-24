@@ -44,9 +44,28 @@ interface PixelCityProps {
   onSelectAgent: (id: string | null) => void
   tick: number
   txAnimations?: TxAnimation[]
+  colorBlindMode?: boolean
+  reduceMotion?: boolean
 }
 
-export function PixelCity({ agents, districts, selectedAgentId, onSelectAgent, tick, txAnimations = [] }: PixelCityProps) {
+const statusSymbols: Record<string, string> = {
+  active: "+",
+  working: "*",
+  idle: "o",
+  error: "x",
+  offline: "-",
+}
+
+export function PixelCity({
+  agents,
+  districts,
+  selectedAgentId,
+  onSelectAgent,
+  tick,
+  txAnimations = [],
+  colorBlindMode = false,
+  reduceMotion = false,
+}: PixelCityProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [images, setImages] = useState<Record<string, HTMLImageElement>>({})
@@ -54,6 +73,7 @@ export function PixelCity({ agents, districts, selectedAgentId, onSelectAgent, t
   const spriteCrops = useRef<(([number, number, number, number]) | undefined)[]>([])
   const [hoveredAgent, setHoveredAgent] = useState<MoltbotAgent | null>(null)
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
+  const [focusedAgentId, setFocusedAgentId] = useState<string | null>(null)
 
   // Preload all background images and robot sprites
   useEffect(() => {
@@ -137,39 +157,39 @@ export function PixelCity({ agents, districts, selectedAgentId, onSelectAgent, t
       drawBot(ctx, agent, tick, agent.id === selectedAgentId, agentSprite, crop)
     }
 
-    // Draw tx animations
-    const now = Date.now()
-    for (const anim of txAnimations) {
-      const elapsed = now - anim.startedAt
-      const t = Math.min(1, elapsed / anim.duration)
-      if (t >= 1) continue
+    if (!reduceMotion) {
+      const now = Date.now()
+      for (const anim of txAnimations) {
+        const elapsed = now - anim.startedAt
+        const t = Math.min(1, elapsed / anim.duration)
+        if (t >= 1) continue
 
-      const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+        const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
 
-      ctx.save()
-      ctx.globalAlpha = Math.sin(t * Math.PI) * 0.85
-      ctx.strokeStyle = "#fbbf24"
-      ctx.lineWidth = 2
-      ctx.setLineDash([6, 4])
-      ctx.lineDashOffset = -elapsed * 0.08
+        ctx.save()
+        ctx.globalAlpha = Math.sin(t * Math.PI) * 0.85
+        ctx.strokeStyle = "#fbbf24"
+        ctx.lineWidth = 2
+        ctx.setLineDash([6, 4])
+        ctx.lineDashOffset = -elapsed * 0.08
 
-      const headX = anim.fromX + (anim.toX - anim.fromX) * eased
-      const headY = anim.fromY + (anim.toY - anim.fromY) * eased
+        const headX = anim.fromX + (anim.toX - anim.fromX) * eased
+        const headY = anim.fromY + (anim.toY - anim.fromY) * eased
 
-      ctx.beginPath()
-      ctx.moveTo(anim.fromX, anim.fromY)
-      ctx.lineTo(headX, headY)
-      ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(anim.fromX, anim.fromY)
+        ctx.lineTo(headX, headY)
+        ctx.stroke()
 
-      // Glowing dot at head
-      ctx.setLineDash([])
-      ctx.globalAlpha = Math.sin(t * Math.PI)
-      ctx.fillStyle = "#fbbf24"
-      ctx.beginPath()
-      ctx.arc(headX, headY, 4, 0, Math.PI * 2)
-      ctx.fill()
+        ctx.setLineDash([])
+        ctx.globalAlpha = Math.sin(t * Math.PI)
+        ctx.fillStyle = "#fbbf24"
+        ctx.beginPath()
+        ctx.arc(headX, headY, 4, 0, Math.PI * 2)
+        ctx.fill()
 
-      ctx.restore()
+        ctx.restore()
+      }
     }
 
     ctx.font = "bold 14px monospace"
@@ -179,7 +199,7 @@ export function PixelCity({ agents, districts, selectedAgentId, onSelectAgent, t
     ctx.font = "10px monospace"
     ctx.fillStyle = "#64748b"
     ctx.fillText(`TICK ${tick}  |  ${agents.length} AGENTS DEPLOYED`, 40, 44)
-  }, [agents, districts, selectedAgentId, tick, images, sprites, txAnimations])
+  }, [agents, districts, selectedAgentId, tick, images, sprites, txAnimations, reduceMotion])
 
   const hitTestAgent = useCallback(
     (mx: number, my: number): MoltbotAgent | null => {
@@ -233,6 +253,15 @@ export function PixelCity({ agents, districts, selectedAgentId, onSelectAgent, t
     if (canvas) canvas.style.cursor = "crosshair"
   }, [])
 
+  const handleCanvasKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLCanvasElement>) => {
+      if (e.key === "Escape") {
+        onSelectAgent(null)
+      }
+    },
+    [onSelectAgent]
+  )
+
   const statusColors: Record<string, string> = {
     active: "#34d399", working: "#fbbf24", idle: "#64748b", error: "#f87171", offline: "#1e293b",
   }
@@ -258,7 +287,11 @@ export function PixelCity({ agents, districts, selectedAgentId, onSelectAgent, t
       />
       <canvas
         ref={canvasRef}
+        role="img"
+        tabIndex={0}
+        aria-label={`Open Stellar pixel city with ${agents.length} agents deployed. Tab to focus individual agents.`}
         onClick={handleClick}
+        onKeyDown={handleCanvasKeyDown}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         style={{
@@ -269,6 +302,46 @@ export function PixelCity({ agents, districts, selectedAgentId, onSelectAgent, t
           zIndex: 1,
         }}
       />
+      <div aria-label="Agents on city canvas" role="listbox">
+        {agents.map((agent) => {
+          const isSelected = agent.id === selectedAgentId
+          const isFocused = agent.id === focusedAgentId
+
+          return (
+            <button
+              key={agent.id}
+              type="button"
+              role="option"
+              aria-selected={isSelected}
+              aria-label={`${agent.name}, ${agent.status}, ${agent.currentTask ?? "no active task"}`}
+              onFocus={() => setFocusedAgentId(agent.id)}
+              onBlur={() => setFocusedAgentId((current) => (current === agent.id ? null : current))}
+              onClick={() => onSelectAgent(agent.id)}
+              style={{
+                position: "absolute",
+                left: agent.pixelX - 4,
+                top: agent.pixelY - 4,
+                zIndex: 4,
+                width: 32,
+                height: 32,
+                border: isFocused || isSelected ? "2px solid #fbbf24" : "1px solid transparent",
+                borderRadius: 8,
+                background: colorBlindMode ? "rgba(15,23,42,0.55)" : "transparent",
+                color: "#f8fafc",
+                cursor: "pointer",
+                fontFamily: "monospace",
+                fontSize: 14,
+                lineHeight: "28px",
+                padding: 0,
+                outline: isFocused ? "2px solid #22d3ee" : "none",
+                outlineOffset: 2,
+              }}
+            >
+              <span aria-hidden="true">{colorBlindMode ? statusSymbols[agent.status] ?? "•" : ""}</span>
+            </button>
+          )
+        })}
+      </div>
       {/* Agent hover tooltip */}
       {hoveredAgent && tooltipPos && (
         <div
@@ -304,3 +377,4 @@ export function PixelCity({ agents, districts, selectedAgentId, onSelectAgent, t
     </div>
   )
 }
+

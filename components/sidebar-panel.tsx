@@ -25,6 +25,8 @@ interface SidebarPanelProps {
   onSelectAgent: (id: string | null) => void
   onUpdateAgent: (agentId: string, wallet: MoltbotAgent["wallet"]) => void
   onAddTransaction: (tx: WalletTransaction) => void
+  colorBlindMode: boolean
+  onColorBlindModeChange: (enabled: boolean) => void
 }
 
 function StatBox({ label, value, color }: { label: string; value: string | number; color: string }) {
@@ -49,13 +51,34 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
   )
 }
 
-function AgentRow({ agent, isSelected, onClick }: { agent: MoltbotAgent; isSelected: boolean; onClick: () => void }) {
+const statusSymbols: Record<string, string> = {
+  active: "+",
+  working: "*",
+  idle: "o",
+  error: "x",
+  offline: "-",
+}
+
+function AgentRow({
+  agent,
+  isSelected,
+  colorBlindMode,
+  onClick,
+}: {
+  agent: MoltbotAgent
+  isSelected: boolean
+  colorBlindMode: boolean
+  onClick: () => void
+}) {
   const statusColors: Record<string, string> = {
     active: "#34d399", working: "#fbbf24", idle: "#64748b", error: "#f87171", offline: "#1e293b",
   }
   return (
     <button
       onClick={onClick}
+      role="option"
+      aria-selected={isSelected}
+      aria-label={`${agent.name}, ${agent.status}, CPU ${agent.cpu} percent, ${agent.currentTask || "no active task"}`}
       style={{
         display: "flex",
         alignItems: "center",
@@ -71,7 +94,24 @@ function AgentRow({ agent, isSelected, onClick }: { agent: MoltbotAgent; isSelec
         transition: "background 0.15s",
       }}
     >
-      <div style={{ width: 8, height: 8, borderRadius: "50%", background: statusColors[agent.status], flexShrink: 0 }} />
+      <div
+        aria-hidden="true"
+        style={{
+          width: colorBlindMode ? 14 : 8,
+          height: colorBlindMode ? 14 : 8,
+          borderRadius: colorBlindMode ? 3 : "50%",
+          background: statusColors[agent.status],
+          color: "#020617",
+          flexShrink: 0,
+          fontSize: 10,
+          lineHeight: "14px",
+          textAlign: "center",
+          fontFamily: "monospace",
+          fontWeight: 700,
+        }}
+      >
+        {colorBlindMode ? statusSymbols[agent.status] ?? "•" : ""}
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 600, fontFamily: "monospace", color: agent.color }}>{agent.name}</div>
         <div style={{ fontSize: 10, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -83,11 +123,20 @@ function AgentRow({ agent, isSelected, onClick }: { agent: MoltbotAgent; isSelec
   )
 }
 
-function OverviewTab({ agents, selectedAgent, logs, onSelectAgent }: {
+function OverviewTab({
+  agents,
+  selectedAgent,
+  logs,
+  onSelectAgent,
+  colorBlindMode,
+  onColorBlindModeChange,
+}: {
   agents: MoltbotAgent[]
   selectedAgent: MoltbotAgent | null
   logs: LogEntry[]
   onSelectAgent: (id: string | null) => void
+  colorBlindMode: boolean
+  onColorBlindModeChange: (enabled: boolean) => void
 }) {
   const [logExpanded, setLogExpanded] = useState(false)
 
@@ -104,8 +153,19 @@ function OverviewTab({ agents, selectedAgent, logs, onSelectAgent }: {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Stats */}
       <div style={{ padding: 12, borderBottom: "1px solid #2a3a52" }}>
-        <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-          City Overview
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>
+            City Overview
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>
+            <input
+              type="checkbox"
+              checked={colorBlindMode}
+              onChange={(event) => onColorBlindModeChange(event.target.checked)}
+              aria-label="Toggle color-blind mode"
+            />
+            Shapes
+          </label>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <StatBox label="Active" value={active} color="#34d399" />
@@ -168,12 +228,13 @@ function OverviewTab({ agents, selectedAgent, logs, onSelectAgent }: {
         <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, padding: "0 4px" }}>
           {"Agents (" + agents.length + ")"}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <div role="listbox" aria-label="Agents" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {agents.map(a => (
             <AgentRow
               key={a.id}
               agent={a}
               isSelected={selectedAgent?.id === a.id}
+              colorBlindMode={colorBlindMode}
               onClick={() => onSelectAgent(a.id)}
             />
           ))}
@@ -232,6 +293,8 @@ export function SidebarPanel({
   onSelectAgent,
   onUpdateAgent,
   onAddTransaction,
+  colorBlindMode,
+  onColorBlindModeChange,
 }: SidebarPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     if (typeof window !== "undefined") {
@@ -368,6 +431,8 @@ export function SidebarPanel({
             selectedAgent={selectedAgent}
             logs={logs}
             onSelectAgent={onSelectAgent}
+            colorBlindMode={colorBlindMode}
+            onColorBlindModeChange={onColorBlindModeChange}
           />
         )}
         {activeTab === "chat" && (
@@ -389,3 +454,4 @@ export function SidebarPanel({
     </div>
   )
 }
+

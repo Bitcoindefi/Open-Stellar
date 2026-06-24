@@ -167,10 +167,26 @@ export function OpenStellarHub() {
   const [txAnimations, setTxAnimations] = useState<TxAnimation[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [colorBlindMode, setColorBlindMode] = useState(false)
+  const [reduceMotion, setReduceMotion] = useState(false)
 
   // Show onboarding once on first visit
   useEffect(() => {
     if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    const storedColorBlind = localStorage.getItem("colorblind-mode")
+    const queryColorBlind = params.get("colorblind")
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
+
+    setColorBlindMode(queryColorBlind === "true" || storedColorBlind === "true")
+    setReduceMotion(prefersReducedMotion.matches)
+
+    const handleMotionChange = (event: MediaQueryListEvent) => {
+      setReduceMotion(event.matches)
+    }
+
+    prefersReducedMotion.addEventListener("change", handleMotionChange)
+
     if (!localStorage.getItem("onboarding-seen")) {
       setShowOnboarding(true)
     }
@@ -178,6 +194,15 @@ export function OpenStellarHub() {
     if (window.innerWidth < 768) {
       setSidebarOpen(false)
     }
+
+    return () => {
+      prefersReducedMotion.removeEventListener("change", handleMotionChange)
+    }
+  }, [])
+
+  const handleColorBlindModeChange = useCallback((enabled: boolean) => {
+    setColorBlindMode(enabled)
+    localStorage.setItem("colorblind-mode", String(enabled))
   }, [])
 
   const handleDoneOnboarding = useCallback(() => {
@@ -329,6 +354,8 @@ export function OpenStellarHub() {
           onSelectAgent={handleSelectAgent}
           tick={tick}
           txAnimations={txAnimations}
+          colorBlindMode={colorBlindMode}
+          reduceMotion={reduceMotion}
         />
 
         {/* Sidebar toggle button */}
@@ -369,8 +396,11 @@ export function OpenStellarHub() {
           onSelectAgent={handleSelectAgent}
           onUpdateAgent={handleUpdateAgentWallet}
           onAddTransaction={handleAddTransaction}
+          colorBlindMode={colorBlindMode}
+          onColorBlindModeChange={handleColorBlindModeChange}
         />
       )}
     </div>
   )
 }
+
