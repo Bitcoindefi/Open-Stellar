@@ -1,0 +1,7 @@
+[
+  {
+    "name": "client static assets",
+    "path": ".next/static/**/*.{js,css}",
+    "limit": "2 MB"
+  }
+]

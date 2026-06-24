@@ -1,5 +1,7 @@
 # Open Stellar
 
+[![CI](https://github.com/Bitcoindefi/Open-Stellar/actions/workflows/ci.yml/badge.svg)](https://github.com/Bitcoindefi/Open-Stellar/actions/workflows/ci.yml)
+
 Plataforma de infraestructura de pagos para agentes de IA, construida sobre Stellar y compatibilidad EVM. Implementa los protocolos x402 (HTTP payment gate), ZK Agent Passport (Groth16 sobre Soroban), track 8004 con fallback de reputación, y un admin console multi-tab para operar y vender el stack como servicio.
 
 [![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleocagli%2FOpen-Stellar&project-name=open-stellar&repository-name=open-stellar)
@@ -222,6 +224,27 @@ Pasos:
 4. Deploy — Vercel detecta Next.js y usa el buildCommand del `vercel.json`
 
 O usar el botón de un click al inicio de este README.
+
+---
+
+## CI y protección de PRs
+
+GitHub Actions ejecuta `.github/workflows/ci.yml` en cada push a `main` y en cada pull request:
+
+- `npm ci`
+- `npx tsc --noEmit --pretty false`
+- `npx vitest run`
+- `npm run secretlint -- --format=github`
+- `npm run build`
+- `npm run size-limit`
+
+El workflow `.github/workflows/preview.yml` deja un comentario en cada PR con la ubicación del preview. Si el repositorio define la variable `VERCEL_PREVIEW_URL`, el comentario enlaza esa URL; si no, indica que el preview lo publica la integración GitHub de Vercel.
+
+Protecciones recomendadas para `main`:
+
+- requerir el check `Typecheck, tests, build, and guards` antes de mergear;
+- requerir al menos una revisión en PRs que toquen `lib/protocols/**` o `contracts/**`;
+- mantener `Require branches to be up to date before merging` activado para evitar merges sobre una base obsoleta.
 
 ---
 
