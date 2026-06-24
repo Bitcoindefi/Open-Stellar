@@ -170,6 +170,7 @@ export function createAgents(): MoltbotAgent[] {
       spriteId: i % SPRITE_COUNT,
       skills: generateSkills(district.id),
       autoRestart: i % 3 === 0,
+      appearance: { skin: "default", accessories: [], customColor: null },
     }
   })
 }

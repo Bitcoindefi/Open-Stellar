@@ -13,7 +13,7 @@ const BG_IMAGES: Record<string, string> = {
   research: "/bg-research.jpg",
 }
 
-interface SpriteConfig {
+export interface SpriteConfig {
   path: string
   crop?: [number, number, number, number]
 }
@@ -28,7 +28,7 @@ export interface FloatingOverlay {
   duration: number
 }
 
-const SPRITE_CONFIGS: SpriteConfig[] = [
+export const SPRITE_CONFIGS: SpriteConfig[] = [
   { path: "/sprites/robot-tv.gif" },
   { path: "/sprites/robot-tank.gif" },
   { path: "/sprites/robot-blue.gif", crop: [0.3, 0.5, 0.4, 0.5] },

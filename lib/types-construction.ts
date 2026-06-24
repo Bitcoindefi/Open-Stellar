@@ -1,2 +1,2 @@
-import type { DistrictId } from "./lib/types"
+import type { DistrictId } from "./types"
 

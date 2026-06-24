@@ -1,4 +1,6 @@
 import type { MoltbotAgent, District } from "./types"
+import { DISTRICTS } from "./data"
+import { ACCESSORIES } from "./cosmetics"
 
 const PIXEL = 2
 
@@ -256,6 +258,132 @@ function getProcessedSprite(
   return out
 }
 
+// Decorative overlay drawn on top of the (already-rendered) sprite for skins unlocked above level 1.
+// Hologram transparency is handled separately at draw time since it must affect the sprite itself.
+function drawSkinOverlay(
+  ctx: CanvasRenderingContext2D,
+  agent: MoltbotAgent,
+  tick: number,
+  drawX: number,
+  drawY: number,
+  spriteSize: number,
+  effectiveColor: string,
+) {
+  const skin = agent.appearance?.skin ?? "default"
+  if (skin === "default" || skin === "legendary") return
+
+  if (skin === "neon") {
+    const district = DISTRICTS.find((d) => d.id === agent.district)
+    const outlineColor = district?.color ?? effectiveColor
+    ctx.save()
+    ctx.strokeStyle = outlineColor + "cc"
+    ctx.lineWidth = 1.5
+    ctx.shadowColor = outlineColor
+    ctx.shadowBlur = 6
+    ctx.strokeRect(drawX + 1, drawY + 1, spriteSize - 2, spriteSize - 2)
+    ctx.restore()
+    return
+  }
+
+  if (skin === "chrome") {
+    ctx.save()
+    const pos = (Math.sin(tick * 0.04) + 1) / 2
+    const sheen = ctx.createLinearGradient(drawX, drawY, drawX + spriteSize, drawY + spriteSize)
+    sheen.addColorStop(Math.max(0, pos - 0.18), "rgba(255,255,255,0)")
+    sheen.addColorStop(pos, "rgba(255,255,255,0.45)")
+    sheen.addColorStop(Math.min(1, pos + 0.18), "rgba(255,255,255,0)")
+    ctx.globalCompositeOperation = "screen"
+    ctx.fillStyle = sheen
+    ctx.fillRect(drawX, drawY, spriteSize, spriteSize)
+    ctx.restore()
+    return
+  }
+
+  if (skin === "hologram") {
+    ctx.save()
+    ctx.strokeStyle = "rgba(125,211,252,0.5)"
+    ctx.lineWidth = 1
+    for (let ly = drawY; ly < drawY + spriteSize; ly += 3) {
+      ctx.beginPath()
+      ctx.moveTo(drawX, ly)
+      ctx.lineTo(drawX + spriteSize, ly)
+      ctx.stroke()
+    }
+    ctx.restore()
+    return
+  }
+
+  if (skin === "gold") {
+    ctx.save()
+    ctx.globalCompositeOperation = "multiply"
+    ctx.globalAlpha = 0.35
+    ctx.fillStyle = "#facc15"
+    ctx.fillRect(drawX, drawY, spriteSize, spriteSize)
+    ctx.restore()
+
+    const twinkle = Math.sin(tick * 0.2) > 0.3
+    if (twinkle) {
+      ctx.save()
+      ctx.fillStyle = "#fde68a"
+      ctx.fillRect(drawX - 1, drawY - 1, 2, 2)
+      ctx.fillRect(drawX + spriteSize - 1, drawY - 1, 2, 2)
+      ctx.fillRect(drawX - 1, drawY + spriteSize - 1, 2, 2)
+      ctx.fillRect(drawX + spriteSize - 1, drawY + spriteSize - 1, 2, 2)
+      ctx.restore()
+    }
+  }
+}
+
+// Equipped accessory glyphs (badge-gated), rendered in a row above the sprite.
+function drawAccessories(
+  ctx: CanvasRenderingContext2D,
+  agent: MoltbotAgent,
+  drawX: number,
+  drawY: number,
+  spriteSize: number,
+) {
+  const accessories = agent.appearance?.accessories ?? []
+  if (accessories.length === 0) return
+
+  ctx.save()
+  ctx.font = "10px sans-serif"
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  const cx = drawX + spriteSize / 2
+  accessories.forEach((id, i) => {
+    const def = ACCESSORIES.find((a) => a.id === id)
+    if (!def) return
+    const slotX = cx + (i - (accessories.length - 1) / 2) * 11
+    ctx.fillText(def.emoji, slotX, drawY - 4)
+  })
+  ctx.restore()
+}
+
+// Orbiting particle trail + soft glow ring, only for the top-tier Legendary skin.
+function drawAuraParticles(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick: number, cx: number, cy: number, color: string) {
+  if ((agent.appearance?.skin ?? "default") !== "legendary") return
+
+  ctx.save()
+  const particleCount = 6
+  for (let i = 0; i < particleCount; i++) {
+    const angle = tick * 0.04 + (i / particleCount) * Math.PI * 2
+    const radius = 18 + Math.sin(tick * 0.08 + i) * 3
+    const px = cx + Math.cos(angle) * radius
+    const py = cy + Math.sin(angle) * radius * 0.6
+    const alpha = Math.max(0, Math.min(1, 0.4 + Math.sin(tick * 0.1 + i) * 0.3))
+    ctx.fillStyle = color + Math.round(alpha * 255).toString(16).padStart(2, "0")
+    ctx.beginPath()
+    ctx.arc(px, py, 1.4, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  ctx.strokeStyle = color + "33"
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(cx, cy, 22 + Math.sin(tick * 0.06) * 2, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.restore()
+}
+
 export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick: number, isSelected: boolean, sprite?: HTMLImageElement, cropRegion?: [number, number, number, number]) {
   const x = Math.round(agent.pixelX)
   const y = Math.round(agent.pixelY)
@@ -299,9 +427,15 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
   const drawY = y + bobY - 4
   const drawX = x - spriteSize / 2 + 8
 
+  const skinId = agent.appearance?.skin ?? "default"
+
   if (sprite) {
     const tinted = getProcessedSprite(sprite, c, cropRegion)
     ctx.save()
+    // Hologram skin: semi-transparent, gently flickering
+    if (skinId === "hologram") {
+      ctx.globalAlpha = 0.55 + Math.sin(tick * 0.1) * 0.15
+    }
     // Flip horizontally if facing left
     if (agent.direction === "left") {
       ctx.translate(drawX + spriteSize, 0)
@@ -325,6 +459,11 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
         ctx.fillRect(drawX, drawY, spriteSize, spriteSize)
       }
     }
+
+    // Cosmetic layers: skin overlay, equipped accessories, legendary aura
+    drawSkinOverlay(ctx, agent, tick, drawX, drawY, spriteSize, c)
+    drawAccessories(ctx, agent, drawX, drawY, spriteSize)
+    drawAuraParticles(ctx, agent, tick, cx, drawY + spriteSize / 2, c)
   } else {
     // Minimal fallback if sprite hasn't loaded
     drawRect(ctx, x + 2, y + bobY, 12, 16, c)

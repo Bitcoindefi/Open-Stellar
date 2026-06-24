@@ -9,7 +9,7 @@ import { AudioControls } from "@/components/audio-controls"
 import { CityAudioEngine } from "@/lib/audio/city-audio"
 import { DISTRICTS, createAgents, generateChatMessage, getRandomTask } from "@/lib/data"
 import type { PublishedSystemEvent } from "@/lib/events/system-events"
-import type { ChatMessage, LogEntry, MoltbotAgent, WalletTransaction } from "@/lib/types"
+import type { AgentAppearance, ChatMessage, LogEntry, MoltbotAgent, WalletTransaction } from "@/lib/types"
 
 function nowTime() {
   return new Date().toLocaleTimeString("en-US", {
@@ -625,6 +625,16 @@ export function OpenStellarHub() {
     })
   }, [pushLog])
 
+  const handleUpdateAgentAppearance = useCallback((agentId: string, appearance: AgentAppearance) => {
+    setAgents((prev) =>
+      prev.map((agent) =>
+        agent.id === agentId
+          ? { ...agent, appearance, color: appearance.customColor || agent.color }
+          : agent,
+      ),
+    )
+  }, [])
+
   const handleAddTransaction = useCallback((tx: WalletTransaction) => {
     setTransactions((prev) => [tx, ...prev.slice(0, 99)])
     pushLog(`tx ${tx.fromName} -> ${tx.toName} (${tx.amount} XLM)`, "success", tx.fromName)
@@ -708,6 +718,7 @@ export function OpenStellarHub() {
           onSelectAgent={handleSelectAgent}
           onUpdateAgent={handleUpdateAgentWallet}
           onAddTransaction={handleAddTransaction}
+          onUpdateAgentAppearance={handleUpdateAgentAppearance}
           colorBlindMode={colorBlindMode}
           onColorBlindModeChange={handleColorBlindModeChange}
         />

@@ -2,6 +2,16 @@ export type AgentStatus = "active" | "idle" | "working" | "error" | "offline"
 
 export type DistrictId = "data-center" | "comm-hub" | "processing" | "defense" | "research"
 
+export type SkinId = "default" | "neon" | "chrome" | "hologram" | "gold" | "legendary"
+
+export type AccessoryId = "crown" | "lightning" | "shield" | "diamond" | "zk-lock"
+
+export interface AgentAppearance {
+  skin: SkinId
+  accessories: AccessoryId[]
+  customColor: string | null
+}
+
 export interface Skill {
   id: string
   name: string
@@ -60,6 +70,7 @@ export interface MoltbotAgent {
   lastHeartbeat?: string
   offlineForSeconds?: number
   wallet?: StellarWallet
+  appearance: AgentAppearance
 }
 
 export interface District {
