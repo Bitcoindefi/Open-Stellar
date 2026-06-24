@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server'
 import { createApiRouteLogger } from '@/lib/api-logging'
 import { getPassport, isRegistered } from '@/lib/passport/passport'
 import { isMockMode } from '@/lib/mock/mock-mode'
@@ -42,4 +43,3 @@ export async function GET(req: Request) {
     )
   }
 }
-
