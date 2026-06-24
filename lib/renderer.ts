@@ -408,6 +408,66 @@ export function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number) {
   }
 }
 
+export function drawScaffolding(ctx: CanvasRenderingContext2D, district: District, progress01: number) {
+  // Simple scaffolding helper used by the construction animator.
+  // Draws "rising" building silhouettes with 1px/2px scaffolding hints.
+  const p = Math.max(0, Math.min(1, progress01))
+  const buildingsBaseY = district.y + district.h - 64
+  const bx1 = district.x + 8
+  const bx2 = bx1 + 38
+  const bx3 = district.x + district.w - 42
+
+  const buildingSets = [
+    { x: bx1, w: 30, h: 52 },
+    { x: bx2, w: 24, h: 36 },
+    { x: bx3, w: 28, h: 44 },
+  ]
+
+  ctx.save()
+  ctx.beginPath()
+  const radius = 8
+  ctx.moveTo(district.x + radius, district.y)
+  ctx.lineTo(district.x + district.w - radius, district.y)
+  ctx.quadraticCurveTo(district.x + district.w, district.y, district.x + district.w, district.y + radius)
+  ctx.lineTo(district.x + district.w, district.y + district.h - radius)
+  ctx.quadraticCurveTo(district.x + district.w, district.y + district.h, district.x + district.w - radius, district.y + district.h)
+  ctx.lineTo(district.x + radius, district.y + district.h)
+  ctx.quadraticCurveTo(district.x, district.y + district.h, district.x, district.y + district.h - radius)
+  ctx.lineTo(district.x, district.y + radius)
+  ctx.quadraticCurveTo(district.x, district.y, district.x + radius, district.y)
+  ctx.closePath()
+  ctx.clip()
+
+  for (let i = 0; i < buildingSets.length; i++) {
+    const b = buildingSets[i]
+    const stagger = i * 0.14
+    const local = Math.max(0, Math.min(1, (p - stagger) / (1 - stagger)))
+    const hNow = 2 + (b.h - 2) * local
+    const topY = buildingsBaseY - hNow
+
+    // 1px scaffolding "spine"
+    ctx.strokeStyle = `${district.color}aa`
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(b.x + 6, buildingsBaseY)
+    ctx.lineTo(b.x + 6, buildingsBaseY - Math.max(1, Math.floor(hNow)))
+    ctx.stroke()
+
+    // Render building body clipped to current height
+    const prevAlpha = ctx.globalAlpha
+    ctx.globalAlpha = 0.2 + 0.8 * local
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(b.x, topY, b.w, hNow)
+    ctx.clip()
+    drawBuilding(ctx, b.x, buildingsBaseY - b.h, b.w, b.h, district.color, 0)
+    ctx.restore()
+    ctx.globalAlpha = prevAlpha
+  }
+
+  ctx.restore()
+}
+
 export function drawRoads(ctx: CanvasRenderingContext2D, districts: District[]) {
   // Road shadows
   ctx.strokeStyle = "#0a0e17"

@@ -30,11 +30,17 @@ export type SystemEvent =
   | (BaseEvent & { type: "payment.received"; agentId: string; receipt: X402Receipt })
   | (BaseEvent & { type: "agent.xp"; agentId: string; xp: number; level: number })
   | (BaseEvent & { type: "badge.unlocked"; agentId: string; badge: Badge })
+  | (BaseEvent & { type: "district.unlocked"; districtId?: import("@/lib/types").DistrictId; district?: import("@/lib/types").District })
+
+
 
 export type PublishedSystemEvent = SystemEvent & {
   id: string
   occurredAt: string
+  // Some events are not agent-scoped.
+  agentId?: string
 }
+
 
 type EventListener = (event: PublishedSystemEvent) => void
 
@@ -70,8 +76,11 @@ export function ensurePublishedEvent(event: SystemEvent): PublishedSystemEvent {
 }
 
 export function eventMatchesAgent(event: PublishedSystemEvent, agentId?: string) {
-  return !agentId || event.agentId === agentId
+  // If an event is not agent-scoped (e.g. district unlock), allow it to pass when no agentId filter is set.
+  if (!agentId) return true
+  return event.agentId === agentId
 }
+
 
 export function publishSystemEvent(event: SystemEvent): PublishedSystemEvent {
   const published = ensurePublishedEvent(event)
