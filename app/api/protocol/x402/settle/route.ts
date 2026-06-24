@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { peekX402Quote, settleX402 } from '@/lib/protocols/x402'
 import { authorizePayment } from '@/lib/passport/passport'
+import { isMockMode } from '@/lib/mock/mock-mode'
+import { settleMockX402 } from '@/lib/mock/x402-mock'
 
 export async function POST(req: Request) {
   try {
@@ -8,6 +10,15 @@ export async function POST(req: Request) {
     const paymentRef = String(body.paymentRef || '')
     const chain = body.chain === 'stellar' ? 'stellar' : 'bnb'
     const agentId = body.agentId ? String(body.agentId) : ''
+
+    if (isMockMode()) {
+      const receipt = settleMockX402({
+        paymentRef,
+        chain,
+        txHash: body.txHash ? String(body.txHash) : undefined,
+      })
+      return NextResponse.json({ ok: true, receipt })
+    }
 
     // Agent Passport gate: if the payment is made on behalf of an agent, it may
     // settle only when the agent holds a valid on-chain passport whose proven
@@ -45,3 +56,4 @@ export async function POST(req: Request) {
     )
   }
 }
+
