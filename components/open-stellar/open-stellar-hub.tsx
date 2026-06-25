@@ -5,6 +5,8 @@ import { toast } from "sonner"
 import { PixelCity, type FloatingOverlay, type TxAnimation } from "@/components/pixel-city"
 import { SidebarPanel } from "@/components/sidebar-panel"
 import { PriceTicker } from "@/components/price-display"
+import { AudioControls } from "@/components/audio-controls"
+import { CityAudioEngine } from "@/lib/audio/city-audio"
 import { DISTRICTS, createAgents, generateChatMessage, getRandomTask } from "@/lib/data"
 import { LEGAL_LINKS } from "@/lib/legal-links"
 import type { PublishedSystemEvent } from "@/lib/events/system-events"
@@ -213,6 +215,11 @@ export function OpenStellarHub() {
   const [eventStreamConnected, setEventStreamConnected] = useState(false)
   const [hasRealtimeEvents, setHasRealtimeEvents] = useState(false)
   const fallbackLoggedRef = useRef(false)
+  const [audioEngine] = useState(() => new CityAudioEngine())
+
+  useEffect(() => {
+    return () => audioEngine.dispose()
+  }, [audioEngine])
 
   // Show onboarding once on first visit
   useEffect(() => {
@@ -356,6 +363,7 @@ export function OpenStellarHub() {
     )
 
     if (event.type === "task.completed") {
+      audioEngine.playEvent("task_complete")
       pushLog(`task completed: ${event.taskId} — ${event.result.summary}`, "success", event.agentId)
       if (animatedAgent) {
         animateAgentToDistrict(animatedAgent)
@@ -365,6 +373,7 @@ export function OpenStellarHub() {
     }
 
     if (event.type === "payment.received") {
+      audioEngine.playEvent("payment_received")
       pushLog(`payment received on ${event.receipt.chain}: ${event.receipt.txHash.slice(0, 12)}...`, "success", event.agentId)
       const amount = event.receipt.amountUsd ? `$${event.receipt.amountUsd.toFixed(3)}` : event.receipt.chain
       toast.success("Payment received", { description: `${event.agentId} settled ${amount}` })
@@ -376,6 +385,7 @@ export function OpenStellarHub() {
     }
 
     if (event.type === "agent.xp") {
+      audioEngine.playEvent("level_up")
       pushLog(`XP update: +${event.xp}, level ${event.level}`, "success", event.agentId)
       const agent = agentsRef.current.find((candidate) => candidate.id === event.agentId)
       if (agent) showAgentOverlay(agent, `+${event.xp} XP`, "#22d3ee")
@@ -383,10 +393,19 @@ export function OpenStellarHub() {
     }
 
     if (event.type === "badge.unlocked") {
+      audioEngine.playEvent("badge_unlock")
       pushLog(`badge unlocked: ${event.badge.name}`, "success", event.agentId)
       toast.success("Badge unlocked", { description: `${event.agentId}: ${event.badge.name}` })
       const agent = agentsRef.current.find((candidate) => candidate.id === event.agentId)
       if (agent) showAgentOverlay(agent, event.badge.name, "#a78bfa")
+      return
+    }
+
+    if (event.type === "district.unlocked") {
+      audioEngine.playEvent("district_win")
+      const districtName = event.district?.name ?? event.districtId ?? "a district"
+      pushLog(`district unlocked: ${districtName}`, "success", event.agentId ?? "system")
+      toast.success("District unlocked", { description: String(districtName) })
       return
     }
 
@@ -395,8 +414,12 @@ export function OpenStellarHub() {
       return
     }
 
-    pushLog(`status changed: ${event.status}`, "info", event.agentId)
-  }, [animateAgentToDistrict, pushLog, showAgentOverlay])
+    if (event.type === "agent.status") {
+      if (event.status === "error") audioEngine.playEvent("agent_error")
+      pushLog(`status changed: ${event.status}`, "info", event.agentId)
+      return
+    }
+  }, [animateAgentToDistrict, audioEngine, pushLog, showAgentOverlay])
 
   useEffect(() => {
     const eventSource = new EventSource("/api/events")
@@ -407,6 +430,7 @@ export function OpenStellarHub() {
       "payment.received",
       "agent.xp",
       "badge.unlocked",
+      "district.unlocked",
     ]
 
     const handleEvent = (message: MessageEvent) => {
@@ -695,7 +719,10 @@ export function OpenStellarHub() {
           colorBlindMode={colorBlindMode}
           reduceMotion={reduceMotion}
           floatingOverlays={floatingOverlays}
+          audioEngine={audioEngine}
         />
+
+        <AudioControls engine={audioEngine} />
 
         {/* Sidebar toggle button */}
         <button

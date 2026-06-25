@@ -3,6 +3,7 @@
 import { useRef, useEffect, useCallback, useState } from "react"
 import type { MoltbotAgent, District } from "@/lib/types"
 import { drawGrid, drawRoads, drawDistrict, drawBot } from "@/lib/renderer"
+import type { CityAudioEngine } from "@/lib/audio/city-audio"
 
 const BG_IMAGES: Record<string, string> = {
   "data-center": "/bg-data-center.jpg",
@@ -57,6 +58,7 @@ interface PixelCityProps {
   colorBlindMode?: boolean
   reduceMotion?: boolean
   floatingOverlays?: FloatingOverlay[]
+  audioEngine?: CityAudioEngine
 }
 
 const statusSymbols: Record<string, string> = {
@@ -77,6 +79,7 @@ export function PixelCity({
   colorBlindMode = false,
   reduceMotion = false,
   floatingOverlays = [],
+  audioEngine,
 }: PixelCityProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -211,7 +214,26 @@ export function PixelCity({
     ctx.font = "10px monospace"
     ctx.fillStyle = "#64748b"
     ctx.fillText(`TICK ${tick}  |  ${agents.length} AGENTS DEPLOYED`, 40, 44)
-  }, [agents, districts, selectedAgentId, tick, images, sprites, txAnimations, reduceMotion])
+
+    if (audioEngine) {
+      const weights = new Map<string, number>()
+      for (const d of districts) weights.set(d.id, 0)
+      for (const agent of agents) {
+        if (agent.status === "offline") continue
+        const visualDistrict = districts.find(
+          (d) => agent.pixelX >= d.x && agent.pixelX <= d.x + d.w && agent.pixelY >= d.y && agent.pixelY <= d.y + d.h
+        )
+        const id = visualDistrict?.id ?? agent.district
+        const presence = agent.status === "working" ? 1.5 : 1
+        weights.set(id, (weights.get(id) ?? 0) + presence)
+      }
+      const maxWeight = Math.max(1, ...weights.values())
+      for (const d of districts) {
+        const volume = 0.18 + 0.82 * ((weights.get(d.id) ?? 0) / maxWeight)
+        audioEngine.setDistrictFocus(d.id, volume)
+      }
+    }
+  }, [agents, districts, selectedAgentId, tick, images, sprites, txAnimations, reduceMotion, audioEngine])
 
   const hitTestAgent = useCallback(
     (mx: number, my: number): MoltbotAgent | null => {
@@ -227,6 +249,7 @@ export function PixelCity({
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
+      audioEngine?.init()
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
@@ -235,7 +258,7 @@ export function PixelCity({
       const found = hitTestAgent(mx, my)
       onSelectAgent(found?.id ?? null)
     },
-    [hitTestAgent, onSelectAgent]
+    [audioEngine, hitTestAgent, onSelectAgent]
   )
 
   const handleMouseMove = useCallback(
