@@ -107,6 +107,12 @@ export default async function AgentPage({ params }: AgentPageProps) {
             <p className="mt-3 font-mono text-sm text-slate-400">
               Level {stats.level} / {stats.tier} / {district.name}
             </p>
+            <Link
+              href={`/credential/${encodeURIComponent(agent.id)}`}
+              className="mt-4 inline-flex w-fit rounded-md border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 font-mono text-xs uppercase tracking-[0.2em] text-emerald-200 transition hover:border-emerald-300/60"
+            >
+              Reputation credential
+            </Link>
           </div>
 
           <Image
