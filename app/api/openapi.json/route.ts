@@ -15,6 +15,8 @@ const spec = {
     "/api/agents/{id}/health": { get: op("Agents", "Read agent health", ["id"]) },
     "/api/agents/{id}/heartbeat": { post: op("Agents", "Record agent heartbeat", ["id"], { status: "active", load: 0.2 }) },
     "/api/agents/{id}/appearance": { get: op("Agents", "Read agent appearance", ["id"]), post: op("Agents", "Update agent appearance", ["id"], { skin: "default", accessories: [] }) },
+    "/api/agents/{id}/credential": { post: op("Agents", "Issue a reputation credential", ["id"], { contractId: "optional-soroban-contract-id" }) },
+    "/api/agents/{id}/credential/latest": { get: op("Agents", "Read latest reputation credential", ["id"]) },
     "/api/protocol/x402/quote": { get: op("Protocol", "Create an x402 payment quote"), post: op("Protocol", "Create an x402 payment quote", [], { serviceId: "weather.v1", amount: "0.25", payer: "agent-nexus" }) },
     "/api/protocol/x402/settle": { post: op("Protocol", "Settle an x402 payment", [], { quoteId: "quote_123", paymentSource: "stellar:testnet" }) },
     "/api/protocol/passport/authorize": { post: op("Protocol", "Authorize a spend with ZK Passport", [], { agentId: "agent-nexus", amount: "0.25", quoteId: "quote_123" }) },
