@@ -1,6 +1,7 @@
 const CACHE_VERSION = "open-stellar-pwa-v1"
 const APP_SHELL = [
   "/",
+  "/offline",
   "/manifest.webmanifest",
   "/icon.svg",
   "/apple-icon.png",
@@ -56,7 +57,7 @@ self.addEventListener("fetch", (event) => {
 
           return response
         })
-        .catch(() => caches.match("/"))
+        .catch(() => caches.match("/offline"))
     }),
   )
 })

@@ -2,6 +2,13 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
+function readAppShell(): string[] {
+  const sw = readFileSync(join(process.cwd(), "public", "sw.js"), "utf8")
+  const match = sw.match(/const APP_SHELL = \[([\s\S]*?)\]/)
+  if (!match) throw new Error("APP_SHELL not found in sw.js")
+  return [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
+}
+
 describe("PWA manifest", () => {
   const manifest = JSON.parse(readFileSync(join(process.cwd(), "public", "manifest.webmanifest"), "utf8"))
 
@@ -27,5 +34,10 @@ describe("PWA manifest", () => {
         expect.objectContaining({ name: "Admin Console", url: "/admin" }),
       ]),
     )
+  })
+
+  it("pre-caches /offline in the service worker APP_SHELL", () => {
+    const shell = readAppShell()
+    expect(shell).toContain("/offline")
   })
 })
