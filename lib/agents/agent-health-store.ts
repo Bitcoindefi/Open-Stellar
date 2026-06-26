@@ -1,7 +1,7 @@
 import type { AgentStatus } from "@/lib/types"
 
 export const HEARTBEAT_INTERVAL_MS = 15_000
-export const OFFLINE_AFTER_MS = 45_000
+export const OFFLINE_AFTER_MS = 30_000
 export const ALERT_AFTER_MS = 5 * 60_000
 
 const VALID_AGENT_STATUSES: AgentStatus[] = ["active", "idle", "working", "error", "offline"]
