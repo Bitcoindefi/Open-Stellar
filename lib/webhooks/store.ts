@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
+import { WEBHOOK_EVENT_TYPES } from "./event-types"
 
 export interface WebhookRegistration {
   id: string
@@ -92,6 +93,12 @@ function normalizeEvents(value: unknown): string[] {
   )
 
   if (events.length === 0) throw new Error("Webhook events must include at least one event type")
+
+  const invalid = events.filter((e) => !(WEBHOOK_EVENT_TYPES as readonly string[]).includes(e))
+  if (invalid.length > 0) {
+    throw new Error(`Invalid webhook events: ${invalid.join(", ")}`)
+  }
+
   return events
 }
 

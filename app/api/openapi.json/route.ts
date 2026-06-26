@@ -8,7 +8,7 @@ const spec = {
   info: { title: "Open Stellar API", version: "0.2.0", description: "Developer API for Open Stellar agents, x402 payments, ZK Passport, reputation, Stellar helpers, feeds, and admin workflows." },
   servers: [{ url: "https://open-stellar.example", description: "Replace with your deployment URL" }],
   tags: [
-    { name: "Agents" }, { name: "Protocol" }, { name: "Stellar" }, { name: "Events" }, { name: "Admin" }, { name: "User" }, { name: "Explorer" }, { name: "Prices" },
+    { name: "Agents" }, { name: "Protocol" }, { name: "Stellar" }, { name: "Events" }, { name: "Webhooks" }, { name: "Admin" }, { name: "User" }, { name: "Explorer" }, { name: "Prices" },
   ],
   paths: {
     "/api/agents/{id}/messages": { post: op("Agents", "Send a message to an agent", ["id"], { role: "user", content: "Hello" }) },
@@ -29,6 +29,9 @@ const spec = {
     "/api/stellar/fund": { post: op("Stellar", "Fund a testnet account with Friendbot", [], { publicKey: "G..." }) },
     "/api/events": { get: op("Events", "List system events"), post: op("Events", "Create a system event", [], { type: "agent.task.completed", agentId: "agent-nexus" }) },
     "/api/events/{agentId}": { get: op("Events", "List events for an agent", ["agentId"]) },
+    "/api/webhooks": { get: op("Webhooks", "List webhook registrations"), post: op("Webhooks", "Create a webhook registration", [], { url: "https://partner.example/hooks", events: ["agent.status"] }) },
+    "/api/webhooks/{id}": { delete: op("Webhooks", "Delete a webhook registration", ["id"]) },
+    "/api/webhooks/event-types": { get: op("Webhooks", "List supported webhook event types") },
     "/api/feed": { get: op("Events", "List public activity feed") },
     "/api/districts/{districtId}/broadcast": { post: op("Events", "Broadcast a district event", ["districtId"], { message: "Throughput race started" }) },
     "/api/explorer/receipts": { get: op("Explorer", "List payment receipts") },
