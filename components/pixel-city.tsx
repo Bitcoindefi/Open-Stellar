@@ -232,12 +232,25 @@ export function PixelCity({
       drawDistrict(ctx, d, tick, images[d.id])
     }
 
+    const topGlobalRanks = new Map([...agents].sort((a, b) => b.tasksCompleted - a.tasksCompleted).slice(0, 3).map((agent, index) => [agent.id, index + 1]))
+    const districtLeaderIds = new Set(districts.map((district) => [...agents].filter((agent) => agent.district === district.id).sort((a, b) => b.tasksCompleted - a.tasksCompleted)[0]?.id).filter(Boolean))
     const sorted = [...agents].sort((a, b) => a.pixelY - b.pixelY)
     for (const agent of sorted) {
       const spriteIdx = agent.spriteId % sprites.length
       const agentSprite = sprites[spriteIdx] || sprites[0]
       const crop = spriteCrops.current[agent.spriteId % SPRITE_CONFIGS.length]
-      drawBot(ctx, agent, tick, agent.id === selectedAgentId, agentSprite, crop)
+      drawBot(
+        ctx,
+        {
+          ...agent,
+          leaderboardRank: topGlobalRanks.get(agent.id),
+          isDistrictLeader: districtLeaderIds.has(agent.id),
+        } as MoltbotAgent & { leaderboardRank?: number; isDistrictLeader?: boolean },
+        tick,
+        agent.id === selectedAgentId,
+        agentSprite,
+        crop,
+      )
     }
 
     if (!reduceMotion) {

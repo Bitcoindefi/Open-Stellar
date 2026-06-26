@@ -408,6 +408,17 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
     ctx.stroke()
   }
 
+  const isDistrictLeader = (agent as MoltbotAgent & { isDistrictLeader?: boolean }).isDistrictLeader
+
+  if (isDistrictLeader) {
+    const pulse = Math.sin(tick * 0.1) * 0.25 + 0.75
+    ctx.strokeStyle = `${c}${Math.round(pulse * 120).toString(16).padStart(2, "0")}`
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(cx, cy + 4, 20 + pulse * 3, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
   if (agent.status === "offline") {
     const pulse = Math.sin(tick * 0.16) * 0.35 + 0.65
     ctx.strokeStyle = `rgba(248,113,113,${pulse})`
@@ -490,6 +501,16 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
     ctx.textAlign = "center"
     ctx.fillStyle = "#f87171"
     ctx.fillText("OFFLINE", cx, y - 6)
+    ctx.textAlign = "left"
+  }
+
+  // Crown overlay for top global performers. The city canvas derives the top three
+  // from completed task totals so the visual stays in sync with leaderboard data.
+  const globalRank = (agent as MoltbotAgent & { leaderboardRank?: number }).leaderboardRank
+  if (globalRank && globalRank <= 3) {
+    ctx.font = "bold 14px serif"
+    ctx.textAlign = "center"
+    ctx.fillText("👑", cx, drawY - 4)
     ctx.textAlign = "left"
   }
 
