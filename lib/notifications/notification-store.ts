@@ -1,4 +1,4 @@
-export const NOTIFICATION_TYPES = ["agent_offline", "quest_completed", "reputation_updated"] as const
+export const NOTIFICATION_TYPES = ["agent_offline", "quest_completed", "reputation_updated", "quest_expired"] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 

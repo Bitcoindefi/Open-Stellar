@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import {
-  listAgentPositionHistory,
-  normalizeAgentPositionHistoryLimit,
+  getAgentPositionHistoryPaginated,
 } from "@/lib/agents/agent-position-store"
 
 export const dynamic = "force-dynamic"
@@ -12,21 +11,41 @@ interface RouteContext {
 
 function parseLimit(value: string | null): number {
   if (value === null || !value.trim()) {
-    return normalizeAgentPositionHistoryLimit(undefined)
+    return 50
   }
 
-  return normalizeAgentPositionHistoryLimit(Number(value))
+  const num = Number(value)
+  if (!Number.isFinite(num)) {
+    return 50
+  }
+
+  return Math.max(1, Math.min(Math.trunc(num), 1000))
 }
 
 export async function GET(req: Request, context: RouteContext) {
   try {
     const { id } = await context.params
     const url = new URL(req.url)
+
     const limit = parseLimit(url.searchParams.get("limit"))
-    const positions = listAgentPositionHistory(decodeURIComponent(id), limit)
+    const before = url.searchParams.get("before")
+    const after = url.searchParams.get("after")
+
+    const result = getAgentPositionHistoryPaginated(decodeURIComponent(id), {
+      limit,
+      before,
+      after,
+    })
 
     return NextResponse.json(
-      { ok: true, positions },
+      {
+        ok: true,
+        positions: result.positions,
+        total: result.total,
+        returned: result.returned,
+        oldest: result.oldest,
+        newest: result.newest,
+      },
       { headers: { "Cache-Control": "no-store" } },
     )
   } catch (error) {

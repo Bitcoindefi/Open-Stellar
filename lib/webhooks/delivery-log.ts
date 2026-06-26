@@ -11,6 +11,7 @@ export interface WebhookDeliveryAttempt {
   responseStatus: number | null
   ok: boolean
   retried: boolean
+  attempt: number
 }
 
 export type CreateWebhookDeliveryAttempt = Omit<WebhookDeliveryAttempt, "id">
@@ -42,13 +43,18 @@ function isWebhookDeliveryAttempt(value: unknown): value is WebhookDeliveryAttem
     typeof attempt.durationMs === "number" &&
     (typeof attempt.responseStatus === "number" || attempt.responseStatus === null) &&
     typeof attempt.ok === "boolean" &&
-    typeof attempt.retried === "boolean"
+    typeof attempt.retried === "boolean" &&
+    typeof attempt.attempt === "number"
   )
 }
 
 function parseDeliveryAttempt(line: string): WebhookDeliveryAttempt | null {
   try {
     const parsed = JSON.parse(line) as unknown
+    if (parsed && typeof parsed === "object" && !("attempt" in parsed)) {
+      const withDefaultAttempt = { ...parsed, attempt: 1 }
+      return isWebhookDeliveryAttempt(withDefaultAttempt) ? withDefaultAttempt : null
+    }
     return isWebhookDeliveryAttempt(parsed) ? parsed : null
   } catch {
     return null

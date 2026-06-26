@@ -52,6 +52,14 @@ export interface AgentMoveInput {
   dy: unknown
 }
 
+export interface AgentPositionHistoryResult {
+  positions: AgentPositionHistoryRecord[]
+  total: number
+  returned: number
+  oldest: string | null
+  newest: string | null
+}
+
 type AgentPositionListener = (event: AgentPositionDeltaEvent) => void
 
 interface AgentPositionState {
@@ -70,8 +78,8 @@ const globalState = globalThis as typeof globalThis & {
 }
 
 const state: AgentPositionState = globalState.__openStellarAgentPositions__ ?? {
-  positions: new Map<string, AgentPosition>(),
-  listeners: new Set<AgentPositionListener>(),
+  positions: new Map(),
+  listeners: new Set(),
   sequence: 0,
   hydrated: false,
 }
@@ -313,6 +321,56 @@ export function listAgentPositionHistory(agentId: string, limit = DEFAULT_HISTOR
   const cleanId = normalizeAgentId(agentId)
   const safeLimit = normalizeAgentPositionHistoryLimit(limit)
   return readHistoryFile(cleanId).slice(-safeLimit).reverse()
+}
+
+/**
+ * Paginated position history with before/after filtering and metadata.
+ * Returns newest-first, capped at limit.
+ * Preserves exact same slicing behavior as listAgentPositionHistory for backward compat.
+ */
+export function getAgentPositionHistoryPaginated(
+  agentId: string,
+  options: {
+    limit?: number
+    before?: string | null
+    after?: string | null
+  } = {},
+): AgentPositionHistoryResult {
+  const cleanId = normalizeAgentId(agentId)
+  const all = readHistoryFile(cleanId)
+
+  // Compute metadata from full unfiltered array
+  const total = all.length
+  const oldest = total > 0 ? all[0].updatedAt : null
+  const newest = total > 0 ? all[total - 1].updatedAt : null
+
+  // Apply before/after filters
+  let filtered = all
+  if (options.before) {
+    const beforeMs = new Date(options.before).getTime()
+    if (!Number.isNaN(beforeMs)) {
+      filtered = filtered.filter((r) => new Date(r.updatedAt).getTime() < beforeMs)
+    }
+  }
+  if (options.after) {
+    const afterMs = new Date(options.after).getTime()
+    if (!Number.isNaN(afterMs)) {
+      filtered = filtered.filter((r) => new Date(r.updatedAt).getTime() > afterMs)
+    }
+  }
+
+  // Use SAME slicing logic as listAgentPositionHistory for backward compat:
+  // take last N records (newest), then reverse to newest-first
+  const limit = normalizeAgentPositionHistoryLimit(options.limit)
+  const positions = filtered.slice(-limit).reverse()
+
+  return {
+    positions,
+    total,
+    returned: positions.length,
+    oldest,
+    newest,
+  }
 }
 
 export function normalizeAgentPositionHistoryLimit(value: unknown): number {

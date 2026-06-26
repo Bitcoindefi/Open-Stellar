@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe("notification store", () => {
   it("stores supported notification types", () => {
-    expect(NOTIFICATION_TYPES).toEqual(["agent_offline", "quest_completed", "reputation_updated"])
+    expect(NOTIFICATION_TYPES).toEqual(["agent_offline", "quest_completed", "reputation_updated", "quest_expired"])
   })
 
   it("keeps only the latest 50 notifications per agent and drops the oldest", () => {
