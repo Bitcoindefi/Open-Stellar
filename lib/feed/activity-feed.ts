@@ -285,7 +285,7 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
     ...base,
     kind: "task",
     title: `${base.agentName} activity update`,
-    detail: event.type === "task.started" ? event.task.title : (event.type === "agent.status" ? `Status changed to ${event.status}` : event.type),
+    detail: event.type === "task.started" ? event.task.title : `Status changed to ${event.status}`,
     highlight: event.type,
     shareText: `${base.agentName} activity update on Open Stellar`,
   }

@@ -70,7 +70,6 @@ function parseUnits(value: number, decimals: number) {
 type QuoteRegistry = Map<string, X402Quote>
 const globalState = globalThis as typeof globalThis & {
   __x402QuoteRegistry__?: QuoteRegistry
-  __x402ReceiptRegistry__?: ReceiptRegistry
   __x402SubscriptionRegistry__?: SubscriptionRegistry
 }
 

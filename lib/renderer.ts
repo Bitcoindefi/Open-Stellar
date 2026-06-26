@@ -4,6 +4,13 @@ import { ACCESSORIES } from "./cosmetics"
 
 const PIXEL = 2
 
+type DistrictRenderEventState = {
+  isLeading?: boolean
+  rank?: number
+  scoreLabel?: string
+  multiplier?: number
+}
+
 function drawRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
   ctx.fillStyle = color
   ctx.fillRect(x, y, w, h)
@@ -59,7 +66,14 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, x: number, y: number
   }
 }
 
-export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: number, bgImage?: HTMLImageElement, colorBlindMode = false) {
+export function drawDistrict(
+  ctx: CanvasRenderingContext2D,
+  d: District,
+  tick: number,
+  bgImage?: HTMLImageElement,
+  colorBlindMode = false,
+  eventState: DistrictRenderEventState | null = null,
+) {
   // Save state for clipping
   ctx.save()
 

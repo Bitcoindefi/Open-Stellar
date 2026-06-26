@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
-import { Activity, AlertTriangle, Check, Code2, Copy, Cpu, Download, ExternalLink, ExternalLink, Fingerprint, ReceiptText,History, KeyRound, Layers3, ListChecks, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { Activity, AlertTriangle, Check, Cloud, Code2, Copy, Cpu, Download, ExternalLink, Fingerprint, ReceiptText, History, KeyRound, Layers3, ListChecks, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
 import type { District, MoltbotAgent } from "@/lib/types"
 import { PassportPanel } from "@/components/admin/passport-panel"
 
-type AdminTab = "overview" | "queue" | "passport" | "private-deploy" | "receipts"
+type AdminTab = "overview" | "queue" | "passport" | "private-deploy" | "receipts" | "cloud-agents"
 
 type Plan = {
   name: string
