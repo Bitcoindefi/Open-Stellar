@@ -13,9 +13,9 @@ import { AppearancePanel } from "./appearance-panel"
 import { QuestsPanel } from "./quests-panel"
 import { MOCK_OFFERS, TaskBoard, getTaskOfferCounts } from "./task-board"
 
-type TabId = "overview" | "chat" | "offers" | "skills" | "quests" | "wallet" | "appearance"
+export type SidebarTabId = "overview" | "chat" | "offers" | "skills" | "quests" | "wallet" | "appearance"
 
-const TABS: { id: TabId; label: string }[] = [
+export const SIDEBAR_TABS: { id: SidebarTabId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "chat", label: "Chat" },
   { id: "offers", label: "Offers" },
@@ -38,6 +38,10 @@ interface SidebarPanelProps {
   onUpdateAgentAppearance: (agentId: string, appearance: AgentAppearance) => void
   colorBlindMode: boolean
   onColorBlindModeChange: (enabled: boolean) => void
+  activeTab?: SidebarTabId
+  onActiveTabChange?: (tab: SidebarTabId) => void
+  variant?: "desktop" | "mobile"
+  showTabBar?: boolean
 }
 
 function StatBox({ label, value, color }: { label: string; value: string | number; color: string }) {
@@ -528,13 +532,27 @@ export function SidebarPanel({
   onUpdateAgentAppearance,
   colorBlindMode,
   onColorBlindModeChange,
+  activeTab: controlledActiveTab,
+  onActiveTabChange,
+  variant = "desktop",
+  showTabBar = true,
 }: SidebarPanelProps) {
-  const [activeTab, setActiveTab] = useState<TabId>(() => {
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<SidebarTabId>(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("sidebar-tab") as TabId) || "overview"
+      const storedTab = localStorage.getItem("sidebar-tab") as SidebarTabId | null
+      return storedTab && SIDEBAR_TABS.some((tab) => tab.id === storedTab) ? storedTab : "overview"
     }
     return "overview"
   })
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab
+
+  const setActiveTab = useCallback(
+    (tab: SidebarTabId) => {
+      setUncontrolledActiveTab(tab)
+      onActiveTabChange?.(tab)
+    },
+    [onActiveTabChange],
+  )
 
   useEffect(() => {
     localStorage.setItem("sidebar-tab", activeTab)
@@ -547,135 +565,136 @@ export function SidebarPanel({
 
   return (
     <div style={{
-      width: 320,
+      width: variant === "mobile" ? "100%" : 320,
       height: "100%",
       background: "#111827",
-      borderLeft: "1px solid #2a3a52",
+      borderLeft: variant === "mobile" ? "none" : "1px solid #2a3a52",
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
       flexShrink: 0,
     }}>
-      {/* Tab bar */}
-      <div style={{
-        display: "flex",
-        borderBottom: "1px solid #2a3a52",
-        background: "#0f172a",
-        flexShrink: 0,
-      }}>
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+      {showTabBar && (
+        <div style={{
+          display: "flex",
+          borderBottom: "1px solid #2a3a52",
+          background: "#0f172a",
+          flexShrink: 0,
+        }}>
+          {SIDEBAR_TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                flex: 1,
+                minHeight: variant === "mobile" ? 46 : undefined,
+                padding: variant === "mobile" ? "12px 4px" : "10px 4px",
+                background: activeTab === tab.id ? "#111827" : "transparent",
+                border: "none",
+                borderBottom: activeTab === tab.id ? "2px solid #22d3ee" : "2px solid transparent",
+                color: activeTab === tab.id ? "#22d3ee" : "#64748b",
+                fontFamily: "monospace",
+                fontSize: variant === "mobile" ? 11 : 10,
+                fontWeight: activeTab === tab.id ? 700 : 400,
+                cursor: "pointer",
+                transition: "all 0.15s",
+                position: "relative",
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+              }}
+            >
+              {tab.label}
+              {tab.id === "chat" && chatCount > 0 && (
+                <span style={{
+                  position: "absolute",
+                  top: 4,
+                  right: 4,
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "#34d399",
+                }} />
+              )}
+              {tab.id === "offers" && openOfferCount > 0 && (
+                <span style={{
+                  position: "absolute",
+                  top: 3,
+                  right: 2,
+                  minWidth: 14,
+                  height: 14,
+                  borderRadius: 7,
+                  background: "#22d3ee",
+                  color: "#020617",
+                  fontSize: 8,
+                  fontFamily: "monospace",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0 2px",
+                }}>
+                  {openOfferCount}
+                </span>
+              )}
+              {tab.id === "overview" && errorCount > 0 && (
+                <span style={{
+                  position: "absolute",
+                  top: 3,
+                  right: 2,
+                  minWidth: 14,
+                  height: 14,
+                  borderRadius: 7,
+                  background: "#f87171",
+                  color: "#fff",
+                  fontSize: 8,
+                  fontFamily: "monospace",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0 2px",
+                }}>
+                  {errorCount}
+                </span>
+              )}
+              {tab.id === "wallet" && walletAlert && (
+                <span style={{
+                  position: "absolute",
+                  top: 4,
+                  right: 4,
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "#fbbf24",
+                }} />
+              )}
+            </button>
+          ))}
+          <a
+            href="/admin"
             style={{
-              flex: 1,
-              padding: "10px 4px",
-              background: activeTab === tab.id ? "#111827" : "transparent",
-              border: "none",
-              borderBottom: activeTab === tab.id ? "2px solid #22d3ee" : "2px solid transparent",
-              color: activeTab === tab.id ? "#22d3ee" : "#64748b",
+              padding: "10px 8px",
+              background: "transparent",
+              borderBottom: "2px solid transparent",
+              color: "#22d3ee",
               fontFamily: "monospace",
               fontSize: 10,
-              fontWeight: activeTab === tab.id ? 700 : 400,
+              fontWeight: 400,
               cursor: "pointer",
-              transition: "all 0.15s",
-              position: "relative",
+              textDecoration: "none",
               textTransform: "uppercase",
               letterSpacing: 0.5,
+              display: "flex",
+              alignItems: "center",
+              whiteSpace: "nowrap",
+              transition: "color 0.15s",
+              flexShrink: 0,
             }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#67e8f9")}
+            onMouseLeave={e => (e.currentTarget.style.color = "#22d3ee")}
           >
-            {tab.label}
-            {/* Status badges */}
-            {tab.id === "chat" && chatCount > 0 && (
-              <span style={{
-                position: "absolute",
-                top: 4,
-                right: 4,
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "#34d399",
-              }} />
-            )}
-            {tab.id === "offers" && openOfferCount > 0 && (
-              <span style={{
-                position: "absolute",
-                top: 3,
-                right: 2,
-                minWidth: 14,
-                height: 14,
-                borderRadius: 7,
-                background: "#22d3ee",
-                color: "#020617",
-                fontSize: 8,
-                fontFamily: "monospace",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "0 2px",
-              }}>
-                {openOfferCount}
-              </span>
-            )}
-            {tab.id === "overview" && errorCount > 0 && (
-              <span style={{
-                position: "absolute",
-                top: 3,
-                right: 2,
-                minWidth: 14,
-                height: 14,
-                borderRadius: 7,
-                background: "#f87171",
-                color: "#fff",
-                fontSize: 8,
-                fontFamily: "monospace",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "0 2px",
-              }}>
-                {errorCount}
-              </span>
-            )}
-            {tab.id === "wallet" && walletAlert && (
-              <span style={{
-                position: "absolute",
-                top: 4,
-                right: 4,
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "#fbbf24",
-              }} />
-            )}
-          </button>
-        ))}
-        <a
-          href="/admin"
-          style={{
-            padding: "10px 8px",
-            background: "transparent",
-            borderBottom: "2px solid transparent",
-            color: "#22d3ee",
-            fontFamily: "monospace",
-            fontSize: 10,
-            fontWeight: 400,
-            cursor: "pointer",
-            textDecoration: "none",
-            textTransform: "uppercase",
-            letterSpacing: 0.5,
-            display: "flex",
-            alignItems: "center",
-            whiteSpace: "nowrap",
-            transition: "color 0.15s",
-            flexShrink: 0,
-          }}
-          onMouseEnter={e => (e.currentTarget.style.color = "#67e8f9")}
-          onMouseLeave={e => (e.currentTarget.style.color = "#22d3ee")}
-        >
-          Admin ↗
-        </a>
-      </div>
+            Admin ↗
+          </a>
+        </div>
+      )}
 
       {/* Tab content */}
       <div style={{ flex: 1, overflow: "hidden" }}>

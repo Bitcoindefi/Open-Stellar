@@ -1,12 +1,14 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
+import { Activity, Bot, BriefcaseBusiness, MessageSquare, PanelBottomOpen, Palette, ScrollText, WalletCards, Wrench } from "lucide-react"
 import { toast } from "sonner"
 import { PixelCity, type FloatingOverlay, type ParticleTrigger, type TxAnimation } from "@/components/pixel-city"
-import { SidebarPanel } from "@/components/sidebar-panel"
-import { PriceTicker } from "@/components/price-display"
+import { SidebarPanel, SIDEBAR_TABS, type SidebarTabId } from "@/components/sidebar-panel"
 import { AudioControls } from "@/components/audio-controls"
 import { DistrictEventOverlay } from "@/components/open-stellar/district-event-overlay"
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
+import { MOCK_OFFERS } from "@/components/task-board"
 import { CityAudioEngine } from "@/lib/audio/city-audio"
 import { DISTRICTS, createAgents, generateChatMessage, getRandomTask } from "@/lib/data"
 import { LEGAL_LINKS } from "@/lib/legal-links"
@@ -43,6 +45,16 @@ const ONBOARDING_STEPS = [
     hint: "↗ click Admin in the sidebar",
   },
 ]
+
+const MOBILE_NAV_ICONS: Record<SidebarTabId, ComponentType<{ size?: number; "aria-hidden"?: boolean | "true" }>> = {
+  overview: Activity,
+  chat: MessageSquare,
+  offers: BriefcaseBusiness,
+  skills: Wrench,
+  quests: ScrollText,
+  wallet: WalletCards,
+  appearance: Palette,
+}
 
 interface AgentHealthApiSnapshot {
   agentId: string
@@ -234,6 +246,9 @@ export function OpenStellarHub() {
   const [particleTriggers, setParticleTriggers] = useState<ParticleTrigger[]>([])
   const agentLevelsRef = useRef<Map<string, number>>(new Map())
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarTab, setSidebarTab] = useState<SidebarTabId>("overview")
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState<boolean | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [colorBlindMode, setColorBlindMode] = useState(false)
   const [reduceMotion, setReduceMotion] = useState(false)
@@ -254,13 +269,18 @@ export function OpenStellarHub() {
     if (typeof window === "undefined") return
     const params = new URLSearchParams(window.location.search)
     const storedColorBlind = localStorage.getItem("colorblind-mode")
+    const storedTab = localStorage.getItem("sidebar-tab") as SidebarTabId | null
     const queryColorBlind = params.get("colorblind")
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const mobileQuery = window.matchMedia("(max-width: 767px)")
 
     const colorBlindEnabled = queryColorBlind === "true" || storedColorBlind === "true"
     setColorBlindMode(colorBlindEnabled)
     if (queryColorBlind === "true") {
       localStorage.setItem("colorblind-mode", "true")
+    }
+    if (storedTab && SIDEBAR_TABS.some((tab) => tab.id === storedTab)) {
+      setSidebarTab(storedTab)
     }
     setReduceMotion(prefersReducedMotion.matches)
 
@@ -268,20 +288,37 @@ export function OpenStellarHub() {
       setReduceMotion(event.matches)
     }
 
+    const handleMobileChange = (event: MediaQueryListEvent) => {
+      setIsMobile(event.matches)
+      setSidebarOpen(!event.matches)
+      if (!event.matches) {
+        setMobileControlsOpen(false)
+      }
+    }
+
     prefersReducedMotion.addEventListener("change", handleMotionChange)
+    mobileQuery.addEventListener("change", handleMobileChange)
+    setIsMobile(mobileQuery.matches)
 
     if (!localStorage.getItem("onboarding-seen")) {
       setShowOnboarding(true)
     }
     // Collapse sidebar by default on small screens
-    if (window.innerWidth < 768) {
+    if (mobileQuery.matches) {
       setSidebarOpen(false)
     }
 
     return () => {
       prefersReducedMotion.removeEventListener("change", handleMotionChange)
+      mobileQuery.removeEventListener("change", handleMobileChange)
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sidebar-tab", sidebarTab)
+    }
+  }, [sidebarTab])
 
   const handleColorBlindModeChange = useCallback((enabled: boolean) => {
     setColorBlindMode(enabled)
@@ -948,8 +985,25 @@ export function OpenStellarHub() {
     }
   }, [pushLog])
 
+  const handleMobileTabSelect = useCallback((tab: SidebarTabId) => {
+    setSidebarTab(tab)
+    setMobileControlsOpen(true)
+  }, [])
+
+  const errorCount = agents.filter((agent) => agent.status === "error").length
+  const walletAlert = agents.some((agent) => !agent.wallet || (agent.wallet.funded && parseFloat(agent.wallet.balance) < 10))
+  const openOfferCount = MOCK_OFFERS.filter((offer) => offer.status === "open").length
+
   return (
-    <div style={{ width: "100%", height: "100vh", display: "flex", overflow: "hidden", background: "#030712", position: "relative" }}>
+    <div style={{
+      width: "100%",
+      height: "100dvh",
+      display: "flex",
+      overflow: "hidden",
+      background: "#030712",
+      position: "relative",
+      paddingBottom: isMobile ? "calc(72px + env(safe-area-inset-bottom))" : 0,
+    }}>
       {showOnboarding && <OnboardingModal onDone={handleDoneOnboarding} />}
 
       {/* Canvas area */}
@@ -973,31 +1027,32 @@ export function OpenStellarHub() {
 
         <AudioControls engine={audioEngine} />
 
-        {/* Sidebar toggle button */}
-        <button
-          onClick={() => setSidebarOpen(o => !o)}
-          style={{
-            position: "absolute",
-            top: "50%",
-            right: 0,
-            transform: "translateY(-50%)",
-            zIndex: 5,
-            background: "#111827",
-            border: "1px solid #2a3a52",
-            borderRight: "none",
-            borderRadius: "6px 0 0 6px",
-            color: "#22d3ee",
-            fontFamily: "monospace",
-            fontSize: 14,
-            padding: "10px 6px",
-            cursor: "pointer",
-            lineHeight: 1,
-            transition: "background 0.15s",
-          }}
-          title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
-        >
-          {sidebarOpen ? "›" : "‹"}
-        </button>
+        {isMobile === false && (
+          <button
+            onClick={() => setSidebarOpen(o => !o)}
+            style={{
+              position: "absolute",
+              top: "50%",
+              right: 0,
+              transform: "translateY(-50%)",
+              zIndex: 5,
+              background: "#111827",
+              border: "1px solid #2a3a52",
+              borderRight: "none",
+              borderRadius: "6px 0 0 6px",
+              color: "#22d3ee",
+              fontFamily: "monospace",
+              fontSize: 14,
+              padding: "10px 6px",
+              cursor: "pointer",
+              lineHeight: 1,
+              transition: "background 0.15s",
+            }}
+            title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          >
+            {sidebarOpen ? "›" : "‹"}
+          </button>
+        )}
 
         <footer style={{
           position: "absolute",
@@ -1031,8 +1086,7 @@ export function OpenStellarHub() {
         </footer>
       </div>
 
-      {/* Sidebar — conditionally rendered */}
-      {sidebarOpen && (
+      {isMobile === false && sidebarOpen && (
         <SidebarPanel
           agents={agents}
           selectedAgent={selectedAgent}
@@ -1046,7 +1100,171 @@ export function OpenStellarHub() {
           onUpdateAgentAppearance={handleUpdateAgentAppearance}
           colorBlindMode={colorBlindMode}
           onColorBlindModeChange={handleColorBlindModeChange}
+          activeTab={sidebarTab}
+          onActiveTabChange={setSidebarTab}
         />
+      )}
+
+      {isMobile && (
+        <>
+          <button
+            type="button"
+            onClick={() => setMobileControlsOpen(true)}
+            aria-label="Open agent controls"
+            style={{
+              position: "fixed",
+              right: 16,
+              bottom: "calc(86px + env(safe-area-inset-bottom))",
+              zIndex: 30,
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              border: "1px solid #22d3ee66",
+              background: "#111827",
+              color: "#22d3ee",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.45)",
+              cursor: "pointer",
+            }}
+          >
+            <PanelBottomOpen size={22} aria-hidden="true" />
+          </button>
+
+          <nav
+            aria-label="Agent controls"
+            style={{
+              position: "fixed",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 25,
+              minHeight: "calc(72px + env(safe-area-inset-bottom))",
+              padding: "8px 8px calc(8px + env(safe-area-inset-bottom))",
+              background: "rgba(15,23,42,0.94)",
+              borderTop: "1px solid #2a3a52",
+              display: "grid",
+              gridTemplateColumns: "repeat(8, minmax(0, 1fr))",
+              gap: 4,
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            {SIDEBAR_TABS.map((tab) => {
+              const Icon = MOBILE_NAV_ICONS[tab.id]
+              const active = sidebarTab === tab.id
+              const hasBadge =
+                (tab.id === "chat" && chatMessages.length > 0) ||
+                (tab.id === "overview" && errorCount > 0) ||
+                (tab.id === "offers" && openOfferCount > 0) ||
+                (tab.id === "wallet" && walletAlert)
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleMobileTabSelect(tab.id)}
+                  aria-pressed={active}
+                  aria-label={tab.label}
+                  style={{
+                    position: "relative",
+                    minWidth: 0,
+                    minHeight: 54,
+                    border: active ? "1px solid #22d3ee66" : "1px solid transparent",
+                    borderRadius: 8,
+                    background: active ? "#111827" : "transparent",
+                    color: active ? "#22d3ee" : "#94a3b8",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                    cursor: "pointer",
+                    fontFamily: "monospace",
+                    fontSize: 8,
+                    fontWeight: active ? 700 : 400,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  <Icon size={18} aria-hidden="true" />
+                  <span style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {tab.label}
+                  </span>
+                  {hasBadge && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        top: 7,
+                        right: "22%",
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: tab.id === "wallet" ? "#fbbf24" : tab.id === "overview" ? "#f87171" : "#34d399",
+                      }}
+                    />
+                  )}
+                </button>
+              )
+            })}
+            <a
+              href="/admin"
+              aria-label="Open admin console"
+              style={{
+                minHeight: 54,
+                border: "1px solid transparent",
+                borderRadius: 8,
+                color: "#22d3ee",
+                textDecoration: "none",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                fontFamily: "monospace",
+                fontSize: 8,
+                textTransform: "uppercase",
+              }}
+            >
+              <Bot size={18} aria-hidden="true" />
+              <span>Admin</span>
+            </a>
+          </nav>
+
+          <Drawer open={mobileControlsOpen} onOpenChange={setMobileControlsOpen}>
+            <DrawerContent
+              aria-describedby={undefined}
+              style={{
+                height: "min(78dvh, 680px)",
+                background: "#111827",
+                borderColor: "#2a3a52",
+                borderTopLeftRadius: 8,
+                borderTopRightRadius: 8,
+                overflow: "hidden",
+              }}
+            >
+              <DrawerTitle className="sr-only">Agent controls</DrawerTitle>
+              <SidebarPanel
+                agents={agents}
+                selectedAgent={selectedAgent}
+                logs={logs}
+                chatMessages={chatMessages}
+                transactions={transactions}
+                onSelectAgent={handleSelectAgent}
+                onUpdateAgent={handleUpdateAgentWallet}
+                onAddTransaction={handleAddTransaction}
+                onUpgradeSkill={handleUpgradeSkill}
+                onUpdateAgentAppearance={handleUpdateAgentAppearance}
+                colorBlindMode={colorBlindMode}
+                onColorBlindModeChange={handleColorBlindModeChange}
+                activeTab={sidebarTab}
+                onActiveTabChange={setSidebarTab}
+                variant="mobile"
+                showTabBar={false}
+              />
+            </DrawerContent>
+          </Drawer>
+        </>
       )}
     </div>
   )

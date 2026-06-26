@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useCallback, useState, useMemo } from "react"
+import NextImage from "next/image"
 import type { MoltbotAgent, District } from "@/lib/types"
 import { drawGrid, drawRoads, drawDistrict, drawBot } from "@/lib/renderer"
 import type { DistrictStanding } from "@/lib/gamification/events"
@@ -154,6 +155,26 @@ const statusSymbols: Record<string, string> = {
   offline: "—",
 }
 
+interface ScreenPoint {
+  x: number
+  y: number
+}
+
+const MIN_ZOOM = 0.55
+const MAX_ZOOM = 4
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function distance(a: ScreenPoint, b: ScreenPoint) {
+  return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+function midpoint(a: ScreenPoint, b: ScreenPoint): ScreenPoint {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+}
+
 export function PixelCity({
   agents,
   districts,
@@ -183,10 +204,28 @@ export function PixelCity({
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 })
   const [showMinimap, setShowMinimap] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const zoomRef = useRef(zoom)
+  const panOffsetRef = useRef(panOffset)
+  const pointersRef = useRef(new Map<number, ScreenPoint>())
+  const touchStartRef = useRef<{ x: number; y: number; moved: boolean } | null>(null)
+  const pinchRef = useRef<{
+    startDistance: number
+    worldMidpoint: ScreenPoint
+  } | null>(null)
+  const suppressClickRef = useRef(false)
+  const initializedViewRef = useRef(false)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    zoomRef.current = zoom
+  }, [zoom])
+
+  useEffect(() => {
+    panOffsetRef.current = panOffset
+  }, [panOffset])
 
   const cityBounds = useMemo(() => {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
@@ -209,6 +248,60 @@ export function PixelCity({
     const cityH = maxY - minY + 200
     return Math.min((mapW - 20) / cityW, (mapH - 20) / cityH)
   }, [cityBounds])
+
+  const clampPan = useCallback(
+    (nextPan: { x: number; y: number }, nextZoom: number, width: number, height: number) => {
+      const margin = 36
+      const cityW = cityBounds.maxX - cityBounds.minX
+      const cityH = cityBounds.maxY - cityBounds.minY
+      let x = nextPan.x
+      let y = nextPan.y
+
+      if (cityW * nextZoom <= width - margin * 2) {
+        x = width / 2 - (cityBounds.minX + cityW / 2) * nextZoom
+      } else {
+        x = clamp(x, width - margin - cityBounds.maxX * nextZoom, margin - cityBounds.minX * nextZoom)
+      }
+
+      if (cityH * nextZoom <= height - margin * 2) {
+        y = height / 2 - (cityBounds.minY + cityH / 2) * nextZoom
+      } else {
+        y = clamp(y, height - margin - cityBounds.maxY * nextZoom, margin - cityBounds.minY * nextZoom)
+      }
+
+      return { x, y }
+    },
+    [cityBounds],
+  )
+
+  const fitViewToContainer = useCallback(() => {
+    const container = containerRef.current
+    if (!container) return
+    const rect = container.getBoundingClientRect()
+    const cityW = cityBounds.maxX - cityBounds.minX
+    const cityH = cityBounds.maxY - cityBounds.minY
+    const nextZoom = clamp(Math.min((rect.width - 32) / cityW, (rect.height - 96) / cityH, 1), MIN_ZOOM, 1)
+    const nextPan = clampPan(
+      {
+        x: rect.width / 2 - (cityBounds.minX + cityW / 2) * nextZoom,
+        y: rect.height / 2 - (cityBounds.minY + cityH / 2) * nextZoom,
+      },
+      nextZoom,
+      rect.width,
+      rect.height,
+    )
+    setZoom(nextZoom)
+    setPanOffset(nextPan)
+  }, [cityBounds, clampPan])
+
+  const screenToWorld = useCallback((x: number, y: number): ScreenPoint => {
+    const currentZoom = zoomRef.current
+    const currentPan = panOffsetRef.current
+    return {
+      x: (x - currentPan.x) / currentZoom,
+      y: (y - currentPan.y) / currentZoom,
+    }
+  }, [])
 
   // Preload all background images and robot sprites
   useEffect(() => {
@@ -267,12 +360,39 @@ export function PixelCity({
       const pctx = particleCanvas.getContext("2d")
       if (pctx) pctx.scale(dpr, dpr)
     }
-  }, [])
+    if (!initializedViewRef.current) {
+      initializedViewRef.current = true
+      const cityW = cityBounds.maxX - cityBounds.minX
+      const cityH = cityBounds.maxY - cityBounds.minY
+      const nextZoom = clamp(Math.min((rect.width - 32) / cityW, (rect.height - 96) / cityH, 1), MIN_ZOOM, 1)
+      const nextPan = clampPan(
+        {
+          x: rect.width / 2 - (cityBounds.minX + cityW / 2) * nextZoom,
+          y: rect.height / 2 - (cityBounds.minY + cityH / 2) * nextZoom,
+        },
+        nextZoom,
+        rect.width,
+        rect.height,
+      )
+      setZoom(nextZoom)
+      setPanOffset(nextPan)
+    } else {
+      setPanOffset((current) => clampPan(current, zoomRef.current, rect.width, rect.height))
+    }
+  }, [cityBounds, clampPan])
 
   useEffect(() => {
     resizeCanvas()
     window.addEventListener("resize", resizeCanvas)
-    return () => window.removeEventListener("resize", resizeCanvas)
+    const observer = new ResizeObserver(() => resizeCanvas())
+    if (containerRef.current) {
+      observer.observe(containerRef.current)
+    }
+
+    return () => {
+      window.removeEventListener("resize", resizeCanvas)
+      observer.disconnect()
+    }
   }, [resizeCanvas])
 
   // Consume declarative particle triggers fired from SSE events (XP, payments, level-ups, badges, district wins).
@@ -342,8 +462,6 @@ export function PixelCity({
       drawDistrict(ctx, d, tick, images[d.id], colorBlindMode)
     }
 
-    const topGlobalRanks = new Map([...agents].sort((a, b) => b.tasksCompleted - a.tasksCompleted).slice(0, 3).map((agent, index) => [agent.id, index + 1]))
-    const districtLeaderIds = new Set(districts.map((district) => [...agents].filter((agent) => agent.district === district.id).sort((a, b) => b.tasksCompleted - a.tasksCompleted)[0]?.id).filter(Boolean))
     const sorted = [...agents].sort((a, b) => a.pixelY - b.pixelY)
     for (const agent of sorted) {
       const spriteIdx = agent.spriteId % sprites.length
@@ -395,7 +513,11 @@ export function PixelCity({
     ctx.fillText("MOLTBOT CITY", 40, 30)
     ctx.font = "10px monospace"
     ctx.fillStyle = "#64748b"
-    ctx.fillText(`TICK ${tick}  |  ${agents.length} AGENTS DEPLOYED`, 40, 44)
+    ctx.fillText(
+      `TICK ${tick}  |  ${agents.length} AGENTS DEPLOYED${districtStandings.length > 0 ? "  |  DISTRICTS RANKED" : ""}`,
+      40,
+      44,
+    )
 
     if (showMinimap) {
       drawMinimap(ctx, w, h, districts, agents, zoom, panOffset, cityBounds, minimapScale, colorBlindMode)
@@ -419,7 +541,7 @@ export function PixelCity({
         audioEngine.setDistrictFocus(d.id, volume)
       }
     }
-  }, [agents, districts, selectedAgentId, tick, images, sprites, txAnimations, reduceMotion, audioEngine, zoom, panOffset, showMinimap, colorBlindMode])
+  }, [agents, districts, selectedAgentId, tick, images, sprites, txAnimations, reduceMotion, audioEngine, zoom, panOffset, showMinimap, cityBounds, minimapScale, colorBlindMode, districtStandings])
 
   const hitTestAgent = useCallback(
     (mx: number, my: number): MoltbotAgent | null => {
@@ -484,9 +606,11 @@ export function PixelCity({
       } else if (e.key === "m" || e.key === "M") {
         setShowMinimap(prev => !prev)
       } else if (e.key === "+" || e.key === "=") {
-        setZoom(prev => Math.min(prev * 1.2, 4))
+        setZoom(prev => Math.min(prev * 1.2, MAX_ZOOM))
       } else if (e.key === "-" || e.key === "_") {
-        setZoom(prev => Math.max(prev / 1.2, 0.4))
+        setZoom(prev => Math.max(prev / 1.2, MIN_ZOOM))
+      } else if (e.key === "0") {
+        fitViewToContainer()
       } else if (!focusedAgentId) {
         const panAmount = 40 / zoom
         if (e.key === "ArrowLeft") {
@@ -500,7 +624,142 @@ export function PixelCity({
         }
       }
     },
-    [onSelectAgent, focusedAgentId, zoom]
+    [fitViewToContainer, onSelectAgent, focusedAgentId, zoom]
+  )
+
+  const getPointerPoint = useCallback((e: React.PointerEvent<HTMLCanvasElement>): ScreenPoint | null => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const rect = canvas.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+  }, [])
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (e.pointerType === "mouse") return
+      const point = getPointerPoint(e)
+      if (!point) return
+
+      e.currentTarget.setPointerCapture(e.pointerId)
+      pointersRef.current.set(e.pointerId, point)
+      touchStartRef.current = { ...point, moved: false }
+
+      if (pointersRef.current.size === 2) {
+        const [first, second] = Array.from(pointersRef.current.values())
+        const mid = midpoint(first, second)
+        pinchRef.current = {
+          startDistance: Math.max(1, distance(first, second)),
+          worldMidpoint: screenToWorld(mid.x, mid.y),
+        }
+      }
+    },
+    [getPointerPoint, screenToWorld],
+  )
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (e.pointerType === "mouse") return
+      const point = getPointerPoint(e)
+      if (!point || !pointersRef.current.has(e.pointerId)) return
+
+      const previous = pointersRef.current.get(e.pointerId)
+      pointersRef.current.set(e.pointerId, point)
+
+      if (touchStartRef.current && distance(touchStartRef.current, point) > 8) {
+        touchStartRef.current.moved = true
+      }
+
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+
+      if (pointersRef.current.size >= 2) {
+        e.preventDefault()
+        suppressClickRef.current = true
+        const [first, second] = Array.from(pointersRef.current.values())
+        const mid = midpoint(first, second)
+
+        if (!pinchRef.current) {
+          pinchRef.current = {
+            startDistance: Math.max(1, distance(first, second)),
+            worldMidpoint: screenToWorld(mid.x, mid.y),
+          }
+        }
+
+        const nextZoom = clamp(zoomRef.current * (distance(first, second) / pinchRef.current.startDistance), MIN_ZOOM, MAX_ZOOM)
+        const nextPan = clampPan(
+          {
+            x: mid.x - pinchRef.current.worldMidpoint.x * nextZoom,
+            y: mid.y - pinchRef.current.worldMidpoint.y * nextZoom,
+          },
+          nextZoom,
+          rect.width,
+          rect.height,
+        )
+        setZoom(nextZoom)
+        setPanOffset(nextPan)
+        return
+      }
+
+      if (previous) {
+        e.preventDefault()
+        suppressClickRef.current = true
+        const dx = point.x - previous.x
+        const dy = point.y - previous.y
+        setPanOffset((current) => clampPan({ x: current.x + dx, y: current.y + dy }, zoomRef.current, rect.width, rect.height))
+      }
+    },
+    [clampPan, getPointerPoint, screenToWorld],
+  )
+
+  const handlePointerEnd = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (e.pointerType === "mouse") return
+      const point = getPointerPoint(e)
+      pointersRef.current.delete(e.pointerId)
+
+      if (pointersRef.current.size < 2) {
+        pinchRef.current = null
+      }
+
+      if (point && touchStartRef.current && !touchStartRef.current.moved && !suppressClickRef.current) {
+        const found = hitTestAgent(point.x, point.y)
+        onSelectAgent(found?.id ?? null)
+      }
+
+      if (pointersRef.current.size === 0) {
+        touchStartRef.current = null
+        window.setTimeout(() => {
+          suppressClickRef.current = false
+        }, 0)
+      }
+    },
+    [getPointerPoint, hitTestAgent, onSelectAgent],
+  )
+
+  const handleWheel = useCallback(
+    (e: React.WheelEvent<HTMLCanvasElement>) => {
+      if (!e.ctrlKey && !e.metaKey) return
+      e.preventDefault()
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const point = { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      const world = screenToWorld(point.x, point.y)
+      const nextZoom = clamp(zoomRef.current * (e.deltaY > 0 ? 0.92 : 1.08), MIN_ZOOM, MAX_ZOOM)
+      const nextPan = clampPan(
+        {
+          x: point.x - world.x * nextZoom,
+          y: point.y - world.y * nextZoom,
+        },
+        nextZoom,
+        rect.width,
+        rect.height,
+      )
+      setZoom(nextZoom)
+      setPanOffset(nextPan)
+    },
+    [clampPan, screenToWorld],
   )
 
   const statusColors: Record<string, string> = {
@@ -510,10 +769,13 @@ export function PixelCity({
   return (
     <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative", overflow: "hidden" }}>
       {/* Full-viewport animated city GIF background */}
-      <img
+      <NextImage
         src="/bg-city.gif"
         alt=""
         aria-hidden="true"
+        unoptimized
+        fill
+        sizes="100vw"
         style={{
           position: "absolute",
           top: 0,
@@ -535,12 +797,18 @@ export function PixelCity({
         onKeyDown={handleCanvasKeyDown}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onWheel={handleWheel}
         style={{
           cursor: "crosshair",
           display: "block",
           imageRendering: "pixelated",
           position: "relative",
           zIndex: 1,
+          touchAction: "none",
         }}
       />
       <canvas
@@ -679,4 +947,3 @@ export function PixelCity({
     </div>
   )
 }
-

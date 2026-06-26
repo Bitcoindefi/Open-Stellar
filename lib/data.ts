@@ -38,16 +38,25 @@ const SKILL_POOL: Record<DistrictId, string[]> = {
   research: ["Hypothesis Testing", "Data Viz", "Paper Analysis", "Experiment Design", "Stats Modeling"],
 }
 
-function rand(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min
+function rand(min: number, max: number, random = Math.random) {
+  return Math.floor(random() * (max - min + 1)) + min
 }
 
-function generateSkills(district: DistrictId): Skill[] {
+function createSeededRandom(seed: number) {
+  let state = seed >>> 0
+
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 0x100000000
+  }
+}
+
+function generateSkills(district: DistrictId, random = Math.random): Skill[] {
   const pool = SKILL_POOL[district]
-  const count = rand(2, 4)
-  const shuffled = [...pool].sort(() => Math.random() - 0.5)
+  const count = rand(2, 4, random)
+  const shuffled = [...pool].sort(() => random() - 0.5)
   return shuffled.slice(0, count).map((name, i) => {
-    const level = rand(1, 4)
+    const level = rand(1, 4, random)
     const maxLevel = 5
     const xpToNext = getSkillUpgradeCost({ level, maxLevel }) ?? 0
 
@@ -56,7 +65,7 @@ function generateSkills(district: DistrictId): Skill[] {
       name,
       level,
       maxLevel,
-      xp: rand(0, Math.max(80, xpToNext + 40)),
+      xp: rand(0, Math.max(80, xpToNext + 40), random),
       xpToNext,
     }
   })
@@ -151,26 +160,27 @@ export function generateChatMessage(agents: MoltbotAgent[]): ChatMessage | null 
 // -------- Agent Factory --------
 
 export function createAgents(): MoltbotAgent[] {
+  const random = createSeededRandom(0x051e11a9)
   const colors = ["#22d3ee", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#60a5fa", "#fb923c", "#e879f9", "#2dd4bf", "#facc15", "#818cf8", "#f472b6"]
   return NAMES.map((name, i) => {
     const districtIdx = i % DISTRICTS.length
     const district = DISTRICTS[districtIdx]
-    const px = district.x + rand(30, district.w - 50)
-    const py = district.y + rand(40, district.h - 40)
+    const px = district.x + rand(30, district.w - 50, random)
+    const py = district.y + rand(40, district.h - 40, random)
     return {
       id: `bot-${i}`,
       name,
       model: MODELS[i % MODELS.length],
-      xp: rand(0, 90),
+      xp: rand(0, 90, random),
       level: 1,
       xpToNext: getXpToNextLevel(1),
       status: (["active", "working", "idle", "working", "active"] as const)[i % 5],
       district: district.id,
-      cpu: rand(20, 95),
-      memory: rand(30, 85),
-      tasksCompleted: rand(10, 200),
-      currentTask: TASKS[district.id][rand(0, 3)],
-      taskProgress: Math.random() * 100,
+      cpu: rand(20, 95, random),
+      memory: rand(30, 85, random),
+      tasksCompleted: rand(10, 200, random),
+      currentTask: TASKS[district.id][rand(0, 3, random)],
+      taskProgress: random() * 100,
       color: colors[i % colors.length],
       pixelX: px,
       pixelY: py,
@@ -179,7 +189,7 @@ export function createAgents(): MoltbotAgent[] {
       frame: 0,
       direction: "right" as const,
       spriteId: i % SPRITE_COUNT,
-      skills: generateSkills(district.id),
+      skills: generateSkills(district.id, random),
       autoRestart: i % 3 === 0,
       appearance: { skin: "default", accessories: [], customColor: null },
     }
