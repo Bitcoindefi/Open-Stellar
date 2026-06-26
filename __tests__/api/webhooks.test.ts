@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { GET as EVENT_TYPES_GET } from "@/app/api/webhooks/event-types/route"
 import { DELETE } from "@/app/api/webhooks/[id]/route"
 import { GET, POST } from "@/app/api/webhooks/route"
 import { publishSystemEvent } from "@/lib/events/system-events"
@@ -67,6 +68,26 @@ describe("webhook API", () => {
 
     expect(res.status).toBe(400)
     expect(data.error).toBe("Invalid webhook URL")
+  })
+
+  it("rejects unknown event types", async () => {
+    const res = await POST(webhookRequest({ url: "https://example.com/hook", events: ["agent.status", "nonsense.event"] }))
+    const data = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(data.error).toMatch(/nonsense\.event/)
+  })
+
+  it("returns the list of supported event types", async () => {
+    const res = await EVENT_TYPES_GET()
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.eventTypes).toContain("agent.status")
+    expect(data.eventTypes).toContain("quest.completed")
+    expect(data.eventTypes).toContain("agent.xp")
+    expect(data.eventTypes).toContain("payment.received")
+    expect(data.eventTypes).not.toContain("agent.registry")
   })
 
   it("lists webhooks without exposing secrets", async () => {
