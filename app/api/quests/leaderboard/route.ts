@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 import { createApiRouteLogger } from "@/lib/api-logging"
-import { getQuestLeaderboard, type LeaderboardPeriod } from "@/lib/gamification/quest-leaderboard"
+import {
+  getQuestLeaderboard,
+  type LeaderboardPeriod,
+  getCacheStatus,
+} from "@/lib/gamification/quest-leaderboard"
 
 const VALID_PERIODS: LeaderboardPeriod[] = ["daily", "weekly"]
 
@@ -16,6 +20,16 @@ export async function GET(req: Request) {
         : "weekly"
 
     const entries = getQuestLeaderboard(period)
+    const cacheStatus = getCacheStatus(period)
+
+    const headers = new Headers({
+      "Cache-Control": "no-store", // Prevent browser/CDN caching; server cache is authoritative
+      "X-Cache": cacheStatus.hit ? "HIT" : "MISS",
+    })
+
+    if (cacheStatus.ageMs !== null) {
+      headers.set("X-Cache-Age", String(Math.round(cacheStatus.ageMs / 1000)))
+    }
 
     return await api.json(
       {
@@ -24,11 +38,13 @@ export async function GET(req: Request) {
         entries,
         count: entries.length,
       },
-      { headers: { "Cache-Control": "no-store" } },
+      { headers },
       {
         event: "quest.leaderboard.read",
         period,
         entryCount: entries.length,
+        cacheHit: cacheStatus.hit,
+        cacheAgeSec: cacheStatus.ageMs !== null ? Math.round(cacheStatus.ageMs / 1000) : null,
       },
     )
   } catch (error) {

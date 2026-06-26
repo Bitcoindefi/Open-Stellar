@@ -1,4 +1,5 @@
 import { addNotification } from "@/lib/notifications/notification-store"
+import { invalidateLeaderboardCache } from "./leaderboard-cache"
 
 export type QuestType = "daily" | "weekly" | "story"
 
@@ -352,8 +353,12 @@ export function recordCompletedQuestNotifications(agentId: string, quests: Quest
   const cleanId = agentId.trim()
   if (!cleanId) return
 
+  let anyCompleted = false
+
   for (const quest of quests) {
     if (!quest.completedAt) continue
+    anyCompleted = true
+
     addNotification({
       agentId: cleanId,
       type: "quest_completed",
@@ -364,5 +369,10 @@ export function recordCompletedQuestNotifications(agentId: string, quests: Quest
       createdAt: quest.completedAt,
       dedupeKey: `quest_completed:${cleanId}:${quest.id}:${quest.completedAt}`,
     })
+  }
+
+  // Invalidate cache when any quest is completed so next read reflects latest state
+  if (anyCompleted) {
+    invalidateLeaderboardCache()
   }
 }
