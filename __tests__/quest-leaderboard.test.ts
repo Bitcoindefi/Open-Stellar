@@ -3,6 +3,7 @@ import {
   getQuestLeaderboard,
   getAgentQuestStats,
   type LeaderboardPeriod,
+  resetLeaderboardCache,
 } from "@/lib/gamification/quest-leaderboard"
 import { addNotification, resetNotificationStore } from "@/lib/notifications/notification-store"
 
@@ -21,10 +22,12 @@ function seedQuestCompleted(agentId: string, createdAt: Date) {
 describe("quest leaderboard", () => {
   beforeEach(() => {
     resetNotificationStore()
+    resetLeaderboardCache()
   })
 
   afterEach(() => {
     resetNotificationStore()
+    resetLeaderboardCache()
   })
 
   it("returns empty leaderboard when no quest completions exist", () => {
