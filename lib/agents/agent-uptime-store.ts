@@ -74,6 +74,12 @@ export function getAgentUptime(agentId: string, nowMs = Date.now()): AgentUptime
   return record ? toSnapshot(record, nowMs) : null
 }
 
+export function listAgentUptimes(nowMs = Date.now()): AgentUptimeSnapshot[] {
+  return Array.from(db.values())
+    .map((record) => toSnapshot(record, nowMs))
+    .sort((a, b) => a.agentId.localeCompare(b.agentId))
+}
+
 export function resetAgentUptimeStore(): void {
   db.clear()
 }

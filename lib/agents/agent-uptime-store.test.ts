@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 
 import {
   getAgentUptime,
+  listAgentUptimes,
   recordAgentUptimeHeartbeat,
   resetAgentUptimeStore,
 } from "@/lib/agents/agent-uptime-store"
@@ -44,5 +45,14 @@ describe("agent uptime store", () => {
 
     expect(getAgentUptime("uptime-gap", base + 2 * 24 * 60 * 60 * 1000)?.uptimeDays).toBe(3)
     expect(getAgentUptime("uptime-gap", base + 2 * 24 * 60 * 60 * 1000 + 25 * 60 * 60 * 1000)?.uptimeDays).toBe(0)
+  })
+
+  it("lists current uptime snapshots sorted by agent id", () => {
+    const nowMs = Date.parse("2026-06-26T16:00:00.000Z")
+
+    recordAgentUptimeHeartbeat("uptime-z", nowMs)
+    recordAgentUptimeHeartbeat("uptime-a", nowMs)
+
+    expect(listAgentUptimes(nowMs).map((uptime) => uptime.agentId)).toEqual(["uptime-a", "uptime-z"])
   })
 })
