@@ -55,6 +55,25 @@ interface AgentHealthApiSnapshot {
   currentTask: string | null
 }
 
+interface AgentPositionPayload {
+  agentId: string
+  pixelX: number
+  pixelY: number
+  targetX: number
+  targetY: number
+  direction: "left" | "right"
+}
+
+interface AgentPositionSnapshotPayload {
+  type: "agent.positions.snapshot"
+  positions: AgentPositionPayload[]
+}
+
+interface AgentPositionDeltaPayload {
+  type: "agent.position"
+  agents: AgentPositionPayload[]
+}
+
 function OnboardingModal({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0)
   const current = ONBOARDING_STEPS[step]
@@ -221,6 +240,7 @@ export function OpenStellarHub() {
   const [eventStreamConnected, setEventStreamConnected] = useState(false)
   const [hasRealtimeEvents, setHasRealtimeEvents] = useState(false)
   const fallbackLoggedRef = useRef(false)
+  const positionStreamErrorLoggedRef = useRef(false)
   const [audioEngine] = useState(() => new CityAudioEngine())
   const [activeDistrictEvent, setActiveDistrictEvent] = useState(() => getActiveDistrictEvent())
   const lastLeadingDistrictRef = useRef<string | null>(null)
@@ -581,6 +601,69 @@ export function OpenStellarHub() {
     }
   }, [applySystemEvent, pushLog])
 
+  useEffect(() => {
+    const eventSource = new EventSource("/api/agents/stream")
+
+    const applyPositions = (positions: AgentPositionPayload[]) => {
+      if (positions.length === 0) return
+      const positionsById = new Map(positions.map((position) => [position.agentId, position]))
+
+      setAgents((prev) =>
+        prev.map((agent) => {
+          const position = positionsById.get(agent.id)
+          if (!position) return agent
+
+          return {
+            ...agent,
+            pixelX: position.pixelX,
+            pixelY: position.pixelY,
+            targetX: position.targetX,
+            targetY: position.targetY,
+            direction: position.direction,
+          }
+        }),
+      )
+    }
+
+    const handleSnapshot = (message: MessageEvent) => {
+      try {
+        const payload = JSON.parse(String(message.data)) as AgentPositionSnapshotPayload
+        applyPositions(payload.positions)
+      } catch {
+        pushLog("received malformed agent position snapshot", "warning")
+      }
+    }
+
+    const handleDelta = (message: MessageEvent) => {
+      try {
+        const payload = JSON.parse(String(message.data)) as AgentPositionDeltaPayload
+        applyPositions(payload.agents)
+      } catch {
+        pushLog("received malformed agent position delta", "warning")
+      }
+    }
+
+    eventSource.onopen = () => {
+      positionStreamErrorLoggedRef.current = false
+    }
+
+    eventSource.onerror = () => {
+      if (!positionStreamErrorLoggedRef.current) {
+        pushLog("agent position stream reconnecting", "warning")
+        positionStreamErrorLoggedRef.current = true
+      }
+    }
+
+    eventSource.addEventListener("agent.positions.snapshot", handleSnapshot as EventListener)
+    eventSource.addEventListener("agent.position", handleDelta as EventListener)
+
+    return () => {
+      eventSource.removeEventListener("agent.positions.snapshot", handleSnapshot as EventListener)
+      eventSource.removeEventListener("agent.position", handleDelta as EventListener)
+      eventSource.close()
+    }
+  }, [pushLog])
+
 
   useEffect(() => {
     let stopped = false
@@ -730,11 +813,6 @@ export function OpenStellarHub() {
             taskProgress: finishedTask ? 0 : taskProgress,
             tasksCompleted: finishedTask ? agent.tasksCompleted + 1 : agent.tasksCompleted,
             currentTask: finishedTask ? getRandomTask(agent.district) : agent.currentTask,
-            targetX: agent.targetX + (Math.random() - 0.5) * 40,
-            targetY: agent.targetY + (Math.random() - 0.5) * 28,
-            pixelX: agent.pixelX + (Math.random() - 0.5) * 4,
-            pixelY: agent.pixelY + (Math.random() - 0.5) * 3,
-            direction: Math.random() > 0.5 ? "right" : "left",
           }
         })
       )
