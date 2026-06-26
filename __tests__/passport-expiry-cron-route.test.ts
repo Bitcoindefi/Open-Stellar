@@ -6,14 +6,17 @@ import {
 } from "@/lib/passport/passport-store"
 import type { AgentPassport } from "@/lib/passport/passport"
 
+let passportCounter = 0
+
 function makePassport(overrides: Partial<AgentPassport> = {}): AgentPassport {
   const now = Date.now()
+  const counter = (passportCounter += 1)
   return {
-    id: `testnet:agent-123:${now}`,
+    id: `testnet:agent-123:${now}:${counter}`,
     agentId: "agent-123",
     spendCap: "1000000000",
     registryRoot: "0xabc",
-    nullifierHash: `0x${now}`,
+    nullifierHash: `0x${now}:${counter}`,
     issuedAt: new Date(now - 86400000).toISOString(),
     expiresAt: new Date(now + 86400000).toISOString(),
     status: "ACTIVE",
@@ -24,6 +27,7 @@ function makePassport(overrides: Partial<AgentPassport> = {}): AgentPassport {
 
 describe("GET /api/cron/passport-expiry", () => {
   beforeEach(() => {
+    passportCounter = 0
     resetPassportExpiryStore()
   })
 
