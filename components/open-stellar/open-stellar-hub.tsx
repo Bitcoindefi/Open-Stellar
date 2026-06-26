@@ -503,6 +503,10 @@ export function OpenStellarHub() {
       return
     }
 
+    if (event.type === "agent.registry") {
+      pushLog(`registry ${event.action}: ${event.agent.agentId}`, "info", event.agentId)
+      return
+    }
 
     if (event.type === "task.started") {
       pushLog(`task started: ${event.task.title}`, "info", event.agentId)

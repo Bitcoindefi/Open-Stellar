@@ -31,6 +31,12 @@ export type SystemEvent =
   | (BaseEvent & { type: "agent.xp"; agentId: string; xp: number; level: number })
   | (BaseEvent & { type: "badge.unlocked"; agentId: string; badge: Badge })
   | (BaseEvent & { type: "district.unlocked"; districtId?: import("@/lib/types").DistrictId; district?: import("@/lib/types").District })
+  | (BaseEvent & {
+    type: "agent.registry"
+    agentId: string
+    action: "registered" | "updated" | "deregistered"
+    agent: import("@/lib/agent-registry").AgentCapabilityManifest
+  })
 
 
 

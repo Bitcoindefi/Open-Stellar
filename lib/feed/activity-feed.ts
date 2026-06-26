@@ -2,7 +2,6 @@ import { DISTRICTS, createAgents } from "@/lib/data"
 import {
   findAgentByLookup,
   getAgentDistrict,
-  getAgentProfilePath,
   getAgentSpritePath,
   slugifyAgent,
 } from "@/lib/og-card-data"
@@ -197,7 +196,7 @@ export function feedDistrictName(districtId?: DistrictId) {
 }
 
 export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent {
-  const agent = findAgentByLookup(event.agentId)
+  const agent = event.agentId ? findAgentByLookup(event.agentId) : undefined
   const district = agent ? getAgentDistrict(agent) : undefined
   const base = {
     id: event.id,
@@ -252,6 +251,33 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
       detail: event.result.summary,
       highlight: "Task completed",
       shareText: `${base.agentName} completed a task on Open Stellar`,
+    }
+  }
+
+  if (event.type === "district.unlocked") {
+    const districtName = event.district?.name ?? feedDistrictName(event.districtId)
+    return {
+      ...base,
+      kind: "district",
+      districtId: event.districtId ?? event.district?.id,
+      districtName,
+      title: `${districtName} unlocked`,
+      detail: `New district available on Open Stellar`,
+      highlight: "District unlocked",
+      shareText: `${districtName} unlocked on Open Stellar`,
+    }
+  }
+
+  if (event.type === "agent.registry") {
+    return {
+      ...base,
+      kind: "task",
+      districtId: event.agent.district,
+      districtName: feedDistrictName(event.agent.district),
+      title: `${event.agent.agentId} registry ${event.action}`,
+      detail: `${event.agent.capabilities.length} capabilities declared`,
+      highlight: "Registry update",
+      shareText: `${event.agent.agentId} updated its registry manifest on Open Stellar`,
     }
   }
 
