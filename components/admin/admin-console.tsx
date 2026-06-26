@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
-import { Activity, Check, Code2, Copy, Cpu, ExternalLink, Fingerprint, History, KeyRound, Layers3, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { Activity, Check, Code2, Copy, Cpu, Download, ExternalLink, Fingerprint, History, KeyRound, Layers3, RadioTower, ReceiptText, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
 import type { District, MoltbotAgent } from "@/lib/types"
 import { PassportPanel } from "@/components/admin/passport-panel"
 
-type AdminTab = "overview" | "passport" | "private-deploy"
+type AdminTab = "overview" | "receipts" | "passport" | "private-deploy"
 
 type Plan = {
   name: string
@@ -170,6 +170,9 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
           <TabButton active={tab === "overview"} onClick={() => setTab("overview")} icon={<RadioTower className="h-3.5 w-3.5" />}>
             Orchestration overview
           </TabButton>
+          <TabButton active={tab === "receipts"} onClick={() => setTab("receipts")} icon={<ReceiptText className="h-3.5 w-3.5" />}>
+            Receipts
+          </TabButton>
           <a
             href="/admin/runs"
             className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-400 transition hover:border-slate-700 hover:text-slate-200"
@@ -185,7 +188,9 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
           </TabButton>
         </nav>
 
-        {tab === "passport" ? (
+        {tab === "receipts" ? (
+          <ReceiptsTab />
+        ) : tab === "passport" ? (
           <section className="rounded-[28px] border border-cyan-500/20 bg-slate-950/60 p-5">
             <div className="mb-5 max-w-3xl">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.32em] text-cyan-200">
@@ -351,6 +356,118 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
         )}
       </div>
     </main>
+  )
+}
+
+type AdminReceipt = {
+  id: string
+  agentId: string
+  agent?: string
+  service: string
+  serviceId?: string
+  amount: string
+  txHash: string
+  settledAt: string
+  passportVerified: boolean
+}
+
+function ReceiptsTab() {
+  const [receipts, setReceipts] = useState<AdminReceipt[]>([])
+  const [status, setStatus] = useState('Loading receipts…')
+
+  useEffect(() => {
+    let mounted = true
+    fetch('/api/protocol/x402/receipts?pageSize=50')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return
+        setReceipts(Array.isArray(data.receipts) ? data.receipts : [])
+        setStatus(data.ok ? '' : data.error || 'Failed to load receipts')
+      })
+      .catch(() => {
+        if (mounted) setStatus('Failed to load receipts')
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const csv = useMemo(() => {
+    const rows = [['id', 'agentId', 'service', 'amount', 'settledAt', 'txHash', 'passportVerified']]
+    for (const receipt of receipts) {
+      rows.push([
+        receipt.id,
+        receipt.agentId || receipt.agent || '',
+        receipt.service || receipt.serviceId || '',
+        receipt.amount,
+        receipt.settledAt,
+        receipt.txHash,
+        String(receipt.passportVerified),
+      ])
+    }
+    return rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')
+  }, [receipts])
+
+  const exportCsv = () => {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'x402-receipts.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <section className="rounded-[28px] border border-cyan-500/20 bg-slate-950/60 p-5">
+      <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.32em] text-cyan-200">
+            <ReceiptText className="h-3.5 w-3.5" />
+            Persistent x402 ledger
+          </div>
+          <h2 className="font-pixel text-xl uppercase leading-tight text-cyan-100">Receipts</h2>
+          <p className="mt-3 font-vt323 text-xl leading-7 text-slate-300">
+            Last 50 settled x402 receipts from the receipt database, including agent, service, amount, and timestamp.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={receipts.length === 0}
+          className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-4 py-2 text-xs uppercase tracking-[0.2em] text-cyan-200 transition hover:border-cyan-400/70 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export CSV
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-[22px] border border-slate-800 bg-slate-950/80">
+        <div className="grid grid-cols-[1fr_1fr_0.8fr_0.9fr] gap-3 border-b border-slate-800 px-4 py-3 text-[10px] uppercase tracking-[0.24em] text-slate-500 md:grid-cols-[1fr_1fr_0.7fr_0.9fr_1.2fr]">
+          <span>Agent</span>
+          <span>Service</span>
+          <span>Amount</span>
+          <span>Timestamp</span>
+          <span className="hidden md:block">Tx hash</span>
+        </div>
+        {status ? (
+          <p className="px-4 py-6 font-vt323 text-xl text-slate-400">{status}</p>
+        ) : receipts.length === 0 ? (
+          <p className="px-4 py-6 font-vt323 text-xl text-slate-400">No x402 receipts have been recorded yet.</p>
+        ) : (
+          receipts.map((receipt) => (
+            <div key={receipt.id} className="grid grid-cols-[1fr_1fr_0.8fr_0.9fr] gap-3 border-b border-slate-900 px-4 py-3 font-mono text-xs text-slate-300 last:border-b-0 md:grid-cols-[1fr_1fr_0.7fr_0.9fr_1.2fr]">
+              <span className="truncate text-cyan-200">{receipt.agentId || receipt.agent}</span>
+              <span className="truncate">{receipt.service || receipt.serviceId}</span>
+              <span className="text-emerald-300">{receipt.amount}</span>
+              <span>{new Date(receipt.settledAt).toLocaleString()}</span>
+              <span className="hidden truncate text-slate-500 md:block">{receipt.txHash}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   )
 }
 
