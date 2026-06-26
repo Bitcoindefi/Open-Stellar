@@ -26,29 +26,28 @@ export function hasCycle(
   }
 
   // DFS from toId looking for a path back to fromId
-  const visited = new Set<string>()
-  const path: string[] = []
-
-  function dfs(nodeId: string): string[] | null {
+  // Use path-specific visited (recursion stack) to detect cycles
+  function dfs(nodeId: string, path: string[], visitedInPath: Set<string>): string[] | null {
     if (nodeId === fromId) {
       return [...path, nodeId]
     }
-    if (visited.has(nodeId)) return null
+    if (visitedInPath.has(nodeId)) return null
 
-    visited.add(nodeId)
+    visitedInPath.add(nodeId)
     path.push(nodeId)
 
     const neighbors = adjacency.get(nodeId) ?? []
     for (const neighbor of neighbors) {
-      const cycle = dfs(neighbor)
+      const cycle = dfs(neighbor, path, visitedInPath)
       if (cycle) return cycle
     }
 
     path.pop()
+    visitedInPath.delete(nodeId)
     return null
   }
 
-  const cyclePath = dfs(toId)
+  const cyclePath = dfs(toId, [], new Set())
 
   if (cyclePath) {
     return { hasCycle: true, cycle: cyclePath }
