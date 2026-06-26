@@ -1,0 +1,18 @@
+---
+title: Gate an API
+description: Add x402 payment gating to an API route in five lines.
+---
+# Gate an API
+
+Add an x402 paywall in front of any API response.
+
+```ts
+import { gateWithX402 } from "@open-stellar/sdk/server"
+
+export const GET = gateWithX402({ serviceId: "market.signal", amount: "0.10", asset: "XLM" }, async () => {
+  const signal = await loadSignal()
+  return Response.json(signal)
+})
+```
+
+Clients call the route, receive a quote, settle with `/api/protocol/x402/settle`, then replay the request with the receipt id.
