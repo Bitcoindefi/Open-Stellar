@@ -1,11 +1,15 @@
 import { createHmac } from "node:crypto"
-import type { PublishedSystemEvent } from "@/lib/events/system-events"
+import { subscribeToSystemEvents, type PublishedSystemEvent } from "@/lib/events/system-events"
 import { listWebhooksWithSecrets, type WebhookRegistration } from "@/lib/webhooks/store"
 
 const WEBHOOK_TIMEOUT_MS = 5_000
 const WEBHOOK_RETRY_DELAY_MS = 10_000
 
 let retryDelayMs = WEBHOOK_RETRY_DELAY_MS
+
+const globalState = globalThis as typeof globalThis & {
+  __openStellarWebhookDeliveryRegistered__?: boolean
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -60,6 +64,17 @@ export async function deliverWebhookEvent(event: PublishedSystemEvent): Promise<
 
   await Promise.all(matchingWebhooks.map((webhook) => deliverToWebhook(webhook, body)))
 }
+
+export function registerWebhookDeliveryListener(): void {
+  if (globalState.__openStellarWebhookDeliveryRegistered__) return
+  globalState.__openStellarWebhookDeliveryRegistered__ = true
+
+  subscribeToSystemEvents((event) => {
+    void deliverWebhookEvent(event).catch(() => undefined)
+  })
+}
+
+registerWebhookDeliveryListener()
 
 export function setWebhookRetryDelayForTests(ms: number): void {
   retryDelayMs = ms

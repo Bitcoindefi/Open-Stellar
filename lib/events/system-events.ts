@@ -1,6 +1,5 @@
 import type { AgentStatus } from "@/lib/types"
 import type { X402Receipt } from "@/lib/protocols/x402"
-import { deliverWebhookEvent } from "@/lib/webhooks/delivery"
 
 export interface AgentTask {
   id: string
@@ -95,7 +94,6 @@ export function publishSystemEvent(event: SystemEvent): PublishedSystemEvent {
   for (const listener of eventBus.listeners) {
     listener(published)
   }
-  void deliverWebhookEvent(published).catch(() => undefined)
   return published
 }
 

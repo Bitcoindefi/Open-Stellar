@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server"
 import { deleteWebhook } from "@/lib/webhooks/store"
+import { registerWebhookDeliveryListener } from "@/lib/webhooks/delivery"
 
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
+
+registerWebhookDeliveryListener()
 
 type RouteContext = {
   params: Promise<{ id: string }>
