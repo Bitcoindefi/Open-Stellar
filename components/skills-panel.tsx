@@ -67,7 +67,8 @@ function SkillCard({
                   height: "100%",
                   background: color + "88",
                   borderRadius: 2,
-                  transition: "width 0.3s",
+                  transition: "width 0.45s ease-out",
+                  animation: "skill-xp-pulse 0.8s ease-out",
                 }}
               />
             </div>
@@ -131,9 +132,19 @@ export function SkillsPanel({ selectedAgent, agents, onUpgradeSkill }: SkillsPan
       </div>
     )
   }
+  const agentLevel = selectedAgent.level ?? 1
+  const agentXp = selectedAgent.xp ?? 0
+  const agentXpToNext = selectedAgent.xpToNext ?? 100
 
   return (
     <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", height: "100%" }}>
+      <style>{`
+        @keyframes skill-xp-pulse {
+          0% { filter: brightness(1); box-shadow: 0 0 0 transparent; }
+          45% { filter: brightness(1.8); box-shadow: 0 0 10px currentColor; }
+          100% { filter: brightness(1); box-shadow: 0 0 0 transparent; }
+        }
+      `}</style>
       <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8, borderBottom: "1px solid #1e293b" }}>
         <div style={{ width: 10, height: 10, borderRadius: "50%", background: selectedAgent.color }} />
         <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: selectedAgent.color }}>
@@ -146,6 +157,24 @@ export function SkillsPanel({ selectedAgent, agents, onUpgradeSkill }: SkillsPan
 
       <div style={{ fontFamily: "monospace", fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>
         District: {selectedAgent.district}
+      </div>
+
+      <div style={{ padding: 10, background: "#0f172a", borderRadius: 6, border: "1px solid #1e293b" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "monospace", fontSize: 10, color: "#94a3b8", marginBottom: 6 }}>
+          <span>Agent Level {agentLevel}</span>
+          <span>{agentXp}/{agentXpToNext || "MAX"} XP</span>
+        </div>
+        <div style={{ height: 4, background: "#1e293b", borderRadius: 3, overflow: "hidden" }}>
+          <div
+            style={{
+              width: agentXpToNext > 0 ? `${Math.min(100, Math.round((agentXp / agentXpToNext) * 100))}%` : "100%",
+              height: "100%",
+              background: selectedAgent.color,
+              transition: "width 0.45s ease-out",
+              animation: "skill-xp-pulse 0.8s ease-out",
+            }}
+          />
+        </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

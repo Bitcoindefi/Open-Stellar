@@ -1,5 +1,6 @@
 import type { MoltbotAgent, District, DistrictId, Skill, ChatMessage } from "./types"
 import { getSkillUpgradeCost } from "./gamification/skill-upgrades"
+import { getXpToNextLevel } from "./gamification/xp"
 
 export const DISTRICTS: District[] = [
   { id: "data-center", name: "Data Center", color: "#22d3ee", bgColor: "#0e2a30", x: 40, y: 60, w: 260, h: 200 },
@@ -160,6 +161,9 @@ export function createAgents(): MoltbotAgent[] {
       id: `bot-${i}`,
       name,
       model: MODELS[i % MODELS.length],
+      xp: rand(0, 90),
+      level: 1,
+      xpToNext: getXpToNextLevel(1),
       status: (["active", "working", "idle", "working", "active"] as const)[i % 5],
       district: district.id,
       cpu: rand(20, 95),

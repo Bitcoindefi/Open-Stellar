@@ -26,9 +26,9 @@ interface BaseEvent {
 export type SystemEvent =
   | (BaseEvent & { type: "agent.status"; agentId: string; status: AgentStatus })
   | (BaseEvent & { type: "task.started"; agentId: string; task: AgentTask })
-  | (BaseEvent & { type: "task.completed"; agentId: string; taskId: string; result: TaskResult })
+  | (BaseEvent & { type: "task.completed"; agentId: string; taskId: string; result: TaskResult; skillId?: string })
   | (BaseEvent & { type: "payment.received"; agentId: string; receipt: X402Receipt })
-  | (BaseEvent & { type: "agent.xp"; agentId: string; xp: number; level: number })
+  | (BaseEvent & { type: "agent.xp"; agentId: string; xp: number; totalXp?: number; level: number; xpToNext?: number; reason?: string })
   | (BaseEvent & { type: "badge.unlocked"; agentId: string; badge: Badge })
   | (BaseEvent & { type: "district.unlocked"; districtId?: import("@/lib/types").DistrictId; district?: import("@/lib/types").District })
 
@@ -110,4 +110,3 @@ export function encodeSseEvent(event: PublishedSystemEvent) {
 export function encodeSseComment(comment: string) {
   return `: ${comment}\n\n`
 }
-

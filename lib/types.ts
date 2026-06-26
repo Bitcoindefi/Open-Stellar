@@ -50,6 +50,9 @@ export interface MoltbotAgent {
   id: string
   name: string
   model: string
+  xp?: number
+  level?: number
+  xpToNext?: number
   status: AgentStatus
   district: DistrictId
   cpu: number

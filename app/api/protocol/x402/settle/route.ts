@@ -4,6 +4,8 @@ import { peekX402Quote, settleX402 } from '@/lib/protocols/x402'
 import { isMockMode } from '@/lib/mock/mock-mode'
 import { settleMockX402 } from '@/lib/mock/x402-mock'
 import { publishSystemEvent } from '@/lib/events/system-events'
+import { XP_AWARDS } from '@/lib/gamification/constants'
+import { awardXP } from '@/lib/gamification/xp'
 
 export async function POST(req: Request) {
   const api = createApiRouteLogger(req, '/api/protocol/x402/settle')
@@ -21,6 +23,14 @@ export async function POST(req: Request) {
         chain,
         txHash: body.txHash ? String(body.txHash) : undefined,
       })
+      if (agentId || paidBy) {
+        awardXP(agentId || paidBy, XP_AWARDS.X402_PAYMENT_RECEIVED, 'payment.received')
+        publishSystemEvent({
+          type: 'payment.received',
+          agentId: agentId || paidBy,
+          receipt,
+        })
+      }
       return await api.json({ ok: true, receipt }, undefined, { event: 'x402.settle.mock', paymentRef })
     }
 
@@ -68,6 +78,7 @@ export async function POST(req: Request) {
       agentId: agentId || paidBy,
       receipt: result.receipt,
     })
+    awardXP(agentId || paidBy, XP_AWARDS.X402_PAYMENT_RECEIVED, 'payment.received')
 
     return await api.json({ ok: true, receipt: result.receipt }, undefined, {
       event: 'x402.settle.completed',
