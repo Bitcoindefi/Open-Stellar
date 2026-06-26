@@ -16,6 +16,11 @@ export async function POST(req: Request) {
       units: Number(body.units || 1),
       unitPriceUsd: Number(body.unitPriceUsd || 0.1),
       ttlSeconds: Number(body.ttlSeconds || 300),
+      reputationGate: body.minReputation ? {
+        minReputation: Number(body.minReputation),
+        tier: body.tier ? String(body.tier) : undefined,
+      } : undefined,
+      attestation: body.attestation,
     })
 
     return await api.json({ ok: true, quote }, undefined, {

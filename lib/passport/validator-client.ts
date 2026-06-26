@@ -31,11 +31,21 @@ if (typeof window !== "undefined") {
 }
 
 
+export type StellarNetwork = "testnet" | "mainnet";
+
 export const networks = {
   testnet: {
     networkPassphrase: "Test SDF Network ; September 2015",
-    contractId: "CDNSZUNEWFCGSPWLPDSWTENR2WPHKC34RGZQG7RJA54OPGTZGVVRFYBA",
-  }
+    rpcUrl: "https://soroban-testnet.stellar.org",
+    contractId: process.env.NEXT_PUBLIC_STELLAR_TESTNET_VALIDATOR_CONTRACT_ID ?? "CDNSZUNEWFCGSPWLPDSWTENR2WPHKC34RGZQG7RJA54OPGTZGVVRFYBA",
+    verifierContractId: process.env.NEXT_PUBLIC_STELLAR_TESTNET_VERIFIER_CONTRACT_ID ?? "CCMKLYSRUH2HMA4UU6WLXWQXEY6KAH5AWB5BEVMJGNGC5GLGTVROLG4A",
+  },
+  mainnet: {
+    networkPassphrase: "Public Global Stellar Network ; September 2015",
+    rpcUrl: "https://mainnet.sorobanrpc.com",
+    contractId: process.env.NEXT_PUBLIC_STELLAR_MAINNET_VALIDATOR_CONTRACT_ID ?? "",
+    verifierContractId: process.env.NEXT_PUBLIC_STELLAR_MAINNET_VERIFIER_CONTRACT_ID ?? "",
+  },
 } as const
 
 export const Errors = {

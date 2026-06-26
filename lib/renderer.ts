@@ -59,7 +59,14 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, x: number, y: number
   }
 }
 
-export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: number, bgImage?: HTMLImageElement) {
+export interface DistrictDrawEventState {
+  scoreLabel?: string
+  rank?: number
+  multiplier?: number
+  isLeading?: boolean
+}
+
+export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: number, bgImage?: HTMLImageElement, eventState?: DistrictDrawEventState) {
   // Save state for clipping
   ctx.save()
 
@@ -98,8 +105,11 @@ export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: n
   ctx.restore()
 
   // Border glow
-  ctx.strokeStyle = d.color + "55"
-  ctx.lineWidth = 2
+  const eventPulse = eventState ? Math.sin(tick * 0.16) * 0.25 + 0.75 : 0
+  ctx.shadowColor = eventState ? d.color : "transparent"
+  ctx.shadowBlur = eventState ? (eventState.isLeading ? 24 : 12) * eventPulse : 0
+  ctx.strokeStyle = eventState ? d.color + (eventState.isLeading ? "dd" : "99") : d.color + "55"
+  ctx.lineWidth = eventState?.isLeading ? 4 : 2
   ctx.beginPath()
   ctx.moveTo(d.x + radius, d.y)
   ctx.lineTo(d.x + d.w - radius, d.y)
@@ -112,6 +122,7 @@ export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: n
   ctx.quadraticCurveTo(d.x, d.y, d.x + radius, d.y)
   ctx.closePath()
   ctx.stroke()
+  ctx.shadowBlur = 0
 
   // Animated corner glow pulses
   const pulse = Math.sin(tick * 0.05) * 0.3 + 0.7
@@ -130,11 +141,18 @@ export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: n
 
   // District label with background pill
   ctx.font = "bold 10px monospace"
-  const labelW = ctx.measureText(d.name.toUpperCase()).width + 12
+  const districtLabel = d.name.toUpperCase()
+  const scoreLabel = eventState?.scoreLabel ? ` #${eventState.rank} ${eventState.scoreLabel}${eventState.multiplier && eventState.multiplier > 1 ? ` ${eventState.multiplier}x` : ""}` : ""
+  const labelW = Math.max(ctx.measureText(districtLabel).width, scoreLabel ? ctx.measureText(scoreLabel).width : 0) + 12
   ctx.fillStyle = d.bgColor + "dd"
-  ctx.fillRect(d.x + 6, d.y + 6, labelW, 18)
+  ctx.fillRect(d.x + 6, d.y + 6, labelW, scoreLabel ? 30 : 18)
   ctx.fillStyle = d.color
-  ctx.fillText(d.name.toUpperCase(), d.x + 12, d.y + 18)
+  ctx.fillText(districtLabel, d.x + 12, d.y + 18)
+  if (scoreLabel) {
+    ctx.font = "bold 9px monospace"
+    ctx.fillStyle = eventState?.isLeading ? "#fbbf24" : "#cbd5e1"
+    ctx.fillText(scoreLabel, d.x + 12, d.y + 30)
+  }
 }
 
 // Cache for processed sprites: key = src+color
