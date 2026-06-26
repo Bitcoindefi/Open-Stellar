@@ -17,15 +17,21 @@ import {
 } from "lucide-react"
 import {
   CONTRACTS,
+  currentNetwork,
   commitOnChain,
+  loadPassportCollection,
   mintPassport,
   replaySpentProof,
+  revokePassportLocal,
+  savePassport,
   verifyOnChain,
   type MintedProof,
+  type AgentPassport,
   type OnChainResult,
+  type PassportCollection,
 } from "@/lib/passport/passport"
 
-const EXPLORER = (id: string) => `https://stellar.expert/explorer/testnet/contract/${id}`
+const EXPLORER = (id: string) => `https://stellar.expert/explorer/${currentNetwork()}/contract/${id}`
 const toStroops = (xlm: number) => BigInt(Math.round(xlm * 1e7)).toString()
 const fromStroops = (s: string) => (Number(BigInt(s)) / 1e7).toLocaleString()
 const short = (s = "", n = 14) => (s.length > n ? `${s.slice(0, n)}…` : s)
@@ -45,6 +51,7 @@ export function PassportPanel() {
   const [cap, setCap] = useState(50)
   const [payAmount, setPayAmount] = useState(20)
   const [minted, setMinted] = useState<MintedProof | null>(null)
+  const [collection, setCollection] = useState<PassportCollection | null>(null)
   const [verifyRes, setVerifyRes] = useState<OnChainResult | null>(null)
   const [commitResult, setCommitResult] = useState<{ ok: boolean; hash?: string; error?: string } | null>(null)
   const [payRes, setPayRes] = useState<PayResult | null>(null)
@@ -85,6 +92,7 @@ export function PassportPanel() {
     try {
       const m = await mintPassport(toStroops(cap))
       setMinted(m)
+      setCollection(loadPassportCollection(m.agentId))
       addLog(`+ proof generated in ${m.provingMs} ms · off-chain verify: ${m.offChainValid}`)
       addLog(`  agent #${m.agentId} · nullifier ${short(m.nullifierHash, 20)}`)
     } catch (e) {
@@ -141,7 +149,7 @@ export function PassportPanel() {
     try {
       const signTransaction = async (xdr: string, opts?: object) => {
         const result: any = await freighter.signTransaction(xdr, {
-          networkPassphrase: "Test SDF Network ; September 2015",
+          networkPassphrase: CONTRACTS.networkPassphrase,
           ...opts,
         })
         if (typeof result === "string") return { signedTxXdr: result }
@@ -151,6 +159,7 @@ export function PassportPanel() {
 
       const r = await commitOnChain(minted, key, signTransaction)
       setCommitResult(r)
+      if (r.ok) setCollection(savePassport({ ...minted, txHash: r.hash, proof: minted }))
       addLog(
         r.ok
           ? `+ COMMITTED ON-CHAIN · tx ${r.hash ? short(r.hash, 16) : "confirmed"}`
@@ -393,13 +402,14 @@ export function PassportPanel() {
       {/* RIGHT — credential + console + contracts */}
       <div className="space-y-4">
         <PassportCardMini cap={minted?.spendCap ?? toStroops(cap)} minted={minted} verified={!!verifyRes?.ok} committed={committed} />
+        <PassportCollectionPanel collection={collection} onRevoke={(passport) => { setCollection(revokePassportLocal(passport)); addLog(`+ locally marked passport ${short(passport.nullifierHash, 12)} as revoked`) }} />
 
 
         <div className="rounded-[28px] border border-slate-800 bg-slate-950/80 p-5">
           <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Live console</p>
           <div className="mt-3 h-56 overflow-auto rounded-2xl border border-slate-800 bg-black/50 p-3 font-mono text-[11px] leading-relaxed text-slate-300">
             {log.length === 0 ? (
-              <span className="text-slate-600">// waiting for the first proof…</span>
+              <span className="text-slate-600">{"// waiting for the first proof…"}</span>
             ) : (
               log.map((l, i) => (
                 <div key={i} className={l.includes("DENIED") || l.startsWith("!") ? "text-rose-300" : l.includes("APPROVED") || l.includes("VERIFIED") || l.includes("COMMITTED") ? "text-emerald-300" : l.includes("SIMULATION PASSED") ? "text-amber-300" : ""}>
@@ -411,7 +421,7 @@ export function PassportPanel() {
         </div>
 
         <div className="rounded-[28px] border border-slate-800 bg-slate-950/80 p-5 space-y-3">
-          <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Deployed contracts (testnet)</p>
+          <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Deployed contracts ({currentNetwork()})</p>
           <ContractRow icon={<ShieldCheck className="h-4 w-4" />} label="Validator" id={CONTRACTS.validator} />
           <ContractRow icon={<Lock className="h-4 w-4" />} label="Groth16 verifier" id={CONTRACTS.verifier} />
         </div>
@@ -495,6 +505,61 @@ function ContractRow({ icon, label, id }: { icon: ReactNode; label: string; id: 
       </div>
       <ExternalLink className="h-3.5 w-3.5 text-slate-500" />
     </a>
+  )
+}
+
+function PassportCollectionPanel({
+  collection,
+  onRevoke,
+}: {
+  collection: PassportCollection | null
+  onRevoke: (passport: AgentPassport) => void
+}) {
+  if (!collection || collection.passports.length === 0) {
+    return (
+      <div className="rounded-[28px] border border-slate-800 bg-slate-950/80 p-5">
+        <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Passport collection</p>
+        <p className="mt-3 font-vt323 text-lg text-slate-400">No persisted passports yet. Register one to start history.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-[28px] border border-slate-800 bg-slate-950/80 p-5">
+      <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Passport collection</p>
+      <p className="mt-2 font-mono text-[11px] text-slate-400">Agent #{collection.agentId} · primary {short(collection.primaryPassport, 18)}</p>
+      <div className="mt-4 space-y-2">
+        {collection.passports.map((passport) => {
+          const expiresMs = new Date(passport.expiresAt).getTime() - Date.now()
+          const expiresInDays = Math.max(0, Math.ceil(expiresMs / (24 * 60 * 60 * 1000)))
+          const active = passport.status === "ACTIVE"
+          return (
+            <div key={passport.id} className="rounded-2xl border border-slate-800 bg-[#09101a] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-mono text-xs text-slate-200">{short(passport.nullifierHash, 18)}</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    {active ? `${expiresInDays}d until expiry` : passport.status} · {fromStroops(passport.spendCap)} XLM
+                  </p>
+                </div>
+                <span className={`font-mono text-[10px] ${active ? "text-emerald-300" : passport.status === "REVOKED" ? "text-rose-300" : "text-amber-300"}`}>
+                  {passport.status}
+                </span>
+              </div>
+              {active && (
+                <button
+                  type="button"
+                  onClick={() => onRevoke(passport)}
+                  className="mt-3 rounded-full border border-rose-400/30 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em] text-rose-200 hover:border-rose-300"
+                >
+                  Revoke
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
