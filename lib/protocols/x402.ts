@@ -1,3 +1,6 @@
+import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
+import { checkReputationGate } from '@/lib/reputation/attestation'
+
 export type SettlementChain = 'bnb' | 'stellar'
 
 export interface X402QuoteRequest {
@@ -7,6 +10,8 @@ export interface X402QuoteRequest {
   units: number
   unitPriceUsd: number
   ttlSeconds?: number
+  reputationGate?: ReputationGateRequirement
+  attestation?: ReputationAttestation
 }
 
 export interface X402Quote {
@@ -98,6 +103,11 @@ export function createX402Quote(input: X402QuoteRequest): X402Quote {
 
   if (!Number.isFinite(input.unitPriceUsd) || input.unitPriceUsd <= 0) {
     throw new Error('unitPriceUsd must be > 0')
+  }
+
+  const reputationGate = checkReputationGate(input.reputationGate, input.attestation)
+  if (!reputationGate.ok) {
+    throw new Error(reputationGate.error || 'Reputation too low for this service')
   }
 
   const amountUsd = Number((input.units * input.unitPriceUsd).toFixed(6))

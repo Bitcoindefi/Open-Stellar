@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, type ReactNode } from "react"
+import { useState, useEffect, useCallback, type ReactNode } from "react"
 import { Copy, Download, Share2 } from "lucide-react"
 import { toast } from "sonner"
 import type { AgentAppearance, MoltbotAgent, LogEntry, ChatMessage, WalletTransaction } from "@/lib/types"
@@ -50,6 +50,18 @@ function StatBox({ label, value, color }: { label: string; value: string | numbe
       <div suppressHydrationWarning style={{ fontSize: 18, fontWeight: 700, color, fontFamily: "monospace" }}>{value}</div>
     </div>
   )
+}
+
+function getReputationTier(score: number) {
+  if (score >= 1000) return "Platinum"
+  if (score >= 500) return "Gold"
+  if (score >= 200) return "Silver"
+  if (score >= 50) return "Bronze"
+  return "Unrated"
+}
+
+function tierColor(tier: string) {
+  return { Platinum: "#e0e7ff", Gold: "#fbbf24", Silver: "#cbd5e1", Bronze: "#d97706", Unrated: "#64748b" }[tier] ?? "#64748b"
 }
 
 function ProgressBar({ value, color }: { value: number; color: string }) {
@@ -276,6 +288,51 @@ function OverviewTab({
   const errors = agents.filter(a => a.status === "error").length
   const totalTasks = agents.reduce((s, a) => s + a.tasksCompleted, 0)
   const offerCounts = selectedAgent ? getTaskOfferCounts(selectedAgent.id, MOCK_OFFERS) : null
+  const [reputation, setReputation] = useState<{ score: number; tier: string } | null>(null)
+  const [attestation, setAttestation] = useState<{ hash: string; stellarExpertUrl: string } | null>(null)
+  const [mintingAttestation, setMintingAttestation] = useState(false)
+  const selectedAgentId = selectedAgent?.id ?? null
+
+  useEffect(() => {
+    if (!selectedAgentId) {
+      setReputation(null)
+      setAttestation(null)
+      return
+    }
+
+    let cancelled = false
+    fetch(`/api/protocol/reputation?actorId=${encodeURIComponent(selectedAgentId)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return
+        const score = typeof data?.reputation?.score === "number" ? data.reputation.score : 0
+        setReputation({ score, tier: String(data?.reputation?.tier || getReputationTier(score)) })
+      })
+      .catch(() => {
+        if (!cancelled) setReputation(null)
+      })
+    return () => { cancelled = true }
+  }, [selectedAgentId])
+
+  const mintReputationAttestation = useCallback(async () => {
+    if (!selectedAgentId) return
+    setMintingAttestation(true)
+    try {
+      const res = await fetch('/api/protocol/reputation/attestation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actorId: selectedAgentId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Mint failed')
+      setReputation({ score: data.reputation.score, tier: data.reputation.tier })
+      setAttestation(data.attestation)
+      toast.success('Reputation attestation minted', { description: data.attestation.hash.slice(0, 18) + '…' })
+    } catch (error) {
+      toast.error('Attestation mint failed', { description: error instanceof Error ? error.message : 'Unknown error' })
+    }
+    setMintingAttestation(false)
+  }, [selectedAgentId])
 
   const logTypeColors: Record<string, string> = {
     info: "#60a5fa", success: "#34d399", error: "#f87171", warning: "#fbbf24",
@@ -311,9 +368,14 @@ function OverviewTab({
       {selectedAgent && (
         <div style={{ padding: 12, borderBottom: "1px solid #2a3a52", background: "#0f172a" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: selectedAgent.color, fontFamily: "monospace" }}>
-              {selectedAgent.name}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: selectedAgent.color, fontFamily: "monospace" }}>
+                {selectedAgent.name}
+              </span>
+              <span style={{ fontFamily: "monospace", fontSize: 9, fontWeight: 800, color: tierColor(reputation?.tier || "Unrated"), border: `1px solid ${tierColor(reputation?.tier || "Unrated")}55`, borderRadius: 999, padding: "2px 6px", textTransform: "uppercase" }}>
+                {reputation?.tier || "unrated"}
+              </span>
+            </div>
             <button
               onClick={() => onSelectAgent(null)}
               style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 14 }}
@@ -351,6 +413,26 @@ function OverviewTab({
 
           <div suppressHydrationWarning style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>
             {"Completed: " + selectedAgent.tasksCompleted + " tasks"}
+          </div>
+
+          <div style={{ marginTop: 8, padding: 8, border: "1px solid #1e293b", borderRadius: 6, background: "#111827" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", marginBottom: 4 }}>
+              <span>Reputation</span>
+              <span style={{ color: tierColor(reputation?.tier || "Unrated"), fontWeight: 700 }}>{reputation?.score ?? "--"}/1300</span>
+            </div>
+            <ProgressBar value={Math.min(100, ((reputation?.score ?? 0) / 1300) * 100)} color={tierColor(reputation?.tier || "Unrated")} />
+            <button
+              onClick={mintReputationAttestation}
+              disabled={mintingAttestation}
+              style={{ width: "100%", marginTop: 8, padding: "6px 8px", background: "#22d3ee22", color: "#67e8f9", border: "1px solid #22d3ee44", borderRadius: 4, cursor: mintingAttestation ? "wait" : "pointer", fontFamily: "monospace", fontSize: 10, fontWeight: 700 }}
+            >
+              {mintingAttestation ? "Minting..." : "Mint reputation attestation"}
+            </button>
+            {attestation && (
+              <a href={attestation.stellarExpertUrl} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, color: "#38bdf8", fontFamily: "monospace", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {attestation.hash}
+              </a>
+            )}
           </div>
           {offerCounts && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
