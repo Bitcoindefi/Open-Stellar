@@ -14,6 +14,7 @@ export interface Quest {
   description: string
   reward: QuestReward
   progress: number
+  minReputation?: number
   completedAt?: string
   expiresAt?: string
 }
@@ -26,6 +27,7 @@ interface QuestDefinition {
   reward: QuestReward
   goal: number
   metric: QuestMetric
+  minReputation?: number
 }
 
 type QuestMetric =
@@ -127,6 +129,7 @@ const QUEST_DEFINITIONS: QuestDefinition[] = [
     reward: { xp: 400 },
     goal: 1,
     metric: "marketplaceServicesWeek",
+    minReputation: 50,
   },
   {
     id: "story-first-zk-passport",
@@ -196,6 +199,7 @@ export function buildQuests(stats: QuestStats, now: Date = new Date()): Quest[] 
       description: definition.description,
       reward: definition.reward,
       progress,
+      ...(definition.minReputation !== undefined ? { minReputation: definition.minReputation } : {}),
       ...(progress >= 100 ? { completedAt } : {}),
       ...(expiresAt ? { expiresAt } : {}),
     }
@@ -222,4 +226,8 @@ export function getMockQuestStats(now: Date = new Date()): QuestStats {
 
 export function getQuests(now: Date = new Date()): Quest[] {
   return buildQuests(getMockQuestStats(now), now)
+}
+
+export function getQuestById(id: string, now: Date = new Date()): Quest | null {
+  return getQuests(now).find((quest) => quest.id === id) ?? null
 }

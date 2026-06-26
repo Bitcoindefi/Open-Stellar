@@ -699,7 +699,7 @@ export function SidebarPanel({
           <SkillsPanel selectedAgent={selectedAgent} agents={agents} onUpgradeSkill={onUpgradeSkill} />
         )}
         {activeTab === "quests" && (
-          <QuestsPanel />
+          <QuestsPanel selectedAgentId={selectedAgent?.id ?? null} />
         )}
         {activeTab === "wallet" && (
           <WalletPanel

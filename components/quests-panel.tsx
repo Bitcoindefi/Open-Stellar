@@ -30,9 +30,22 @@ function formatCountdown(expiresAt?: string): string {
   return `${hours}h ${minutes}m`
 }
 
-function QuestCard({ quest, onClaim }: { quest: Quest; onClaim: (quest: Quest) => void }) {
+function QuestCard({
+  quest,
+  currentReputation,
+  onClaim,
+}: {
+  quest: Quest
+  currentReputation: number | null
+  onClaim: (quest: Quest) => void
+}) {
   const isComplete = quest.progress >= 100
   const color = questTypeColors[quest.type]
+  const minReputation = quest.minReputation
+  const hasReputationGate = minReputation !== undefined
+  const isEligible = minReputation !== undefined && currentReputation !== null && currentReputation >= minReputation
+  const isReputationTooLow = minReputation !== undefined && currentReputation !== null && currentReputation < minReputation
+  const canClaim = isComplete && !isReputationTooLow
 
   return (
     <div
@@ -54,6 +67,31 @@ function QuestCard({ quest, onClaim }: { quest: Quest; onClaim: (quest: Quest) =
       <div style={{ color: "#e2e8f0", fontSize: 13, fontWeight: 700, fontFamily: "monospace", marginBottom: 4 }}>{quest.title}</div>
       <div style={{ color: "#94a3b8", fontSize: 11, lineHeight: 1.4, marginBottom: 8 }}>{quest.description}</div>
 
+      {hasReputationGate && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+          <span style={{ color: "#cbd5e1", fontSize: 10, fontFamily: "monospace" }}>
+            Min reputation {minReputation}
+          </span>
+          {currentReputation !== null && (
+            <span
+              style={{
+                border: `1px solid ${isEligible ? "#34d39966" : "#f8717166"}`,
+                borderRadius: 999,
+                color: isEligible ? "#34d399" : "#f87171",
+                fontSize: 9,
+                fontFamily: "monospace",
+                fontWeight: 800,
+                padding: "2px 6px",
+                textTransform: "uppercase",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {isEligible ? "Eligible" : "Reputation too low"}
+            </span>
+          )}
+        </div>
+      )}
+
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ color: "#64748b", fontSize: 10, textTransform: "uppercase", letterSpacing: 0.8 }}>Progress</span>
         <span style={{ color, fontSize: 10, fontFamily: "monospace", fontWeight: 700 }}>{quest.progress}%</span>
@@ -66,15 +104,15 @@ function QuestCard({ quest, onClaim }: { quest: Quest; onClaim: (quest: Quest) =
         <span style={{ color: "#cbd5e1", fontSize: 10, fontFamily: "monospace" }}>{formatReward(quest)}</span>
         <button
           type="button"
-          disabled={!isComplete}
+          disabled={!canClaim}
           onClick={() => onClaim(quest)}
           style={{
             padding: "5px 8px",
             borderRadius: 5,
-            border: `1px solid ${isComplete ? color : "#334155"}`,
-            background: isComplete ? `${color}22` : "#111827",
-            color: isComplete ? color : "#475569",
-            cursor: isComplete ? "pointer" : "not-allowed",
+            border: `1px solid ${canClaim ? color : "#334155"}`,
+            background: canClaim ? `${color}22` : "#111827",
+            color: canClaim ? color : "#475569",
+            cursor: canClaim ? "pointer" : "not-allowed",
             fontSize: 10,
             fontFamily: "monospace",
             fontWeight: 800,
@@ -88,8 +126,9 @@ function QuestCard({ quest, onClaim }: { quest: Quest; onClaim: (quest: Quest) =
   )
 }
 
-export function QuestsPanel() {
+export function QuestsPanel({ selectedAgentId }: { selectedAgentId?: string | null }) {
   const [quests, setQuests] = useState<Quest[]>([])
+  const [currentReputation, setCurrentReputation] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -120,6 +159,33 @@ export function QuestsPanel() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!selectedAgentId) {
+      setCurrentReputation(null)
+      return
+    }
+
+    const actorId = selectedAgentId
+    let cancelled = false
+
+    async function loadReputation(): Promise<void> {
+      try {
+        const response = await fetch(`/api/protocol/reputation?actorId=${encodeURIComponent(actorId)}`, { cache: "no-store" })
+        const data = await response.json()
+        if (!cancelled) {
+          setCurrentReputation(typeof data?.reputation?.score === "number" ? data.reputation.score : null)
+        }
+      } catch {
+        if (!cancelled) setCurrentReputation(null)
+      }
+    }
+
+    loadReputation()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedAgentId])
 
   const groupedQuests = useMemo(() => ({
     daily: quests.filter((quest) => quest.type === "daily"),
@@ -156,7 +222,14 @@ export function QuestsPanel() {
               {type} quests
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {groupedQuests[type].map((quest) => <QuestCard key={quest.id} quest={quest} onClaim={handleClaim} />)}
+              {groupedQuests[type].map((quest) => (
+                <QuestCard
+                  key={quest.id}
+                  quest={quest}
+                  currentReputation={currentReputation}
+                  onClaim={handleClaim}
+                />
+              ))}
             </div>
           </section>
         ))}

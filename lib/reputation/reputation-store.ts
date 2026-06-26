@@ -116,6 +116,10 @@ export function getReputation(actorId: string): ReputationSnapshot {
   return created
 }
 
+export function getReputationByActorId(actorId: string): ReputationSnapshot {
+  return getReputation(actorId)
+}
+
 export function upsertReputationMetrics(actorId: string, metrics: Partial<ReputationMetrics>): ReputationSnapshot {
   const updated = snapshot(actorId, metrics)
   db.set(actorId, updated)

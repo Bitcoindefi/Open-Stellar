@@ -37,6 +37,13 @@ describe("quests", () => {
     expect(quests.find((quest) => quest.id === "daily-complete-5-tasks")?.reward).toMatchObject({ xp: 50, xlm: "0.05" })
   })
 
+  it("includes optional minimum reputation requirements", () => {
+    const quests = buildQuests(completeStats, new Date("2026-06-26T13:45:00.000Z"))
+
+    expect(quests.find((quest) => quest.id === "weekly-onboard-marketplace-service")?.minReputation).toBe(50)
+    expect(quests.find((quest) => quest.id === "daily-complete-5-tasks")?.minReputation).toBeUndefined()
+  })
+
   it("keeps incomplete quest progress clamped between zero and one hundred", () => {
     const quests = buildQuests({ ...completeStats, tasksCompletedToday: 2, subscriptionsAcquired: 0 })
 
