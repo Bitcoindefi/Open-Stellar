@@ -12,16 +12,49 @@ const globalState = globalThis as typeof globalThis & {
   __openStellarWebhookDeliveryRegistered__?: boolean
 }
 
+type PendingRetry = {
+  timeout: ReturnType<typeof setTimeout>
+  resolve: (cancelled: boolean) => void
+}
+
+const pendingRetriesByWebhookId = new Map<string, Set<PendingRetry>>()
+
 interface WebhookPostResult {
   durationMs: number
   responseStatus: number | null
   ok: boolean
 }
 
-function sleep(ms: number): Promise<void> {
+function waitForPendingRetry(webhookId: string, ms: number): Promise<boolean> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms)
+    const pendingRetries = pendingRetriesByWebhookId.get(webhookId) ?? new Set<PendingRetry>()
+    const pendingRetry: PendingRetry = {
+      timeout: setTimeout(() => {
+        pendingRetries.delete(pendingRetry)
+        if (pendingRetries.size === 0) {
+          pendingRetriesByWebhookId.delete(webhookId)
+        }
+        resolve(false)
+      }, ms),
+      resolve,
+    }
+    pendingRetries.add(pendingRetry)
+    pendingRetriesByWebhookId.set(webhookId, pendingRetries)
   })
+}
+
+export function cancelPendingWebhookRetries(webhookId: string): number {
+  const cleanWebhookId = webhookId.trim()
+  const pendingRetries = pendingRetriesByWebhookId.get(cleanWebhookId)
+  if (!pendingRetries) return 0
+
+  const cancelledRetries = pendingRetries.size
+  for (const pendingRetry of pendingRetries) {
+    clearTimeout(pendingRetry.timeout)
+    pendingRetry.resolve(true)
+  }
+  pendingRetriesByWebhookId.delete(cleanWebhookId)
+  return cancelledRetries
 }
 
 export function signWebhookBody(body: string, secret: string): string {
@@ -89,7 +122,8 @@ async function deliverToWebhook(webhook: WebhookRegistration, event: string, bod
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     if (attempt > 1) {
-      await sleep(retryDelaysMs[attempt - 2])
+      const cancelled = await waitForPendingRetry(webhook.id, retryDelaysMs[attempt - 2])
+      if (cancelled) return
     }
 
     const result = await postWebhook(webhook.url, body, webhook.secret)
@@ -131,4 +165,14 @@ export function setWebhookRetryDelaysForTests(delaysMs: number[]): void {
 
 export function resetWebhookRetryDelayForTests(): void {
   retryDelaysMs = [...RETRY_DELAYS_MS]
+}
+
+export function resetWebhookRetryCancellationForTests(): void {
+  for (const pendingRetries of pendingRetriesByWebhookId.values()) {
+    for (const pendingRetry of pendingRetries) {
+      clearTimeout(pendingRetry.timeout)
+      pendingRetry.resolve(true)
+    }
+  }
+  pendingRetriesByWebhookId.clear()
 }

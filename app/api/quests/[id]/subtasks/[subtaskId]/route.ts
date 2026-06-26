@@ -60,23 +60,6 @@ export async function PATCH(req: Request, context: Context) {
       updates.dependsOn = sanitizeDependsOn(body.dependsOn)
     }
 
-    // ── Circular dependency detection ─────────────────────────────────────
-    if (updates.dependsOn !== undefined && updates.dependsOn.length > 0) {
-      for (const toId of updates.dependsOn) {
-        const result = hasCycle(subtasks, decodedSubTaskId, toId)
-        if (result.hasCycle) {
-          return NextResponse.json(
-            {
-              ok: false,
-              error: "circular_dependency",
-              cycle: result.cycle,
-            },
-            { status: 422 },
-          )
-        }
-      }
-    }
-
     if (updates.status === "done") {
       const dependsOn = updates.dependsOn ?? subtask.dependsOn ?? []
       const missing = dependsOn.filter((prerequisiteId) => {

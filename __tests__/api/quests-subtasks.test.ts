@@ -10,16 +10,16 @@ const subtaskContext = (id: string, subtaskId: string) => ({
   params: Promise.resolve({ id, subtaskId }),
 })
 
-function makeCreateRequest(body: object): Request {
-  return new Request("http://localhost/api/quests/weekly-onboard-marketplace-service/subtasks", {
+function makeCreateRequest(body: object, questId = "weekly-onboard-marketplace-service"): Request {
+  return new Request(`http://localhost/api/quests/${questId}/subtasks`, {
     method: "POST",
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json" },
   })
 }
 
-function makeUpdateRequest(body: object): Request {
-  return new Request("http://localhost/api/quests/weekly-onboard-marketplace-service/subtasks/some-id", {
+function makeUpdateRequest(body: object, questId = "weekly-onboard-marketplace-service", subtaskId = "some-id"): Request {
+  return new Request(`http://localhost/api/quests/${questId}/subtasks/${subtaskId}`, {
     method: "PATCH",
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json" },
@@ -106,5 +106,111 @@ describe("Quest Subtasks API", () => {
     expect(parentQuest?.status).toBe("completed")
     expect(parentQuest?.progress).toBe(100)
     expect(parentQuest?.completedAt).toBeDefined()
+  })
+
+  it("PATCH completes a subtask with no dependencies", async () => {
+    const independentQuestId = "daily-complete-5-tasks"
+    const resCreate = await createSubTaskRoute(
+      makeCreateRequest({ title: "Complete independent task" }, independentQuestId),
+      context(independentQuestId)
+    )
+    const createData = await resCreate.json()
+
+    const resPatch = await updateSubTaskRoute(
+      makeUpdateRequest({ status: "done" }, independentQuestId, createData.subTask.id),
+      subtaskContext(independentQuestId, createData.subTask.id)
+    )
+    const patchData = await resPatch.json()
+
+    expect(resPatch.status).toBe(200)
+    expect(patchData.ok).toBe(true)
+    expect(patchData.subTask.status).toBe("done")
+  })
+
+  it("PATCH blocks completion when one dependency is incomplete", async () => {
+    const dependentQuestId = "daily-process-payment"
+    const prerequisiteRes = await createSubTaskRoute(
+      makeCreateRequest({ title: "Publish prerequisite" }, dependentQuestId),
+      context(dependentQuestId)
+    )
+    const prerequisite = (await prerequisiteRes.json()).subTask
+    const dependentRes = await createSubTaskRoute(
+      makeCreateRequest({ title: "Complete dependent task", dependsOn: [prerequisite.id] }, dependentQuestId),
+      context(dependentQuestId)
+    )
+    const dependent = (await dependentRes.json()).subTask
+
+    const resPatch = await updateSubTaskRoute(
+      makeUpdateRequest({ status: "done" }, dependentQuestId, dependent.id),
+      subtaskContext(dependentQuestId, dependent.id)
+    )
+    const patchData = await resPatch.json()
+
+    expect(resPatch.status).toBe(409)
+    expect(patchData).toEqual({
+      ok: false,
+      reason: "prerequisite_incomplete",
+      missing: [prerequisite.id],
+    })
+  })
+
+  it("PATCH completes a subtask once one dependency is done", async () => {
+    const dependentQuestId = "daily-uptime-99"
+    const prerequisiteRes = await createSubTaskRoute(
+      makeCreateRequest({ title: "Finish prerequisite" }, dependentQuestId),
+      context(dependentQuestId)
+    )
+    const prerequisite = (await prerequisiteRes.json()).subTask
+    const dependentRes = await createSubTaskRoute(
+      makeCreateRequest({ title: "Complete dependent task", dependsOn: [prerequisite.id] }, dependentQuestId),
+      context(dependentQuestId)
+    )
+    const dependent = (await dependentRes.json()).subTask
+
+    const resPrerequisitePatch = await updateSubTaskRoute(
+      makeUpdateRequest({ status: "done" }, dependentQuestId, prerequisite.id),
+      subtaskContext(dependentQuestId, prerequisite.id)
+    )
+    expect(resPrerequisitePatch.status).toBe(200)
+
+    const resPatch = await updateSubTaskRoute(
+      makeUpdateRequest({ status: "done" }, dependentQuestId, dependent.id),
+      subtaskContext(dependentQuestId, dependent.id)
+    )
+    const patchData = await resPatch.json()
+
+    expect(resPatch.status).toBe(200)
+    expect(patchData.ok).toBe(true)
+    expect(patchData.subTask.status).toBe("done")
+  })
+
+  it("PATCH blocks completion with two dependencies when one is incomplete and one is missing", async () => {
+    const dependentQuestId = "daily-send-10-messages"
+    const incompletePrerequisiteRes = await createSubTaskRoute(
+      makeCreateRequest({ title: "Incomplete prerequisite" }, dependentQuestId),
+      context(dependentQuestId)
+    )
+    const incompletePrerequisite = (await incompletePrerequisiteRes.json()).subTask
+    const dependentRes = await createSubTaskRoute(
+      makeCreateRequest({
+        title: "Complete dependent task",
+        dependsOn: [incompletePrerequisite.id, "missing-prerequisite"],
+      }, dependentQuestId),
+      context(dependentQuestId)
+    )
+    const dependent = (await dependentRes.json()).subTask
+
+    const resPatch = await updateSubTaskRoute(
+      makeUpdateRequest({ status: "done" }, dependentQuestId, dependent.id),
+      subtaskContext(dependentQuestId, dependent.id)
+    )
+    const patchData = await resPatch.json()
+
+    expect(resPatch.status).toBe(409)
+    expect(patchData).toEqual({
+      ok: false,
+      reason: "prerequisite_incomplete",
+      missing: [incompletePrerequisite.id, "missing-prerequisite"],
+    })
   })
 })

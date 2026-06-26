@@ -3,7 +3,6 @@ import {
   getAgentPositionHistoryPaginated,
   resetAgentPositionStoreForTests,
   setAgentPositionHistoryDirectoryForTests,
-  resetAgentPositionHistoryDirectoryForTests,
   moveAgentPosition,
   setAgentPositionForTests,
 } from "@/lib/agents/agent-position-store"
@@ -55,7 +54,6 @@ describe("agent position history pagination", () => {
 
   afterEach(() => {
     resetAgentPositionStoreForTests()
-    resetAgentPositionHistoryDirectoryForTests()
     rmSync(tempDir, { recursive: true, force: true })
   })
 
@@ -157,27 +155,31 @@ describe("GET /api/agents/[id]/positions", () => {
 
   afterEach(() => {
     resetAgentPositionStoreForTests()
-    resetAgentPositionHistoryDirectoryForTests()
     rmSync(tempDir, { recursive: true, force: true })
   })
 
-  it("returns 400 when limit > 100", async () => {
-    const req = new Request("http://localhost/api/agents/agent-api/positions?limit=101")
-    const res = await GET(req, { params: Promise.resolve({ id: "agent-api" }) })
+  it("falls back to default limit when limit > 1000", async () => {
+    seedHistoryFile(tempDir, "agent-api", 200)
 
-    expect(res.status).toBe(400)
+    const req = new Request("http://localhost/api/agents/agent-api/positions?limit=1001")
+    const res = await GET(req, { params: Promise.resolve({ id: "agent-api" }) })
+    expect(res.status).toBe(200)
+
     const body = await res.json()
-    expect(body.ok).toBe(false)
-    expect(body.error).toContain("at most 100")
+    expect(body.ok).toBe(true)
+    expect(body.positions).toHaveLength(200) // capped at 1000 but only 200 exist
   })
 
-  it("returns 400 when limit is not a positive integer", async () => {
+  it("falls back to default limit when limit is not a positive integer", async () => {
+    seedHistoryFile(tempDir, "agent-api", 200)
+
     const req = new Request("http://localhost/api/agents/agent-api/positions?limit=abc")
     const res = await GET(req, { params: Promise.resolve({ id: "agent-api" }) })
+    expect(res.status).toBe(200)
 
-    expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.ok).toBe(false)
+    expect(body.ok).toBe(true)
+    expect(body.positions).toHaveLength(50) // default fallback
   })
 
   it("returns enriched response with total, returned, oldest, newest", async () => {

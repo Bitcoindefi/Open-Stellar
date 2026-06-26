@@ -13,6 +13,7 @@ export interface SubTask {
   id: string
   title: string
   assignedAgentId?: string
+  dependsOn?: string[]
   status: "pending" | "in_progress" | "done"
   completedAt?: string
 }
@@ -221,12 +222,13 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 15)
 }
 
-export function addSubTask(questId: string, title: string, assignedAgentId?: string): SubTask {
+export function addSubTask(questId: string, title: string, assignedAgentId?: string, dependsOn?: string[]): SubTask {
   const subtasks = getSubTasks(questId)
   const newSubTask: SubTask = {
     id: generateId(),
     title,
     assignedAgentId,
+    ...(dependsOn !== undefined ? { dependsOn } : {}),
     status: "pending",
   }
   subtasks.push(newSubTask)

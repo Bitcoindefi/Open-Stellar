@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { registerWebhookDeliveryListener } from "@/lib/webhooks/delivery"
+import { cancelPendingWebhookRetries, registerWebhookDeliveryListener } from "@/lib/webhooks/delivery"
 import { rotateWebhookSecret } from "@/lib/webhooks/store"
 
 export const dynamic = "force-dynamic"
@@ -22,8 +22,10 @@ export async function POST(_req: Request, context: RouteContext) {
     )
   }
 
+  const cancelledRetries = cancelPendingWebhookRetries(webhook.id)
+
   return NextResponse.json(
-    { id: webhook.id, secret: webhook.secret },
+    { id: webhook.id, secret: webhook.secret, cancelledRetries },
     { headers: { "Cache-Control": "no-store" } },
   )
 }

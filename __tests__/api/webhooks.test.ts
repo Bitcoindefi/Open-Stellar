@@ -11,6 +11,7 @@ import { GET, POST } from "@/app/api/webhooks/route"
 import { publishSystemEvent } from "@/lib/events/system-events"
 import { deliverWebhookEvent } from "@/lib/webhooks/delivery"
 import {
+  resetWebhookRetryCancellationForTests,
   resetWebhookRetryDelayForTests,
   setWebhookRetryDelayForTests,
   setWebhookRetryDelaysForTests,
@@ -62,6 +63,7 @@ describe("webhook API", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetWebhookRetryCancellationForTests()
     vi.useRealTimers()
     resetWebhookRetryDelayForTests()
     resetWebhookStorePathForTests()
@@ -144,7 +146,7 @@ describe("webhook API", () => {
       new Request(`http://localhost/api/webhooks/${registered.id}/rotate`, { method: "POST" }),
       context(registered.id),
     )
-    const rotatedData = await rotated.json() as { id: string; secret: string }
+    const rotatedData = await rotated.json() as { id: string; secret: string; cancelledRetries: number }
     const after = await GET()
     const afterData = await after.json()
 
@@ -153,6 +155,7 @@ describe("webhook API", () => {
     expect(rotatedData.id).toBe(registered.id)
     expect(rotatedData.secret).toHaveLength(64)
     expect(rotatedData.secret).not.toBe(registered.secret)
+    expect(rotatedData.cancelledRetries).toBe(0)
     expect(afterData.webhooks).toHaveLength(1)
     expect(afterData.webhooks[0]).toMatchObject({
       id: registered.id,
@@ -173,6 +176,66 @@ describe("webhook API", () => {
     expect(res.status).toBe(404)
     expect(res.headers.get("Cache-Control")).toBe("no-store")
     expect(data.error).toBe("Webhook not found")
+  })
+
+  it("cancels pending retries on secret rotation and uses the new secret for new deliveries", async () => {
+    vi.useFakeTimers()
+    setWebhookRetryDelaysForTests([5_000, 30_000, 120_000])
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const { data: registered } = await registerWebhook()
+
+    const pendingDelivery = deliverWebhookEvent({
+      id: "evt_cancel_retry_on_rotate",
+      occurredAt: "2026-06-26T00:00:00.000Z",
+      type: "quest.completed",
+      agentId: "nexus-7",
+      questId: "daily-complete-5-tasks",
+      reward: { xp: 50 },
+    })
+
+    await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    const rotated = await ROTATE_POST(
+      new Request(`http://localhost/api/webhooks/${registered.id}/rotate`, { method: "POST" }),
+      context(registered.id),
+    )
+    const rotatedData = await rotated.json() as { id: string; secret: string; cancelledRetries: number }
+
+    expect(rotated.status).toBe(200)
+    expect(rotatedData).toMatchObject({
+      id: registered.id,
+      cancelledRetries: 1,
+    })
+
+    await vi.advanceTimersByTimeAsync(120_000)
+    await pendingDelivery
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await deliverWebhookEvent({
+      id: "evt_agent_status_after_rotate",
+      occurredAt: "2026-06-26T00:01:00.000Z",
+      type: "agent.status",
+      agentId: "nexus-7",
+      status: "working",
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit]
+    const body = init.body as string
+    const oldSignature = `sha256=${createHmac("sha256", registered.secret).update(body).digest("hex")}`
+    const newSignature = `sha256=${createHmac("sha256", rotatedData.secret).update(body).digest("hex")}`
+
+    expect(init.headers).toMatchObject({
+      "X-Open-Stellar-Signature": newSignature,
+    })
+    expect(init.headers).not.toMatchObject({
+      "X-Open-Stellar-Signature": oldSignature,
+    })
   })
 
   it("uses the rotated secret for webhook delivery signatures", async () => {
