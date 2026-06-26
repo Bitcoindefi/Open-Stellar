@@ -16,7 +16,9 @@ function sanitizeDependsOn(value: unknown): string[] | undefined {
 
 /**
  * Detects if adding `dependsOn` to `targetId` would create a cycle.
- * Returns the cycle path (e.g. ["B", "A", "B"]) if a cycle exists, null otherwise.
+ * Returns the cycle path as an array of unique node IDs in order
+ * (e.g. ["A", "B"] for A->B->A, or ["A", "B", "C"] for A->B->C->A).
+ * Returns null if no cycle exists.
  */
 function detectCycle(
   subtasks: { id: string; dependsOn?: string[] }[],
@@ -50,7 +52,7 @@ function detectCycle(
       } else if (recStack.has(neighbor)) {
         // Found cycle — extract the loop from path
         const cycleStart = path.indexOf(neighbor)
-        return path.slice(cycleStart).concat([neighbor])
+        return path.slice(cycleStart)
       }
     }
 
@@ -112,7 +114,7 @@ export async function PATCH(req: Request, context: Context) {
       const cycle = detectCycle(subtasks, decodedSubTaskId, updates.dependsOn)
       if (cycle) {
         return NextResponse.json(
-          { ok: false, error: "Cycle detected", cycle },
+          { ok: false, error: "circular_dependency", cycle },
           { status: 422 }
         )
       }
