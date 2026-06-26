@@ -110,7 +110,8 @@ describe("agent health check", () => {
     expect(health?.status).toBe("offline")
     expect(health?.runtimeStatus).toBe("offline")
     expect(health?.restartAttempts).toBe(1)
-    expect(health?.missedHeartbeats).toBeGreaterThanOrEqual(3)
+    // OFFLINE_AFTER_MS=30s / HEARTBEAT_INTERVAL_MS=15s → floor(30001/15000)=2
+    expect(health?.missedHeartbeats).toBeGreaterThanOrEqual(2)
   })
 
   it("raises an error-severity alert after five minutes offline", () => {

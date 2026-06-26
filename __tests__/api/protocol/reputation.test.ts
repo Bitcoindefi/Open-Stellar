@@ -5,7 +5,7 @@ import { GET, POST } from "@/app/api/protocol/reputation/route"
 // Use unique actorIds per test to avoid cross-test contamination.
 
 describe("GET /api/protocol/reputation", () => {
-  it("returns a new actor with default score 500", async () => {
+  it("returns a new actor with default score 0 (score is earned from metrics)", async () => {
     const req = new Request("http://localhost/api/protocol/reputation?actorId=rep-test-new-actor")
     const res = await GET(req)
     const data = await res.json()
@@ -13,7 +13,7 @@ describe("GET /api/protocol/reputation", () => {
     expect(res.status).toBe(200)
     expect(data.ok).toBe(true)
     expect(data.reputation.actorId).toBe("rep-test-new-actor")
-    expect(data.reputation.score).toBe(500)
+    expect(data.reputation.score).toBe(0)
   })
 
   it("returns all reputations when no actorId given", async () => {
@@ -49,10 +49,11 @@ describe("POST /api/protocol/reputation", () => {
 
     expect(res.status).toBe(200)
     expect(data.ok).toBe(true)
-    expect(data.reputation.score).toBe(600) // 500 default + 100
+    // positive non-task/non-x402 delta awards a common badge (5 pts)
+    expect(data.reputation.score).toBe(5)
   })
 
-  it("decreases score with negative delta", async () => {
+  it("decreases score with negative delta (adds infractions, each worth -10 pts)", async () => {
     const actorId = "rep-test-negative-delta"
     const req = new Request("http://localhost/api/protocol/reputation", {
       method: "POST",
@@ -64,7 +65,8 @@ describe("POST /api/protocol/reputation", () => {
 
     expect(res.status).toBe(200)
     expect(data.ok).toBe(true)
-    expect(data.reputation.score).toBe(300) // 500 default - 200
+    // -200 → infractions += 20 → penalty = 200 pts → no positive pts → score clamped to 0
+    expect(data.reputation.score).toBe(0)
   })
 
   it("clamps score to 0 minimum", async () => {
@@ -80,20 +82,21 @@ describe("POST /api/protocol/reputation", () => {
     expect(data.reputation.score).toBe(0)
   })
 
-  it("clamps score to 1000 maximum", async () => {
-    const actorId = "rep-test-ceiling"
+  it("task reason caps score contribution at 500 regardless of delta", async () => {
+    const actorId = "rep-test-task-ceiling"
     const req = new Request("http://localhost/api/protocol/reputation", {
       method: "POST",
-      body: JSON.stringify({ actorId, delta: 9999, reason: "perfect" }),
+      body: JSON.stringify({ actorId, delta: 9999, reason: "task-completed" }),
       headers: { "Content-Type": "application/json" },
     })
     const res = await POST(req)
     const data = await res.json()
 
-    expect(data.reputation.score).toBe(1000)
+    // delta=9999 with 'task' reason → tasksCompleted=9999 → taskPoints=min(500,9999)=500
+    expect(data.reputation.score).toBe(500)
   })
 
-  it("accepts governance scope", async () => {
+  it("accepts governance scope (scope field recorded but score computed from metrics)", async () => {
     const actorId = "rep-test-governance"
     const req = new Request("http://localhost/api/protocol/reputation", {
       method: "POST",
@@ -104,6 +107,7 @@ describe("POST /api/protocol/reputation", () => {
     const data = await res.json()
 
     expect(data.ok).toBe(true)
-    expect(data.reputation.score).toBe(510)
+    // positive non-task/non-x402 delta → 1 common badge → score = 5
+    expect(data.reputation.score).toBe(5)
   })
 })
