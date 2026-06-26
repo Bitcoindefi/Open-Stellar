@@ -529,6 +529,34 @@ export function OpenStellarHub() {
     }
   }, [applySystemEvent, pushLog])
 
+
+  useEffect(() => {
+    let stopped = false
+
+    const syncCloudAgents = async () => {
+      try {
+        const res = await fetch("/api/admin/agents", { cache: "no-store" })
+        if (!res.ok) return
+        const data = await res.json() as { agents?: MoltbotAgent[] }
+        if (stopped || !Array.isArray(data.agents) || data.agents.length === 0) return
+        setAgents((prev) => {
+          const existing = new Set(prev.map((agent) => agent.id))
+          const nextCloudAgents = data.agents!.filter((agent) => !existing.has(agent.id))
+          return nextCloudAgents.length > 0 ? [...prev, ...nextCloudAgents] : prev
+        })
+      } catch {
+        // Cloud agent provisioning is optional for the local simulation.
+      }
+    }
+
+    syncCloudAgents()
+    const interval = window.setInterval(syncCloudAgents, 15_000)
+    return () => {
+      stopped = true
+      window.clearInterval(interval)
+    }
+  }, [])
+
   useEffect(() => {
     let stopped = false
 

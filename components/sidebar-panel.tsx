@@ -244,7 +244,12 @@ function AgentRow({
         {colorBlindMode ? statusSymbols[agent.status] ?? "•" : ""}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, fontFamily: "monospace", color: agent.color }}>{agent.name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "monospace", color: agent.color }}>{agent.name}</span>
+          {agent.deployment === "cloud" ? (
+            <span style={{ border: "1px solid #38bdf855", borderRadius: 999, padding: "1px 5px", fontSize: 9, color: "#7dd3fc", fontFamily: "monospace" }}>cloud</span>
+          ) : null}
+        </div>
         <div style={{ fontSize: 10, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {agent.currentTask || agent.status}
         </div>
