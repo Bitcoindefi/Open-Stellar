@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { GET as getHealth } from "@/app/api/agents/[id]/health/route"
 import { POST as postHeartbeat } from "@/app/api/agents/[id]/heartbeat/route"
+import { GET as getUptime } from "@/app/api/agents/[id]/uptime/route"
 import { GET as runCronHealthCheck } from "@/app/api/cron/health-check/route"
 import {
   ALERT_AFTER_MS,
@@ -10,6 +11,7 @@ import {
   resetAgentHealthStore,
   runAgentHealthCheck,
 } from "@/lib/agents/agent-health-store"
+import { getAgentUptime, resetAgentUptimeStore } from "@/lib/agents/agent-uptime-store"
 import { listUnseenNotifications, resetNotificationStore } from "@/lib/notifications/notification-store"
 
 function context(id: string) {
@@ -18,6 +20,7 @@ function context(id: string) {
 
 afterEach(() => {
   resetAgentHealthStore()
+  resetAgentUptimeStore()
   resetNotificationStore()
 })
 
@@ -52,6 +55,7 @@ describe("agent heartbeat and health routes", () => {
 
     expect(healthRes.status).toBe(200)
     expect(healthData.health.currentTask).toBe("Indexing logs")
+    expect(getAgentUptime("bot-route")?.uptimeDays).toBe(1)
   })
 
   it("returns an agent from offline back to active once heartbeats resume", async () => {
@@ -87,6 +91,31 @@ describe("agent heartbeat and health routes", () => {
     expect(res.status).toBe(404)
     expect(data.ok).toBe(false)
     expect(data.agentId).toBe("missing")
+  })
+
+  it("returns current uptime for an agent with heartbeat history", async () => {
+    const nowMs = Date.now()
+    const firstSeenMs = nowMs - 24 * 60 * 60 * 1000
+
+    recordAgentHeartbeat("bot-uptime-route", {
+      status: "active",
+      nowMs: firstSeenMs,
+    })
+    recordAgentHeartbeat("bot-uptime-route", {
+      status: "active",
+      nowMs,
+    })
+
+    const res = await getUptime(new Request("http://localhost/api/agents/bot-uptime-route/uptime"), context("bot-uptime-route"))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data).toEqual({
+      agentId: "bot-uptime-route",
+      uptimeDays: 2,
+      firstSeenAt: new Date(firstSeenMs).toISOString(),
+      lastSeenAt: new Date(nowMs).toISOString(),
+    })
   })
 })
 

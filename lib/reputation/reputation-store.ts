@@ -1,5 +1,6 @@
 import type { ReputationAction } from '@/lib/protocols/track8004'
 import { addNotification } from '@/lib/notifications/notification-store'
+import { getAgentUptime } from '@/lib/agents/agent-uptime-store'
 
 export type ReputationTier = 'unrated' | 'bronze' | 'silver' | 'gold' | 'platinum'
 export type ReputationBadgeRarity = 'common' | 'rare' | 'epic' | 'legendary'
@@ -95,8 +96,16 @@ function hydrateDb(): ReputationDb {
 
 const db: ReputationDb = hydrateDb()
 
-function snapshot(actorId: string, metrics: Partial<ReputationMetrics>, updatedAt = new Date().toISOString()): ReputationSnapshot {
+function metricsWithCurrentUptime(actorId: string, metrics: Partial<ReputationMetrics>): ReputationMetrics {
   const normalised = normaliseMetrics(metrics)
+  return {
+    ...normalised,
+    uptimeDaysWithoutErrors: getAgentUptime(actorId)?.uptimeDays ?? 0,
+  }
+}
+
+function snapshot(actorId: string, metrics: Partial<ReputationMetrics>, updatedAt = new Date().toISOString()): ReputationSnapshot {
+  const normalised = metricsWithCurrentUptime(actorId, metrics)
   const score = calculateReputationScore(normalised)
   return {
     actorId,
@@ -109,7 +118,7 @@ function snapshot(actorId: string, metrics: Partial<ReputationMetrics>, updatedA
 
 export function getReputation(actorId: string): ReputationSnapshot {
   const existing = db.get(actorId)
-  if (existing) return existing
+  if (existing) return snapshot(actorId, existing.metrics, existing.updatedAt)
 
   const created = snapshot(actorId, defaultMetrics())
   db.set(actorId, created)
@@ -158,6 +167,7 @@ export function applyReputationAction(action: ReputationAction): ReputationSnaps
 
 export function listReputations(limit = 50): ReputationSnapshot[] {
   return Array.from(db.values())
+    .map((entry) => snapshot(entry.actorId, entry.metrics, entry.updatedAt))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
 }

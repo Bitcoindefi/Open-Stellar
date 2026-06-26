@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
-import { calculateReputationScore, getReputationTier } from './reputation-store'
+import { recordAgentHeartbeat, resetAgentHealthStore } from '@/lib/agents/agent-health-store'
+import { resetAgentUptimeStore } from '@/lib/agents/agent-uptime-store'
+import { calculateReputationScore, getReputation, getReputationTier } from './reputation-store'
+
+afterEach(() => {
+  resetAgentHealthStore()
+  resetAgentUptimeStore()
+})
 
 describe('reputation scoring', () => {
   it('calculates weighted scores with caps and penalties', () => {
@@ -22,5 +29,28 @@ describe('reputation scoring', () => {
     expect(getReputationTier(200)).toBe('silver')
     expect(getReputationTier(500)).toBe('gold')
     expect(getReputationTier(1000)).toBe('platinum')
+  })
+
+  it('uses heartbeat-derived uptime days when computing an agent reputation', () => {
+    const dayMs = 24 * 60 * 60 * 1000
+    const nowMs = Date.now()
+
+    recordAgentHeartbeat('rep-uptime-agent', {
+      status: 'active',
+      nowMs: nowMs - 2 * dayMs,
+    })
+    recordAgentHeartbeat('rep-uptime-agent', {
+      status: 'active',
+      nowMs: nowMs - dayMs,
+    })
+    recordAgentHeartbeat('rep-uptime-agent', {
+      status: 'active',
+      nowMs,
+    })
+
+    const reputation = getReputation('rep-uptime-agent')
+
+    expect(reputation.metrics.uptimeDaysWithoutErrors).toBe(3)
+    expect(reputation.score).toBe(506)
   })
 })

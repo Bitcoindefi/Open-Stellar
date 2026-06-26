@@ -1,6 +1,7 @@
 import type { AgentStatus } from "@/lib/types"
 import { publishSystemEvent } from "@/lib/events/system-events"
 import { addNotification } from "@/lib/notifications/notification-store"
+import { recordAgentUptimeHeartbeat } from "@/lib/agents/agent-uptime-store"
 
 export const HEARTBEAT_INTERVAL_MS = 15_000
 export const OFFLINE_AFTER_MS = 30_000
@@ -187,7 +188,11 @@ export function recordAgentHeartbeat(agentId: string, input: AgentHeartbeatInput
   }
 
   db.set(cleanId, record)
-  return toSnapshot(record, nowMs)
+  const snapshot = toSnapshot(record, nowMs)
+  if (snapshot.status === "healthy" && snapshot.runtimeStatus !== "offline") {
+    recordAgentUptimeHeartbeat(cleanId, nowMs)
+  }
+  return snapshot
 }
 
 export function getAgentHealth(agentId: string, nowMs = Date.now()): AgentHealthSnapshot | null {
