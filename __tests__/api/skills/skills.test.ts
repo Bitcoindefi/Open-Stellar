@@ -13,7 +13,7 @@ async function mockRequest(url: string, options?: RequestInit): Promise<Request>
 }
 
 async function mockContext(params: Record<string, string>) {
-  return { params: Promise.resolve(params) }
+  return { params: Promise.resolve(params) } as any
 }
 
 describe('Skills API', () => {
