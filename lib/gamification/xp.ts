@@ -104,6 +104,14 @@ export function awardXP(agentId: string, amount: number, reason: XPAwardReason):
     reason,
   })
 
+  if (reason === "quest.completed") {
+    publishSystemEvent({
+      type: "quest.completed",
+      agentId,
+      reward: { xp: awardedXp },
+    })
+  }
+
   return result
 }
 

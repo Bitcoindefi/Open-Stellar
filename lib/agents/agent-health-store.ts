@@ -1,4 +1,5 @@
 import type { AgentStatus } from "@/lib/types"
+import { publishSystemEvent } from "@/lib/events/system-events"
 
 export const HEARTBEAT_INTERVAL_MS = 15_000
 export const OFFLINE_AFTER_MS = 30_000
@@ -117,6 +118,14 @@ function pushEvent(event: AgentHealthEvent) {
   events.push(event)
   if (events.length > 100) {
     events.splice(0, events.length - 100)
+  }
+  if (event.type === "agent.status" && event.status) {
+    publishSystemEvent({
+      type: "agent.status",
+      agentId: event.agentId,
+      status: event.status,
+      occurredAt: event.at,
+    })
   }
 }
 
