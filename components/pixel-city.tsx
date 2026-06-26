@@ -3,6 +3,7 @@
 import { useRef, useEffect, useCallback, useState } from "react"
 import type { MoltbotAgent, District } from "@/lib/types"
 import { drawGrid, drawRoads, drawDistrict, drawBot } from "@/lib/renderer"
+import type { DistrictStanding } from "@/lib/gamification/events"
 import { ParticleSystem, type ParticleEvent, type ParticleOpts } from "@/lib/renderer/particles"
 import type { CityAudioEngine } from "@/lib/audio/city-audio"
 
@@ -69,6 +70,7 @@ interface PixelCityProps {
   floatingOverlays?: FloatingOverlay[]
   particleTriggers?: ParticleTrigger[]
   audioEngine?: CityAudioEngine
+  districtStandings?: DistrictStanding[]
 }
 
 const statusSymbols: Record<string, string> = {
@@ -91,6 +93,7 @@ export function PixelCity({
   floatingOverlays = [],
   particleTriggers = [],
   audioEngine,
+  districtStandings = [],
 }: PixelCityProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const particleCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -229,7 +232,13 @@ export function PixelCity({
     drawRoads(ctx, districts)
 
     for (const d of districts) {
-      drawDistrict(ctx, d, tick, images[d.id])
+      const standing = districtStandings.find((candidate) => candidate.districtId === d.id)
+      drawDistrict(ctx, d, tick, images[d.id], standing ? {
+        scoreLabel: standing.formattedScore,
+        rank: standing.rank,
+        multiplier: standing.multiplier,
+        isLeading: standing.rank === 1,
+      } : undefined)
     }
 
     const sorted = [...agents].sort((a, b) => a.pixelY - b.pixelY)
@@ -301,7 +310,7 @@ export function PixelCity({
         audioEngine.setDistrictFocus(d.id, volume)
       }
     }
-  }, [agents, districts, selectedAgentId, tick, images, sprites, txAnimations, reduceMotion, audioEngine])
+  }, [agents, districts, selectedAgentId, tick, images, sprites, txAnimations, reduceMotion, audioEngine, districtStandings])
 
   const hitTestAgent = useCallback(
     (mx: number, my: number): MoltbotAgent | null => {

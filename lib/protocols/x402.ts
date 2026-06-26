@@ -1,3 +1,7 @@
+import { getX402Receipt, listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
+import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
+import { checkReputationGate } from '@/lib/reputation/attestation'
+
 export type SettlementChain = 'bnb' | 'stellar'
 
 export interface X402QuoteRequest {
@@ -7,6 +11,8 @@ export interface X402QuoteRequest {
   units: number
   unitPriceUsd: number
   ttlSeconds?: number
+  reputationGate?: ReputationGateRequirement
+  attestation?: ReputationAttestation
 }
 
 export interface X402Quote {
@@ -40,13 +46,16 @@ export interface X402Receipt {
 
 export interface X402ExplorerReceipt extends X402Receipt {
   id: string
+  agentId: string
+  service: string
+  amount: string
   serviceId: string
   agent: string
   amountUsd: number
   amountUnits: string
   passportVerified: boolean
   reputationTier: string
- }
+}
 
 const CHAIN_DECIMALS: Record<SettlementChain, number> = {
   bnb: 18,
@@ -59,11 +68,10 @@ function parseUnits(value: number, decimals: number) {
 }
 
 type QuoteRegistry = Map<string, X402Quote>
-type ReceiptRegistry = X402ExplorerReceipt[]
-
 const globalState = globalThis as typeof globalThis & {
   __x402QuoteRegistry__?: QuoteRegistry
   __x402ReceiptRegistry__?: ReceiptRegistry
+  __x402SubscriptionRegistry__?: SubscriptionRegistry
 }
 
 const quoteRegistry: QuoteRegistry = globalState.__x402QuoteRegistry__ ?? new Map()
@@ -71,10 +79,6 @@ if (!globalState.__x402QuoteRegistry__) {
   globalState.__x402QuoteRegistry__ = quoteRegistry
 }
 
-const receiptRegistry: ReceiptRegistry = globalState.__x402ReceiptRegistry__ ?? []
-if (!globalState.__x402ReceiptRegistry__) {
-  globalState.__x402ReceiptRegistry__ = receiptRegistry
-}
 
 export interface X402SettlementResult {
   ok: boolean
@@ -98,6 +102,11 @@ export function createX402Quote(input: X402QuoteRequest): X402Quote {
 
   if (!Number.isFinite(input.unitPriceUsd) || input.unitPriceUsd <= 0) {
     throw new Error('unitPriceUsd must be > 0')
+  }
+
+  const reputationGate = checkReputationGate(input.reputationGate, input.attestation)
+  if (!reputationGate.ok) {
+    throw new Error(reputationGate.error || 'Reputation too low for this service')
   }
 
   const amountUsd = Number((input.units * input.unitPriceUsd).toFixed(6))
@@ -133,53 +142,12 @@ export function verifyX402Settlement(input: X402Settlement): X402Receipt {
   }
 }
 
-export function listX402ExplorerReceipts(filters: {
-  q?: string
-  service?: string
-  chain?: SettlementChain | 'all'
-  page?: number
-  pageSize?: number
-} = {}) {
-  const pageSize = Math.max(1, Math.min(50, Math.floor(filters.pageSize ?? 50)))
-  const page = Math.max(1, Math.floor(filters.page ?? 1))
-  const q = (filters.q || '').trim().toLowerCase()
-  const service = (filters.service || '').trim().toLowerCase()
-  const chain = filters.chain && filters.chain !== 'all' ? filters.chain : null
+export function listX402ExplorerReceipts(filters: X402ReceiptQuery = {}) {
+  return listX402Receipts(filters)
+}
 
-  const filtered = receiptRegistry.filter((receipt) => {
-    if (chain && receipt.chain !== chain) return false
-    if (service && receipt.serviceId.toLowerCase() !== service) return false
-    if (q) {
-      const haystack = [
-        receipt.id,
-        receipt.paymentRef,
-        receipt.agent,
-        receipt.serviceId,
-        receipt.txHash,
-        receipt.chain,
-      ].join(' ').toLowerCase()
-      if (!haystack.includes(q)) return false
-    }
-    return true
-  })
-
-  const total = filtered.length
-  const start = (page - 1) * pageSize
-  const receipts = filtered.slice(start, start + pageSize)
-
-  return {
-    receipts,
-    page,
-    pageSize,
-    total,
-    totalPages: Math.max(1, Math.ceil(total / pageSize)),
-    stats: {
-      totalPayments: receiptRegistry.length,
-      totalUsd: Number(receiptRegistry.reduce((sum, receipt) => sum + receipt.amountUsd, 0).toFixed(6)),
-      uniqueAgents: new Set(receiptRegistry.map((receipt) => receipt.agent)).size,
-      services: new Set(receiptRegistry.map((receipt) => receipt.serviceId)).size,
-    },
-  }
+export function getX402ReceiptById(receiptId: string): X402ExplorerReceipt | undefined {
+  return getX402Receipt(receiptId)
 }
 
 export function settleX402(input: X402Settlement): X402SettlementResult {
@@ -210,9 +178,12 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
   receipt.amountUsd = quote.amountUsd
   receipt.amountUnits = quote.amountUnits
 
-  receiptRegistry.unshift({
+  const storedReceipt = saveX402Receipt({
     ...receipt,
-    id: `rcpt_${Date.now().toString(36)}_${receiptRegistry.length + 1}`,
+    id: `rcpt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    agentId: quote.payer,
+    service: quote.serviceId,
+    amount: `${quote.amountUsd} USD`,
     serviceId: quote.serviceId,
     agent: quote.payer,
     amountUsd: quote.amountUsd,
@@ -222,6 +193,223 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
   })
 
   quoteRegistry.delete(input.paymentRef)
-  return { ok: true, receipt }
+  return { ok: true, receipt: storedReceipt }
 }
 
+
+export type X402SubscriptionPlan = 'starter' | 'growth' | 'pro' | 'custom' | 'monthly'
+export type X402SubscriptionStatus = 'active' | 'grace' | 'paused'
+
+export interface X402SubscriptionRequest {
+  serviceId: string
+  agentId: string
+  plan: X402SubscriptionPlan
+  callsPerMonth?: number
+  pricePerMonth?: string
+  walletBalanceXlm?: number
+  now?: Date
+}
+
+export interface X402Subscription {
+  id: string
+  serviceId: string
+  agentId: string
+  plan: X402SubscriptionPlan
+  callsPerMonth: number | null
+  callsUsed: number
+  pricePerMonth: string
+  status: X402SubscriptionStatus
+  active: boolean
+  createdAt: string
+  renewsAt: string
+  graceEndsAt?: string
+  pausedAt?: string
+  lastChargedAt: string
+  billingEvents: X402SubscriptionBillingEvent[]
+}
+
+export interface X402SubscriptionBillingEvent {
+  id: string
+  type: 'initial_charge' | 'renewal' | 'renewal_failed'
+  amount: string
+  at: string
+  note: string
+}
+
+export interface X402SubscriptionAccess {
+  active: boolean
+  callsRemaining: number | null
+  renewsAt: string
+  status: X402SubscriptionStatus | 'missing' | 'exhausted'
+  graceEndsAt?: string
+  subscription?: X402Subscription
+}
+
+const PLAN_DEFAULTS: Record<X402SubscriptionPlan, { pricePerMonth: string; callsPerMonth: number | null }> = {
+  starter: { pricePerMonth: '1 XLM', callsPerMonth: 100 },
+  growth: { pricePerMonth: '5 XLM', callsPerMonth: 1000 },
+  pro: { pricePerMonth: '20 XLM', callsPerMonth: 10000 },
+  custom: { pricePerMonth: 'Custom', callsPerMonth: null },
+  monthly: { pricePerMonth: '5 XLM', callsPerMonth: 1000 },
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+const BILLING_CYCLE_MS = 30 * MS_PER_DAY
+const GRACE_PERIOD_MS = MS_PER_DAY
+
+type SubscriptionRegistry = Map<string, X402Subscription>
+
+const subscriptionRegistry: SubscriptionRegistry = globalState.__x402SubscriptionRegistry__ ?? new Map()
+if (!globalState.__x402SubscriptionRegistry__) {
+  globalState.__x402SubscriptionRegistry__ = subscriptionRegistry
+}
+
+function subscriptionKey(agentId: string, serviceId: string) {
+  return `${agentId}:${serviceId}`
+}
+
+function parseXlmAmount(price: string) {
+  const match = price.trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*XLM$/i)
+  return match ? Number(match[1]) : 0
+}
+
+function assertSubscriptionInput(serviceId: string, agentId: string) {
+  if (!serviceId.trim()) throw new Error('serviceId is required')
+  if (!agentId.trim()) throw new Error('agentId is required')
+}
+
+export function createX402Subscription(input: X402SubscriptionRequest): X402Subscription {
+  const serviceId = input.serviceId.trim()
+  const agentId = input.agentId.trim()
+  assertSubscriptionInput(serviceId, agentId)
+
+  const defaults = PLAN_DEFAULTS[input.plan] ?? PLAN_DEFAULTS.monthly
+  const callsPerMonth = input.callsPerMonth ?? defaults.callsPerMonth
+  if (callsPerMonth !== null && (!Number.isFinite(callsPerMonth) || callsPerMonth <= 0)) {
+    throw new Error('callsPerMonth must be > 0')
+  }
+
+  const pricePerMonth = (input.pricePerMonth || defaults.pricePerMonth).trim()
+  const requiredXlm = parseXlmAmount(pricePerMonth)
+  if (requiredXlm > 0 && input.walletBalanceXlm !== undefined && input.walletBalanceXlm < requiredXlm) {
+    throw new Error('insufficient wallet balance for first month')
+  }
+
+  const now = input.now ?? new Date()
+  const chargedAt = now.toISOString()
+  const subscription: X402Subscription = {
+    id: `sub_${Date.now().toString(36)}_${subscriptionRegistry.size + 1}`,
+    serviceId,
+    agentId,
+    plan: input.plan,
+    callsPerMonth,
+    callsUsed: 0,
+    pricePerMonth,
+    status: 'active',
+    active: true,
+    createdAt: chargedAt,
+    renewsAt: new Date(now.getTime() + BILLING_CYCLE_MS).toISOString(),
+    lastChargedAt: chargedAt,
+    billingEvents: [{
+      id: `bill_${Date.now().toString(36)}_1`,
+      type: 'initial_charge',
+      amount: pricePerMonth,
+      at: chargedAt,
+      note: 'First subscription month deducted from agent Stellar wallet',
+    }],
+  }
+
+  subscriptionRegistry.set(subscriptionKey(agentId, serviceId), subscription)
+  return subscription
+}
+
+export function renewX402Subscriptions(now: Date = new Date(), balances: Record<string, number> = {}) {
+  const renewed: X402Subscription[] = []
+  const paused: X402Subscription[] = []
+
+  for (const subscription of subscriptionRegistry.values()) {
+    if (now.getTime() < new Date(subscription.renewsAt).getTime()) continue
+
+    const requiredXlm = parseXlmAmount(subscription.pricePerMonth)
+    const balance = balances[subscription.agentId]
+    if (requiredXlm > 0 && balance !== undefined && balance < requiredXlm) {
+      subscription.status = now.getTime() <= new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS ? 'grace' : 'paused'
+      subscription.active = subscription.status === 'grace'
+      subscription.graceEndsAt = new Date(new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS).toISOString()
+      if (subscription.status === 'paused') subscription.pausedAt = now.toISOString()
+      subscription.billingEvents.unshift({
+        id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
+        type: 'renewal_failed',
+        amount: subscription.pricePerMonth,
+        at: now.toISOString(),
+        note: 'Insufficient Stellar wallet balance; subscription entered grace/paused state',
+      })
+      paused.push(subscription)
+      continue
+    }
+
+    subscription.status = 'active'
+    subscription.active = true
+    subscription.callsUsed = 0
+    subscription.renewsAt = new Date(now.getTime() + BILLING_CYCLE_MS).toISOString()
+    subscription.lastChargedAt = now.toISOString()
+    delete subscription.graceEndsAt
+    delete subscription.pausedAt
+    subscription.billingEvents.unshift({
+      id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
+      type: 'renewal',
+      amount: subscription.pricePerMonth,
+      at: now.toISOString(),
+      note: 'Monthly renewal deducted from agent Stellar wallet',
+    })
+    renewed.push(subscription)
+  }
+
+  return { renewed, paused }
+}
+
+export function checkX402Subscription(agentId: string, serviceId: string, options: { consumeCall?: boolean } = {}): X402SubscriptionAccess {
+  const subscription = subscriptionRegistry.get(subscriptionKey(agentId.trim(), serviceId.trim()))
+  if (!subscription) return { active: false, callsRemaining: 0, renewsAt: '', status: 'missing' }
+
+  renewX402Subscriptions()
+  if (!subscription.active) {
+    return { active: false, callsRemaining: Math.max(0, (subscription.callsPerMonth ?? 0) - subscription.callsUsed), renewsAt: subscription.renewsAt, status: subscription.status, graceEndsAt: subscription.graceEndsAt, subscription }
+  }
+
+  const monthlyCallLimit = subscription.callsPerMonth
+  const unlimited = monthlyCallLimit === null
+  const callsRemaining = unlimited ? null : Math.max(0, monthlyCallLimit - subscription.callsUsed)
+  if (callsRemaining === 0) {
+    return { active: false, callsRemaining: 0, renewsAt: subscription.renewsAt, status: 'exhausted', subscription }
+  }
+
+  if (options.consumeCall && monthlyCallLimit !== null) subscription.callsUsed += 1
+  return {
+    active: true,
+    callsRemaining: monthlyCallLimit === null ? null : Math.max(0, monthlyCallLimit - subscription.callsUsed),
+    renewsAt: subscription.renewsAt,
+    status: subscription.status,
+    graceEndsAt: subscription.graceEndsAt,
+    subscription,
+  }
+}
+
+export function listX402Subscriptions() {
+  const subscriptions = Array.from(subscriptionRegistry.values()).sort((a, b) => a.renewsAt.localeCompare(b.renewsAt))
+  const active = subscriptions.filter((subscription) => subscription.active)
+  const mrrXlm = active.reduce((sum, subscription) => sum + parseXlmAmount(subscription.pricePerMonth), 0)
+  return {
+    subscriptions,
+    stats: {
+      active: active.length,
+      paused: subscriptions.filter((subscription) => subscription.status === 'paused').length,
+      grace: subscriptions.filter((subscription) => subscription.status === 'grace').length,
+      mrrXlm,
+    },
+  }
+}
+
+export function resetX402SubscriptionsForTests() {
+  subscriptionRegistry.clear()
+}

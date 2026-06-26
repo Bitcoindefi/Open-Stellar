@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
-import { Activity, Check, Code2, Copy, Cpu, ExternalLink, Fingerprint, History, KeyRound, Layers3, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
+import { useEffect, useState, type ReactNode } from "react"
+import { Activity, AlertTriangle, Check, Code2, Copy, Cpu, Download, ExternalLink, ExternalLink, Fingerprint, ReceiptText,History, KeyRound, Layers3, ListChecks, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
 import type { District, MoltbotAgent } from "@/lib/types"
 import { PassportPanel } from "@/components/admin/passport-panel"
 
-type AdminTab = "overview" | "passport" | "private-deploy"
+type AdminTab = "overview" | "queue" | "passport" | "private-deploy" | "receipts"
 
 type Plan = {
   name: string
@@ -24,24 +24,24 @@ type AdminConsoleProps = {
 const plans: Plan[] = [
   {
     name: "Starter",
-    price: "$49/mo",
-    requests: "10k requests / month",
+    price: "1 XLM/mo",
+    requests: "100 calls / month",
     teams: "1 squad",
     features: ["Single API key", "Shared x402 settlement rail", "Base request throttling"],
     accent: "text-cyan-300",
   },
   {
     name: "Growth",
-    price: "$249/mo",
-    requests: "100k requests / month",
+    price: "5 XLM/mo",
+    requests: "1,000 calls / month",
     teams: "5 squads",
     features: ["Multi-team orchestration", "Priority relay lanes", "Usage and policy controls"],
     accent: "text-amber-300",
   },
   {
-    name: "Command",
-    price: "Custom",
-    requests: "500k+ requests / month",
+    name: "Pro",
+    price: "20 XLM/mo",
+    requests: "10,000 calls / month",
     teams: "Unlimited squads",
     features: ["Dedicated infra pool", "Audit log retention", "Custom billing rules"],
     accent: "text-emerald-300",
@@ -49,8 +49,14 @@ const plans: Plan[] = [
 ]
 
 const demoKey = "sk_live_8f3b1c9a4d7e2b6f"
-const monthlyLimit = 50000
-const monthlyUsed = 18420
+const monthlyLimit = 1000
+const monthlyUsed = 153
+
+const subscriptions = [
+  { agent: "nexus-7", service: "my-data-api", plan: "Growth", used: 153, limit: 1000, renewsAt: "2026-07-22", mrr: "5 XLM", status: "active" },
+  { agent: "atlas-2", service: "market-feed", plan: "Starter", used: 42, limit: 100, renewsAt: "2026-07-18", mrr: "1 XLM", status: "active" },
+  { agent: "vega-9", service: "routing-api", plan: "Pro", used: 6610, limit: 10000, renewsAt: "2026-07-09", mrr: "20 XLM", status: "grace" },
+] as const
 
 export function AdminConsole({ agents, districts }: AdminConsoleProps) {
   const [copied, setCopied] = useState(false)
@@ -63,14 +69,8 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
   const avgMemory = Math.round(agents.reduce((sum, agent) => sum + agent.memory, 0) / Math.max(1, agents.length))
   const usagePercent = Math.round((monthlyUsed / monthlyLimit) * 100)
   const remaining = Math.max(0, monthlyLimit - monthlyUsed)
+  const subscriptionMrr = subscriptions.reduce((sum, subscription) => sum + Number(subscription.mrr.split(" ")[0]), 0)
   const topAgents = [...agents].sort((a, b) => b.tasksCompleted - a.tasksCompleted).slice(0, 5)
-  const topDistrict = [...districts]
-    .map((district) => ({
-      district,
-      agents: agents.filter((agent) => agent.district === district.id),
-    }))
-    .sort((a, b) => b.agents.length - a.agents.length)[0]
-
   const districtCards = districts.map((district) => {
     const squad = agents.filter((agent) => agent.district === district.id)
     const working = squad.filter((agent) => agent.status === "working").length
@@ -121,7 +121,7 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
               <div className="grid min-w-[280px] gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                 <SignalStat label="Active keys" value={String(activeAgents.length)} color="text-cyan-300" />
                 <SignalStat label="Tasks routed" value={formatCompact(totalTasks * 1440)} color="text-emerald-300" />
-                <SignalStat label="Top squad" value={topDistrict?.district.name ?? "Data Center"} color="text-amber-300" />
+                <SignalStat label="MRR" value={`${subscriptionMrr} XLM`} color="text-amber-300" />
               </div>
             </div>
           </section>
@@ -145,12 +145,12 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
             <div className="mt-5 space-y-3">
               <InfoRow icon={<KeyRound className="h-4 w-4" />} label="Scope" value="agent.orchestrate / payments.charge / teams.read" />
               <InfoRow icon={<Shield className="h-4 w-4" />} label="Mode" value="Subscription + monthly cap" />
-              <InfoRow icon={<Wallet className="h-4 w-4" />} label="Remaining" value={`${remaining.toLocaleString()} requests`} />
+              <InfoRow icon={<Wallet className="h-4 w-4" />} label="Remaining" value={`${remaining.toLocaleString()} calls`} />
             </div>
 
             <div className="mt-5 rounded-2xl border border-slate-800 bg-[#09101a] p-4">
               <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.28em] text-slate-500">
-                <span>Monthly request meter</span>
+                <span>Monthly call meter</span>
                 <span>{usagePercent}%</span>
               </div>
               <div className="h-3 overflow-hidden rounded-full bg-slate-900">
@@ -160,7 +160,7 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
                 />
               </div>
               <p className="mt-3 font-vt323 text-lg text-slate-300">
-                When the cap is reached, the platform can throttle, upsell, or move the customer into overage billing.
+                When the cap is reached, withX402 can return 402 again, throttle, or upsell the agent into a higher recurring plan.
               </p>
             </div>
           </section>
@@ -170,6 +170,9 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
           <TabButton active={tab === "overview"} onClick={() => setTab("overview")} icon={<RadioTower className="h-3.5 w-3.5" />}>
             Orchestration overview
           </TabButton>
+          <TabButton active={tab === "receipts"} onClick={() => setTab("receipts")} icon={<ReceiptText className="h-3.5 w-3.5" />}>
+            Receipts
+          </TabButton>
           <a
             href="/admin/runs"
             className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-400 transition hover:border-slate-700 hover:text-slate-200"
@@ -177,6 +180,9 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
             <History className="h-3.5 w-3.5" />
             Runs history
           </a>
+          <TabButton active={tab === "queue"} onClick={() => setTab("queue")} icon={<ListChecks className="h-3.5 w-3.5" />}>
+            Task queue
+          </TabButton>
           <TabButton active={tab === "passport"} onClick={() => setTab("passport")} icon={<Fingerprint className="h-3.5 w-3.5" />}>
             Agent Passport (ZK)
           </TabButton>
@@ -185,7 +191,11 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
           </TabButton>
         </nav>
 
-        {tab === "passport" ? (
+        {tab === "queue" ? (
+          <TaskQueueTab />
+        ): tab === "receipts" ? (
+          <ReceiptsTab />
+        ) : tab === "passport" ? (
           <section className="rounded-[28px] border border-cyan-500/20 bg-slate-950/60 p-5">
             <div className="mb-5 max-w-3xl">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.32em] text-cyan-200">
@@ -269,7 +279,7 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
 
           <Panel
             title="Subscription lanes"
-            eyebrow="Pricing mock"
+            eyebrow="x402 recurring billing"
             bodyClassName="space-y-3"
           >
             {plans.map((plan) => {
@@ -311,6 +321,43 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
             </div>
           </Panel>
         </section>
+
+
+
+        <Panel title="Active x402 subscriptions" eyebrow="Admin billing console" bodyClassName="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left">
+              <thead>
+                <tr className="border-b border-slate-800 text-[10px] uppercase tracking-[0.24em] text-slate-500">
+                  <th className="pb-3 font-normal">Subscriber</th>
+                  <th className="pb-3 font-normal">Service</th>
+                  <th className="pb-3 font-normal">Plan</th>
+                  <th className="pb-3 font-normal">Calls</th>
+                  <th className="pb-3 font-normal">Next renewal</th>
+                  <th className="pb-3 font-normal">MRR</th>
+                  <th className="pb-3 font-normal">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subscriptions.map((subscription) => (
+                  <tr key={`${subscription.agent}-${subscription.service}`} className="border-b border-slate-900/80 font-mono text-xs text-slate-300">
+                    <td className="py-3 text-cyan-200">{subscription.agent}</td>
+                    <td className="py-3">{subscription.service}</td>
+                    <td className="py-3">{subscription.plan}</td>
+                    <td className="py-3">{subscription.used.toLocaleString()} / {subscription.limit.toLocaleString()}</td>
+                    <td className="py-3">{subscription.renewsAt}</td>
+                    <td className="py-3 text-emerald-300">{subscription.mrr}</td>
+                    <td className="py-3">
+                      <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${subscription.status === "active" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-amber-400/30 bg-amber-400/10 text-amber-300"}`}>
+                        {subscription.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
 
         <section className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
           <Panel title="Top operators" eyebrow="Main page agents" bodyClassName="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
@@ -354,9 +401,123 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
   )
 }
 
+type AdminReceipt = {
+  id: string
+  agentId: string
+  agent?: string
+  service: string
+  serviceId?: string
+  amount: string
+  txHash: string
+  settledAt: string
+  passportVerified: boolean
+}
+
+function ReceiptsTab() {
+  const [receipts, setReceipts] = useState<AdminReceipt[]>([])
+  const [status, setStatus] = useState('Loading receipts…')
+
+  useEffect(() => {
+    let mounted = true
+    fetch('/api/protocol/x402/receipts?pageSize=50')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return
+        setReceipts(Array.isArray(data.receipts) ? data.receipts : [])
+        setStatus(data.ok ? '' : data.error || 'Failed to load receipts')
+      })
+      .catch(() => {
+        if (mounted) setStatus('Failed to load receipts')
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const csv = useMemo(() => {
+    const rows = [['id', 'agentId', 'service', 'amount', 'settledAt', 'txHash', 'passportVerified']]
+    for (const receipt of receipts) {
+      rows.push([
+        receipt.id,
+        receipt.agentId || receipt.agent || '',
+        receipt.service || receipt.serviceId || '',
+        receipt.amount,
+        receipt.settledAt,
+        receipt.txHash,
+        String(receipt.passportVerified),
+      ])
+    }
+    return rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')
+  }, [receipts])
+
+  const exportCsv = () => {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'x402-receipts.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <section className="rounded-[28px] border border-cyan-500/20 bg-slate-950/60 p-5">
+      <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.32em] text-cyan-200">
+            <ReceiptText className="h-3.5 w-3.5" />
+            Persistent x402 ledger
+          </div>
+          <h2 className="font-pixel text-xl uppercase leading-tight text-cyan-100">Receipts</h2>
+          <p className="mt-3 font-vt323 text-xl leading-7 text-slate-300">
+            Last 50 settled x402 receipts from the receipt database, including agent, service, amount, and timestamp.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={receipts.length === 0}
+          className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-4 py-2 text-xs uppercase tracking-[0.2em] text-cyan-200 transition hover:border-cyan-400/70 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export CSV
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-[22px] border border-slate-800 bg-slate-950/80">
+        <div className="grid grid-cols-[1fr_1fr_0.8fr_0.9fr] gap-3 border-b border-slate-800 px-4 py-3 text-[10px] uppercase tracking-[0.24em] text-slate-500 md:grid-cols-[1fr_1fr_0.7fr_0.9fr_1.2fr]">
+          <span>Agent</span>
+          <span>Service</span>
+          <span>Amount</span>
+          <span>Timestamp</span>
+          <span className="hidden md:block">Tx hash</span>
+        </div>
+        {status ? (
+          <p className="px-4 py-6 font-vt323 text-xl text-slate-400">{status}</p>
+        ) : receipts.length === 0 ? (
+          <p className="px-4 py-6 font-vt323 text-xl text-slate-400">No x402 receipts have been recorded yet.</p>
+        ) : (
+          receipts.map((receipt) => (
+            <div key={receipt.id} className="grid grid-cols-[1fr_1fr_0.8fr_0.9fr] gap-3 border-b border-slate-900 px-4 py-3 font-mono text-xs text-slate-300 last:border-b-0 md:grid-cols-[1fr_1fr_0.7fr_0.9fr_1.2fr]">
+              <span className="truncate text-cyan-200">{receipt.agentId || receipt.agent}</span>
+              <span className="truncate">{receipt.service || receipt.serviceId}</span>
+              <span className="text-emerald-300">{receipt.amount}</span>
+              <span>{new Date(receipt.settledAt).toLocaleString()}</span>
+              <span className="hidden truncate text-slate-500 md:block">{receipt.txHash}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  )
+}
+
 const API_ENDPOINTS = [
-  { method: "GET",  path: "/api/protocol/x402/quote",        desc: "Create x402 payment quote" },
+  { method: "POST", path: "/api/protocol/x402/quote",        desc: "Create x402 payment quote" },
   { method: "POST", path: "/api/protocol/x402/settle",       desc: "Settle x402 payment (optional passport gate)" },
+  { method: "POST", path: "/api/protocol/x402/subscriptions", desc: "Create recurring x402 API subscription" },
+  { method: "GET",  path: "/api/protocol/x402/subscriptions/:agentId/:serviceId", desc: "Check active subscription access" },
   { method: "POST", path: "/api/protocol/passport/authorize",desc: "ZK spend-cap authorization gate" },
   { method: "GET",  path: "/api/protocol/passport/status",   desc: "On-chain agent passport lookup" },
   { method: "GET",  path: "/api/protocol/reputation",        desc: "Agent reputation query" },
@@ -522,6 +683,90 @@ function DeployStep({ n, title, text }: { n: number; title: string; text: string
         <p className="mt-1.5 font-vt323 text-lg leading-6 text-slate-400">{text}</p>
       </div>
     </div>
+  )
+}
+
+
+type QueueTask = {
+  id: string
+  type: string
+  priority: "critical" | "high" | "normal" | "low"
+  status: string
+  targetAgentId?: string
+  targetDistrict?: string
+  targetCapability?: string
+  retryCount: number
+  maxRetries: number
+  scheduledFor?: string
+  error?: string
+}
+
+function TaskQueueTab() {
+  const [tasks, setTasks] = useState<QueueTask[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadTasks = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/tasks?includeDeadLetter=1", { cache: "no-store" })
+      const data = await res.json()
+      setTasks(data.tasks ?? [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadTasks()
+  }, [])
+
+  const retryTask = async (taskId: string) => {
+    await fetch(`/api/tasks/${taskId}/retry`, { method: "POST" })
+    await loadTasks()
+  }
+
+  const deadLetter = tasks.filter((task) => task.status === "dead-letter")
+  const pending = tasks.filter((task) => task.status === "pending")
+
+  return (
+    <section className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <Panel title="Queue lanes" eyebrow="Durable routing" bodyClassName="space-y-3">
+        <TelemetryRow icon={<ListChecks className="h-4 w-4" />} label="Pending tasks" value={String(pending.length)} tone="text-cyan-300" />
+        <TelemetryRow icon={<AlertTriangle className="h-4 w-4" />} label="Dead-letter tasks" value={String(deadLetter.length)} tone="text-rose-300" />
+        <p className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 font-vt323 text-lg leading-6 text-slate-300">
+          Agents pull prioritized work by direct agent, district, or capability. Failures retry with exponential backoff before moving into the dead-letter lane.
+        </p>
+      </Panel>
+
+      <Panel title="Dead-letter retry" eyebrow="Manual recovery" bodyClassName="space-y-3">
+        {loading ? (
+          <p className="font-vt323 text-lg text-slate-400">Loading queue...</p>
+        ) : deadLetter.length === 0 ? (
+          <p className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 font-vt323 text-lg text-emerald-200">
+            No dead-letter items. Failed tasks will appear here with one-click retry.
+          </p>
+        ) : (
+          deadLetter.map((task) => (
+            <div key={task.id} className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-mono text-sm text-rose-100">{task.id}</p>
+                  <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-400">{task.type} / {task.priority}</p>
+                  <p className="mt-2 text-sm text-slate-300">{task.error ?? "No error recorded"}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => retryTask(task.id)}
+                  className="rounded-full border border-rose-300/40 px-3 py-2 text-xs uppercase tracking-[0.2em] text-rose-100 transition hover:bg-rose-300/10"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </Panel>
+    </section>
   )
 }
 

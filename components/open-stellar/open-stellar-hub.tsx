@@ -6,10 +6,12 @@ import { PixelCity, type FloatingOverlay, type ParticleTrigger, type TxAnimation
 import { SidebarPanel } from "@/components/sidebar-panel"
 import { PriceTicker } from "@/components/price-display"
 import { AudioControls } from "@/components/audio-controls"
+import { DistrictEventOverlay } from "@/components/open-stellar/district-event-overlay"
 import { CityAudioEngine } from "@/lib/audio/city-audio"
 import { DISTRICTS, createAgents, generateChatMessage, getRandomTask } from "@/lib/data"
 import { LEGAL_LINKS } from "@/lib/legal-links"
 import type { PublishedSystemEvent } from "@/lib/events/system-events"
+import { getActiveDistrictEvent, getDistrictStandings } from "@/lib/gamification/events"
 import { upgradeAgentSkill } from "@/lib/gamification/skill-upgrades"
 import { awardTaskXpToAgent } from "@/lib/gamification/progression"
 import type { AgentAppearance, ChatMessage, LogEntry, MoltbotAgent, WalletTransaction } from "@/lib/types"
@@ -219,6 +221,8 @@ export function OpenStellarHub() {
   const [hasRealtimeEvents, setHasRealtimeEvents] = useState(false)
   const fallbackLoggedRef = useRef(false)
   const [audioEngine] = useState(() => new CityAudioEngine())
+  const [activeDistrictEvent, setActiveDistrictEvent] = useState(() => getActiveDistrictEvent())
+  const lastLeadingDistrictRef = useRef<string | null>(null)
 
   useEffect(() => {
     return () => audioEngine.dispose()
@@ -337,6 +341,36 @@ export function OpenStellarHub() {
     },
     []
   )
+
+
+  const districtStandings = useMemo(
+    () => getDistrictStandings(agents),
+    [agents]
+  )
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setActiveDistrictEvent(getActiveDistrictEvent())
+    }, 60_000)
+
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const leader = districtStandings[0]
+    if (!leader) return
+    const previousLeader = lastLeadingDistrictRef.current
+    lastLeadingDistrictRef.current = leader.districtId
+    if (!previousLeader || previousLeader === leader.districtId) return
+
+    const district = DISTRICTS.find((candidate) => candidate.id === leader.districtId)
+    if (!district) return
+    pushLog(`${leader.districtName} takes the lead in ${activeDistrictEvent.challenge.name}`, "success")
+    spawnParticles("district-win", district.x + district.w / 2, district.y, {
+      color: district.color,
+      spreadW: district.w * 0.7,
+    })
+  }, [activeDistrictEvent.challenge.name, districtStandings, pushLog, spawnParticles])
 
   const applySystemEvent = useCallback((event: PublishedSystemEvent) => {
     const animatedAgentBox: { current: MoltbotAgent | null } = { current: null }
@@ -802,7 +836,10 @@ export function OpenStellarHub() {
           floatingOverlays={floatingOverlays}
           particleTriggers={particleTriggers}
           audioEngine={audioEngine}
+          districtStandings={districtStandings}
         />
+
+        <DistrictEventOverlay event={activeDistrictEvent} standings={districtStandings} />
 
         <AudioControls engine={audioEngine} />
 
