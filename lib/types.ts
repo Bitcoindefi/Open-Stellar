@@ -12,6 +12,13 @@ export interface AgentAppearance {
   customColor: string | null
 }
 
+export interface AgentBadge {
+  id: string
+  name: string
+  description: string
+  onChainAttestation: string
+}
+
 export interface Skill {
   id: string
   name: string
@@ -71,6 +78,7 @@ export interface MoltbotAgent {
   offlineForSeconds?: number
   wallet?: StellarWallet
   appearance: AgentAppearance
+  badges?: AgentBadge[]
 }
 
 export interface District {

@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { getEarnedBadges } from "@/lib/gamification/progression"
+import { createAgents } from "@/lib/data"
 import {
   AGENT_OG_SIZE,
   findAgentByLookup,
@@ -33,7 +35,8 @@ function absoluteUrl(path: string): string {
 
 export async function generateMetadata({ params }: AgentPageProps): Promise<Metadata> {
   const { id } = await params
-  const agent = findAgentByLookup(id)
+  const agents = createAgents()
+  const agent = findAgentByLookup(id, agents)
 
   if (!agent) {
     return {
@@ -79,7 +82,8 @@ export async function generateMetadata({ params }: AgentPageProps): Promise<Meta
 
 export default async function AgentPage({ params }: AgentPageProps) {
   const { id } = await params
-  const agent = findAgentByLookup(id)
+  const agents = createAgents()
+  const agent = findAgentByLookup(id, agents)
 
   if (!agent) {
     notFound()
@@ -87,6 +91,7 @@ export default async function AgentPage({ params }: AgentPageProps) {
 
   const stats = getAgentCardStats(agent)
   const district = getAgentDistrict(agent)
+  const badges = getEarnedBadges(agent, agents)
 
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
@@ -118,6 +123,30 @@ export default async function AgentPage({ params }: AgentPageProps) {
             unoptimized
             className="w-full rounded-xl border border-slate-800 bg-slate-900"
           />
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-950/80 p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="font-mono text-xs uppercase tracking-[0.28em] text-purple-300">Daily quest rewards</p>
+              <h2 className="mt-2 font-pixel text-xl uppercase text-slate-100">Badges</h2>
+            </div>
+            <Link href="/leaderboard" className="rounded-md border border-purple-400/30 bg-purple-400/10 px-3 py-2 font-mono text-xs uppercase tracking-[0.2em] text-purple-200">
+              Leaderboard
+            </Link>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {badges.map((badge) => (
+              <div key={badge.id} className="rounded-xl border border-purple-400/20 bg-purple-400/10 p-4">
+                <div className="font-mono text-sm font-bold text-purple-100">{badge.name}</div>
+                <p className="mt-2 font-mono text-xs text-slate-400">{badge.description}</p>
+                <p className="mt-3 truncate font-mono text-[10px] uppercase tracking-[0.16em] text-purple-300" title={badge.onChainAttestation}>
+                  {badge.onChainAttestation}
+                </p>
+              </div>
+            ))}
+          </div>
         </section>
       </div>
     </main>

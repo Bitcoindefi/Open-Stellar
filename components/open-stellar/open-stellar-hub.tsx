@@ -11,6 +11,7 @@ import { DISTRICTS, createAgents, generateChatMessage, getRandomTask } from "@/l
 import { LEGAL_LINKS } from "@/lib/legal-links"
 import type { PublishedSystemEvent } from "@/lib/events/system-events"
 import { upgradeAgentSkill } from "@/lib/gamification/skill-upgrades"
+import { awardTaskXpToAgent } from "@/lib/gamification/progression"
 import type { AgentAppearance, ChatMessage, LogEntry, MoltbotAgent, WalletTransaction } from "@/lib/types"
 
 function nowTime() {
@@ -358,13 +359,13 @@ export function OpenStellarHub() {
         }
 
         if (event.type === "task.completed") {
-          animatedAgentBox.current = agent
+          const award = awardTaskXpToAgent(agent)
+          animatedAgentBox.current = award.agent
           return {
-            ...agent,
+            ...award.agent,
             status: "active",
             currentTask: event.result.summary || getRandomTask(agent.district),
             taskProgress: 0,
-            tasksCompleted: agent.tasksCompleted + 1,
           }
         }
 
@@ -386,11 +387,19 @@ export function OpenStellarHub() {
       const agent = animatedAgentBox.current
       if (agent) {
         animateAgentToDistrict(agent)
-        showAgentOverlay(agent, "+task", "#34d399")
+        showAgentOverlay(agent, "+25 XP", "#34d399")
         const district = DISTRICTS.find((candidate) => candidate.id === agent.district)
         spawnParticles("xp-burst", agent.pixelX + 8, agent.pixelY, {
           color: district?.color ?? agent.color,
         })
+        const leveledSkills = agent.skills.filter((skill) => {
+          const previous = agentsRef.current.find((candidate) => candidate.id === agent.id)?.skills.find((candidate) => candidate.id === skill.id)
+          return previous && skill.level > previous.level
+        })
+        for (const skill of leveledSkills) {
+          toast.success("Skill leveled up", { description: `${agent.name}: ${skill.name} reached Lv.${skill.level}` })
+          spawnParticles("level-up", agent.pixelX + 8, agent.pixelY, { color: agent.color, level: skill.level })
+        }
       }
       return
     }
@@ -460,13 +469,6 @@ export function OpenStellarHub() {
       return
     }
 
-    if (event.type === "district.unlocked") {
-      audioEngine.playEvent("district_win")
-      const districtName = event.district?.name ?? event.districtId ?? "a district"
-      pushLog(`district unlocked: ${districtName}`, "success", event.agentId ?? "system")
-      toast.success("District unlocked", { description: String(districtName) })
-      return
-    }
 
     if (event.type === "task.started") {
       pushLog(`task started: ${event.task.title}`, "info", event.agentId)
@@ -629,9 +631,10 @@ export function OpenStellarHub() {
           const progressDelta = Math.random() * 14
           const taskProgress = Math.min(100, agent.taskProgress + progressDelta)
           const finishedTask = taskProgress >= 100
+          const awardedAgent = finishedTask ? awardTaskXpToAgent(agent).agent : agent
 
           return {
-            ...agent,
+            ...awardedAgent,
             cpu: Math.max(10, Math.min(98, agent.cpu + (Math.random() - 0.5) * 10)),
             memory: Math.max(20, Math.min(95, agent.memory + (Math.random() - 0.5) * 6)),
             status: finishedTask
@@ -640,7 +643,6 @@ export function OpenStellarHub() {
               ? "idle"
               : "working",
             taskProgress: finishedTask ? 0 : taskProgress,
-            tasksCompleted: finishedTask ? agent.tasksCompleted + 1 : agent.tasksCompleted,
             currentTask: finishedTask ? getRandomTask(agent.district) : agent.currentTask,
             targetX: agent.targetX + (Math.random() - 0.5) * 40,
             targetY: agent.targetY + (Math.random() - 0.5) * 28,
