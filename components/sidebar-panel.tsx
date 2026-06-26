@@ -10,15 +10,17 @@ import { ChatPanel } from "./chat-panel"
 import { SkillsPanel } from "./skills-panel"
 import { WalletPanel } from "./wallet-panel"
 import { AppearancePanel } from "./appearance-panel"
+import { QuestsPanel } from "./quests-panel"
 import { MOCK_OFFERS, TaskBoard, getTaskOfferCounts } from "./task-board"
 
-type TabId = "overview" | "chat" | "offers" | "skills" | "wallet" | "appearance"
+type TabId = "overview" | "chat" | "offers" | "skills" | "quests" | "wallet" | "appearance"
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "chat", label: "Chat" },
   { id: "offers", label: "Offers" },
   { id: "skills", label: "Skills" },
+  { id: "quests", label: "Quests" },
   { id: "wallet", label: "Wallet" },
   { id: "appearance", label: "Appearance" },
 ]
@@ -606,6 +608,9 @@ export function SidebarPanel({
         )}
         {activeTab === "skills" && (
           <SkillsPanel selectedAgent={selectedAgent} agents={agents} onUpgradeSkill={onUpgradeSkill} />
+        )}
+        {activeTab === "quests" && (
+          <QuestsPanel />
         )}
         {activeTab === "wallet" && (
           <WalletPanel
