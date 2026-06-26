@@ -1,0 +1,15 @@
+---
+title: Deploy agent
+description: Spin up a cloud agent and connect it to Open Stellar.
+---
+# Deploy agent
+
+Deploy an agent by creating an identity, assigning a wallet, and registering a heartbeat.
+
+```ts
+const agent = await stellar.agents.create({ name: "Nexus", district: "payments" })
+await stellar.wallets.assign(agent.id)
+await stellar.agents.heartbeat(agent.id, { status: "active", load: 0.12 })
+```
+
+Production agents should publish health every 30 seconds and store their API key in a managed secret store.
