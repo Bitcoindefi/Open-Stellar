@@ -507,6 +507,19 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
   ctx.lineWidth = 0.5
   ctx.strokeRect(drawX + spriteSize - 6, drawY + 2, 5, 5)
 
+  if (agent.deployment === "cloud") {
+    ctx.save()
+    ctx.font = "bold 7px monospace"
+    ctx.textAlign = "center"
+    ctx.fillStyle = "#0f172a"
+    ctx.fillRect(drawX + 2, drawY - 9, 32, 9)
+    ctx.strokeStyle = "#38bdf8"
+    ctx.strokeRect(drawX + 2, drawY - 9, 32, 9)
+    ctx.fillStyle = "#7dd3fc"
+    ctx.fillText("CLOUD", drawX + 18, drawY - 2)
+    ctx.restore()
+  }
+
   // Name label
   ctx.font = "bold 8px monospace"
   ctx.textAlign = "center"

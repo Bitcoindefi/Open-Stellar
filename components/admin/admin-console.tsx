@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, type ReactNode } from "react"
-import { Activity, Check, Code2, Copy, Cpu, ExternalLink, Fingerprint, History, KeyRound, Layers3, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
+import { Activity, Check, Cloud, Code2, Copy, Cpu, ExternalLink, Fingerprint, History, KeyRound, Layers3, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
 import type { District, MoltbotAgent } from "@/lib/types"
 import { PassportPanel } from "@/components/admin/passport-panel"
 
-type AdminTab = "overview" | "passport" | "private-deploy"
+type AdminTab = "overview" | "passport" | "private-deploy" | "cloud-agents"
 
 type Plan = {
   name: string
@@ -183,6 +183,9 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
           <TabButton active={tab === "private-deploy"} onClick={() => setTab("private-deploy")} icon={<Rocket className="h-3.5 w-3.5" />}>
             Private Deploy
           </TabButton>
+          <TabButton active={tab === "cloud-agents"} onClick={() => setTab("cloud-agents")} icon={<Cloud className="h-3.5 w-3.5" />}>
+            Cloud Agents
+          </TabButton>
         </nav>
 
         {tab === "passport" ? (
@@ -205,6 +208,8 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
           </section>
         ) : tab === "private-deploy" ? (
           <PrivateDeployTab />
+        ) : tab === "cloud-agents" ? (
+          <CloudAgentsTab />
         ) : (
         <>
         <section className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr_0.8fr]">
@@ -508,6 +513,60 @@ function PrivateDeployTab() {
         </section>
       </section>
     </>
+  )
+}
+
+function CloudAgentsTab() {
+  const [name, setName] = useState("Edge Scout")
+  const [status, setStatus] = useState<string | null>(null)
+  const [endpoint, setEndpoint] = useState<string | null>(null)
+
+  const provision = async () => {
+    setStatus("Provisioning Vercel Edge agent...")
+    const res = await fetch("/api/admin/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, model: "claude-4-sonnet", district: "research", queueMode: "post" }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setStatus(data.error || "Failed to provision cloud agent")
+      return
+    }
+    setEndpoint(data.config.endpointUrl)
+    setStatus("Cloud agent provisioned. It will appear on the city canvas with a cloud badge.")
+  }
+
+  return (
+    <section className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
+      <Panel title="Provision cloud agent" eyebrow="Vercel Edge runtime" bodyClassName="space-y-4">
+        <p className="font-vt323 text-xl leading-7 text-slate-300">
+          Create an agent config and expose it at <span className="font-mono text-cyan-300">/agents/:agentId</span>. The Edge route accepts task POSTs and streams 15s SSE heartbeats.
+        </p>
+        <input
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100 outline-none transition focus:border-cyan-400/60"
+          placeholder="Agent name"
+        />
+        <button
+          type="button"
+          onClick={provision}
+          className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 text-xs uppercase tracking-[0.2em] text-cyan-200 transition hover:bg-cyan-400/20"
+        >
+          <Cloud className="h-3.5 w-3.5" />
+          Provision Agent
+        </button>
+        {status ? <p className="font-vt323 text-lg text-emerald-300">{status}</p> : null}
+        {endpoint ? <p className="break-all font-mono text-xs text-slate-300">{endpoint}</p> : null}
+      </Panel>
+      <Panel title="Execution contract" eyebrow="Issue #21 acceptance" bodyClassName="grid gap-3 md:grid-cols-2">
+        <FeatureBlock title="POST tasks" text="The orchestrator sends JSON tasks to /agents/:agentId; the Edge Function calls Claude when ANTHROPIC_API_KEY is configured." />
+        <FeatureBlock title="SSE heartbeat" text="GET /agents/:agentId keeps the connection open and emits heartbeat events every 15 seconds." />
+        <FeatureBlock title="Canvas badge" text="Provisioned cloud agents are merged into the city and rendered with a CLOUD badge above the sprite." />
+        <FeatureBlock title="Realtime status" text="Task start/completion and heartbeat updates flow through the existing health store and system event stream." />
+      </Panel>
+    </section>
   )
 }
 
