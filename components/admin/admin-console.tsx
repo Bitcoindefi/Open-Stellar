@@ -24,24 +24,24 @@ type AdminConsoleProps = {
 const plans: Plan[] = [
   {
     name: "Starter",
-    price: "$49/mo",
-    requests: "10k requests / month",
+    price: "1 XLM/mo",
+    requests: "100 calls / month",
     teams: "1 squad",
     features: ["Single API key", "Shared x402 settlement rail", "Base request throttling"],
     accent: "text-cyan-300",
   },
   {
     name: "Growth",
-    price: "$249/mo",
-    requests: "100k requests / month",
+    price: "5 XLM/mo",
+    requests: "1,000 calls / month",
     teams: "5 squads",
     features: ["Multi-team orchestration", "Priority relay lanes", "Usage and policy controls"],
     accent: "text-amber-300",
   },
   {
-    name: "Command",
-    price: "Custom",
-    requests: "500k+ requests / month",
+    name: "Pro",
+    price: "20 XLM/mo",
+    requests: "10,000 calls / month",
     teams: "Unlimited squads",
     features: ["Dedicated infra pool", "Audit log retention", "Custom billing rules"],
     accent: "text-emerald-300",
@@ -49,8 +49,14 @@ const plans: Plan[] = [
 ]
 
 const demoKey = "sk_live_8f3b1c9a4d7e2b6f"
-const monthlyLimit = 50000
-const monthlyUsed = 18420
+const monthlyLimit = 1000
+const monthlyUsed = 153
+
+const subscriptions = [
+  { agent: "nexus-7", service: "my-data-api", plan: "Growth", used: 153, limit: 1000, renewsAt: "2026-07-22", mrr: "5 XLM", status: "active" },
+  { agent: "atlas-2", service: "market-feed", plan: "Starter", used: 42, limit: 100, renewsAt: "2026-07-18", mrr: "1 XLM", status: "active" },
+  { agent: "vega-9", service: "routing-api", plan: "Pro", used: 6610, limit: 10000, renewsAt: "2026-07-09", mrr: "20 XLM", status: "grace" },
+] as const
 
 export function AdminConsole({ agents, districts }: AdminConsoleProps) {
   const [copied, setCopied] = useState(false)
@@ -63,14 +69,8 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
   const avgMemory = Math.round(agents.reduce((sum, agent) => sum + agent.memory, 0) / Math.max(1, agents.length))
   const usagePercent = Math.round((monthlyUsed / monthlyLimit) * 100)
   const remaining = Math.max(0, monthlyLimit - monthlyUsed)
+  const subscriptionMrr = subscriptions.reduce((sum, subscription) => sum + Number(subscription.mrr.split(" ")[0]), 0)
   const topAgents = [...agents].sort((a, b) => b.tasksCompleted - a.tasksCompleted).slice(0, 5)
-  const topDistrict = [...districts]
-    .map((district) => ({
-      district,
-      agents: agents.filter((agent) => agent.district === district.id),
-    }))
-    .sort((a, b) => b.agents.length - a.agents.length)[0]
-
   const districtCards = districts.map((district) => {
     const squad = agents.filter((agent) => agent.district === district.id)
     const working = squad.filter((agent) => agent.status === "working").length
@@ -121,7 +121,7 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
               <div className="grid min-w-[280px] gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                 <SignalStat label="Active keys" value={String(activeAgents.length)} color="text-cyan-300" />
                 <SignalStat label="Tasks routed" value={formatCompact(totalTasks * 1440)} color="text-emerald-300" />
-                <SignalStat label="Top squad" value={topDistrict?.district.name ?? "Data Center"} color="text-amber-300" />
+                <SignalStat label="MRR" value={`${subscriptionMrr} XLM`} color="text-amber-300" />
               </div>
             </div>
           </section>
@@ -145,12 +145,12 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
             <div className="mt-5 space-y-3">
               <InfoRow icon={<KeyRound className="h-4 w-4" />} label="Scope" value="agent.orchestrate / payments.charge / teams.read" />
               <InfoRow icon={<Shield className="h-4 w-4" />} label="Mode" value="Subscription + monthly cap" />
-              <InfoRow icon={<Wallet className="h-4 w-4" />} label="Remaining" value={`${remaining.toLocaleString()} requests`} />
+              <InfoRow icon={<Wallet className="h-4 w-4" />} label="Remaining" value={`${remaining.toLocaleString()} calls`} />
             </div>
 
             <div className="mt-5 rounded-2xl border border-slate-800 bg-[#09101a] p-4">
               <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.28em] text-slate-500">
-                <span>Monthly request meter</span>
+                <span>Monthly call meter</span>
                 <span>{usagePercent}%</span>
               </div>
               <div className="h-3 overflow-hidden rounded-full bg-slate-900">
@@ -160,7 +160,7 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
                 />
               </div>
               <p className="mt-3 font-vt323 text-lg text-slate-300">
-                When the cap is reached, the platform can throttle, upsell, or move the customer into overage billing.
+                When the cap is reached, withX402 can return 402 again, throttle, or upsell the agent into a higher recurring plan.
               </p>
             </div>
           </section>
@@ -269,7 +269,7 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
 
           <Panel
             title="Subscription lanes"
-            eyebrow="Pricing mock"
+            eyebrow="x402 recurring billing"
             bodyClassName="space-y-3"
           >
             {plans.map((plan) => {
@@ -311,6 +311,43 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
             </div>
           </Panel>
         </section>
+
+
+
+        <Panel title="Active x402 subscriptions" eyebrow="Admin billing console" bodyClassName="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left">
+              <thead>
+                <tr className="border-b border-slate-800 text-[10px] uppercase tracking-[0.24em] text-slate-500">
+                  <th className="pb-3 font-normal">Subscriber</th>
+                  <th className="pb-3 font-normal">Service</th>
+                  <th className="pb-3 font-normal">Plan</th>
+                  <th className="pb-3 font-normal">Calls</th>
+                  <th className="pb-3 font-normal">Next renewal</th>
+                  <th className="pb-3 font-normal">MRR</th>
+                  <th className="pb-3 font-normal">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subscriptions.map((subscription) => (
+                  <tr key={`${subscription.agent}-${subscription.service}`} className="border-b border-slate-900/80 font-mono text-xs text-slate-300">
+                    <td className="py-3 text-cyan-200">{subscription.agent}</td>
+                    <td className="py-3">{subscription.service}</td>
+                    <td className="py-3">{subscription.plan}</td>
+                    <td className="py-3">{subscription.used.toLocaleString()} / {subscription.limit.toLocaleString()}</td>
+                    <td className="py-3">{subscription.renewsAt}</td>
+                    <td className="py-3 text-emerald-300">{subscription.mrr}</td>
+                    <td className="py-3">
+                      <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${subscription.status === "active" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-amber-400/30 bg-amber-400/10 text-amber-300"}`}>
+                        {subscription.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
 
         <section className="grid gap-5 xl:grid-cols-[1fr_0.9fr]">
           <Panel title="Top operators" eyebrow="Main page agents" bodyClassName="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
@@ -355,8 +392,10 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
 }
 
 const API_ENDPOINTS = [
-  { method: "GET",  path: "/api/protocol/x402/quote",        desc: "Create x402 payment quote" },
+  { method: "POST", path: "/api/protocol/x402/quote",        desc: "Create x402 payment quote" },
   { method: "POST", path: "/api/protocol/x402/settle",       desc: "Settle x402 payment (optional passport gate)" },
+  { method: "POST", path: "/api/protocol/x402/subscriptions", desc: "Create recurring x402 API subscription" },
+  { method: "GET",  path: "/api/protocol/x402/subscriptions/:agentId/:serviceId", desc: "Check active subscription access" },
   { method: "POST", path: "/api/protocol/passport/authorize",desc: "ZK spend-cap authorization gate" },
   { method: "GET",  path: "/api/protocol/passport/status",   desc: "On-chain agent passport lookup" },
   { method: "GET",  path: "/api/protocol/reputation",        desc: "Agent reputation query" },
