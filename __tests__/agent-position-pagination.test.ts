@@ -54,7 +54,6 @@ describe("agent position history pagination", () => {
 
   afterEach(() => {
     resetAgentPositionStoreForTests()
-    resetAgentPositionHistoryDirectoryForTests()
     rmSync(tempDir, { recursive: true, force: true })
   })
 
@@ -156,7 +155,6 @@ describe("GET /api/agents/[id]/positions", () => {
 
   afterEach(() => {
     resetAgentPositionStoreForTests()
-    resetAgentPositionHistoryDirectoryForTests()
     rmSync(tempDir, { recursive: true, force: true })
   })
 
