@@ -3,6 +3,7 @@ import { DELETE, GET as getAgent } from "@/app/api/agents/[id]/route"
 import { PUT as putCapabilities } from "@/app/api/agents/[id]/capabilities/route"
 import { GET, POST } from "@/app/api/agents/route"
 import { resetAgentRegistryForTests } from "@/lib/agent-registry"
+import { resetAgentHealthStore, recordAgentHeartbeat } from "@/lib/agents/agent-health-store"
 
 function agentContext(id: string) {
   return { params: Promise.resolve({ id }) }
@@ -80,5 +81,71 @@ describe("agent registry API", () => {
     }))
 
     expect(post.status).toBe(400)
+  })
+
+  it("filters agents by q, capability, tag, and health status", async () => {
+    resetAgentHealthStore()
+    
+    // Create 3 agents
+    const agents = [
+      {
+        ...manifest,
+        agentId: "agent-mol-1",
+        capabilities: ["payment"],
+        tags: ["finance", "v1"],
+        status: "active",
+      },
+      {
+        ...manifest,
+        agentId: "agent-x-2",
+        capabilities: ["search"],
+        tags: ["v1"],
+        status: "active",
+      },
+      {
+        ...manifest,
+        agentId: "agent-mol-3",
+        capabilities: ["payment", "search"],
+        tags: ["finance", "v2"],
+        status: "offline",
+      }
+    ]
+
+    for (const agent of agents) {
+      await POST(new Request("http://localhost/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(agent),
+      }))
+    }
+
+    // Set health statuses
+    recordAgentHeartbeat("agent-mol-1", { status: "active", nowMs: Date.now() })
+    recordAgentHeartbeat("agent-x-2", { status: "active", nowMs: Date.now() })
+    // agent-mol-3 is offline (no heartbeat so it's stale/offline, wait, if no heartbeat and no previous heartbeat, `getAgentHealth` returns null, which defaults to "offline")
+
+    // Test capability filter
+    let res = await GET(new Request("http://localhost/api/agents?capability=payment"))
+    let body = await res.json()
+    expect(body.agents).toHaveLength(2)
+    expect(body.agents.map((a: any) => a.agentId).sort()).toEqual(["agent-mol-1", "agent-mol-3"])
+
+    // Test status=offline filter
+    res = await GET(new Request("http://localhost/api/agents?status=offline"))
+    body = await res.json()
+    expect(body.agents).toHaveLength(1)
+    expect(body.agents[0].agentId).toBe("agent-mol-3")
+
+    // Test q=mol filter
+    res = await GET(new Request("http://localhost/api/agents?q=mol"))
+    body = await res.json()
+    expect(body.agents).toHaveLength(2)
+    expect(body.agents.map((a: any) => a.agentId).sort()).toEqual(["agent-mol-1", "agent-mol-3"])
+    
+    // Test multiple filters compose (AND logic)
+    res = await GET(new Request("http://localhost/api/agents?q=mol&capability=payment&tag=v2"))
+    body = await res.json()
+    expect(body.agents).toHaveLength(1)
+    expect(body.agents[0].agentId).toBe("agent-mol-3")
   })
 })

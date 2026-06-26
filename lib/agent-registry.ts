@@ -11,6 +11,7 @@ export interface AgentCapabilityManifest {
   model: string
   district: DistrictId
   capabilities: string[]
+  tags?: string[]
   x402: AgentX402Manifest
   status: AgentStatus
   endpoint: string
@@ -81,6 +82,15 @@ function normalizeCapabilities(value: unknown): string[] {
   return Array.from(new Set(capabilities))
 }
 
+function normalizeTags(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    throw new Error("tags must be an array")
+  }
+  const tags = value.map((tag, index) => normalizeString(tag, `tags[${index}]`))
+  return Array.from(new Set(tags))
+}
+
 function normalizeX402(value: unknown): AgentX402Manifest {
   if (!isRecord(value)) {
     throw new Error("x402 must be an object")
@@ -129,6 +139,7 @@ export function registerAgent(input: unknown): AgentCapabilityManifest {
     model: normalizeString(input.model, "model"),
     district: normalizeDistrict(input.district),
     capabilities: normalizeCapabilities(input.capabilities),
+    tags: normalizeTags((input as any).tags),
     x402: normalizeX402(input.x402),
     status: normalizeStatus(input.status),
     endpoint: normalizeString(input.endpoint, "endpoint"),
