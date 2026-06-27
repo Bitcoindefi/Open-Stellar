@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType }
 import { Activity, Bot, BriefcaseBusiness, MessageSquare, PanelBottomOpen, Palette, ScrollText, WalletCards, Wrench } from "lucide-react"
 import { toast } from "sonner"
 import { PixelCity, type FloatingOverlay, type ParticleTrigger, type TxAnimation } from "@/components/pixel-city"
-import { SidebarPanel } from "@/components/sidebar-panel"
+import { SidebarPanel, SIDEBAR_TABS, type SidebarTabId } from "@/components/sidebar-panel"
 import { AudioControls } from "@/components/audio-controls"
 import { DistrictEventOverlay } from "@/components/open-stellar/district-event-overlay"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
@@ -448,144 +448,144 @@ export function OpenStellarHub() {
       prev.map((agent) => {
         if (agent.id !== event.agentId) return agent
 
-        if (event.type === "agent.status") {
-          return { ...agent, status: event.status }
-        }
+        switch (event.type) {
+          case "agent.status":
+            return { ...agent, status: event.status }
 
-        if (event.type === "task.started") {
-          return {
-            ...agent,
-            status: "working",
-            currentTask: event.task.title,
-            taskProgress: 0,
-          }
-        }
+          case "task.started":
+            return {
+              ...agent,
+              status: "working",
+              currentTask: event.task.title,
+              taskProgress: 0,
+            }
 
-        if (event.type === "task.completed") {
-          animatedAgentBox.current = agent
-          const skillId = event.skillId ?? agent.skills[0]?.id
-          return {
-            ...agent,
-            status: "active",
-            currentTask: event.result.summary || getRandomTask(agent.district),
-            taskProgress: 0,
-            tasksCompleted: agent.tasksCompleted + 1,
-            skills: awardSkillXP(agent.skills, skillId, XP_AWARDS.TASK_COMPLETED),
-          }
-        }
+          case "task.completed":
+            animatedAgentBox.current = agent
+            const skillId = event.skillId ?? agent.skills[0]?.id
+            return {
+              ...agent,
+              status: "active",
+              currentTask: event.result.summary || getRandomTask(agent.district),
+              taskProgress: 0,
+              tasksCompleted: agent.tasksCompleted + 1,
+              skills: awardSkillXP(agent.skills, skillId, XP_AWARDS.TASK_COMPLETED),
+            }
 
-        if (event.type === "payment.received") {
-          animatedAgentBox.current = agent
-          return {
-            ...agent,
-            status: "active",
-          }
-        }
+          case "payment.received":
+            animatedAgentBox.current = agent
+            return {
+              ...agent,
+              status: "active",
+            }
 
-        if (event.type === "agent.xp") {
-          const level = event.level
-          return {
-            ...agent,
-            xp: event.totalXp ?? (agent.xp ?? 0) + event.xp,
-            level,
-            xpToNext: event.xpToNext ?? getXpToNextLevel(level),
-          }
-        }
+          case "agent.xp":
+            const level = event.level
+            return {
+              ...agent,
+              xp: event.totalXp ?? (agent.xp ?? 0) + event.xp,
+              level,
+              xpToNext: event.xpToNext ?? getXpToNextLevel(level),
+            }
 
-        return agent
+          default:
+            return agent
+        }
       })
     )
 
-    if (event.type === "task.completed") {
-      audioEngine.playEvent("task_complete")
-      pushLog(`task completed: ${event.taskId} — ${event.result.summary}`, "success", event.agentId)
-      const agent = animatedAgentBox.current
-      if (agent) {
-        animateAgentToDistrict(agent)
-        showAgentOverlay(agent, "+task", "#34d399")
-        const district = DISTRICTS.find((candidate) => candidate.id === agent.district)
-        spawnParticles("xp-burst", agent.pixelX + 8, agent.pixelY, {
-          color: district?.color ?? agent.color,
-        })
-      }
-      return
-    }
-
-    if (event.type === "payment.received") {
-      audioEngine.playEvent("payment_received")
-      pushLog(`payment received on ${event.receipt.chain}: ${event.receipt.txHash.slice(0, 12)}...`, "success", event.agentId)
-      const amount = event.receipt.amountUsd ? `$${event.receipt.amountUsd.toFixed(3)}` : event.receipt.chain
-      toast.success("Payment received", { description: `${event.agentId} settled ${amount}` })
-      const agent = animatedAgentBox.current
-      if (agent) {
-        animateAgentToDistrict(agent)
-        showAgentOverlay(agent, `+${amount}`, "#fbbf24")
-        const xlmAmount = event.receipt.amountUnits ? `+${event.receipt.amountUnits} XLM` : "+0.01 XLM"
-        spawnParticles("payment-spark", agent.pixelX + 8, agent.pixelY + 10, {
-          amount: xlmAmount,
-        })
-      }
-      return
-    }
-
-    if (event.type === "agent.xp") {
-      audioEngine.playEvent("level_up")
-      pushLog(`XP update: +${event.xp}, level ${event.level}`, "success", event.agentId)
-      const agent = agentsRef.current.find((candidate) => candidate.id === event.agentId)
-      if (agent) {
-        showAgentOverlay(agent, `+${event.xp} XP`, "#22d3ee")
-        const previousLevel = agentLevelsRef.current.get(event.agentId) ?? event.level
-        if (event.level > previousLevel) {
-          toast.success("Agent leveled up", { description: `${agent.name} reached level ${event.level}` })
-          spawnParticles("level-up", agent.pixelX + 8, agent.pixelY, {
-            color: agent.color,
-            level: event.level,
+    switch (event.type) {
+      case "task.completed": {
+        audioEngine.playEvent("task_complete")
+        pushLog(`task completed: ${event.taskId} — ${event.result.summary}`, "success", event.agentId)
+        const agent = animatedAgentBox.current
+        if (agent) {
+          animateAgentToDistrict(agent)
+          showAgentOverlay(agent, "+task", "#34d399")
+          const district = DISTRICTS.find((candidate) => candidate.id === agent.district)
+          spawnParticles("xp-burst", agent.pixelX + 8, agent.pixelY, {
+            color: district?.color ?? agent.color,
           })
         }
-        agentLevelsRef.current.set(event.agentId, event.level)
+        break
       }
-      return
-    }
 
-    if (event.type === "badge.unlocked") {
-      audioEngine.playEvent("badge_unlock")
-      pushLog(`badge unlocked: ${event.badge.name}`, "success", event.agentId)
-      toast.success("Badge unlocked", { description: `${event.agentId}: ${event.badge.name}` })
-      const agent = agentsRef.current.find((candidate) => candidate.id === event.agentId)
-      if (agent) {
-        showAgentOverlay(agent, event.badge.name, "#a78bfa")
-        spawnParticles("badge-unlock", agent.pixelX + 8, agent.pixelY, {
-          rarity: event.badge.rarity ?? "common",
-        })
+      case "payment.received": {
+        audioEngine.playEvent("payment_received")
+        pushLog(`payment received on ${event.receipt.chain}: ${event.receipt.txHash.slice(0, 12)}...`, "success", event.agentId)
+        const amount = event.receipt.amountUsd ? `$${event.receipt.amountUsd.toFixed(3)}` : event.receipt.chain
+        toast.success("Payment received", { description: `${event.agentId} settled ${amount}` })
+        const agent = animatedAgentBox.current
+        if (agent) {
+          animateAgentToDistrict(agent)
+          showAgentOverlay(agent, `+${amount}`, "#fbbf24")
+          const xlmAmount = event.receipt.amountUnits ? `+${event.receipt.amountUnits} XLM` : "+0.01 XLM"
+          spawnParticles("payment-spark", agent.pixelX + 8, agent.pixelY + 10, {
+            amount: xlmAmount,
+          })
+        }
+        break
       }
-      return
-    }
 
-    if (event.type === "district.unlocked") {
-      audioEngine.playEvent("district_win")
-      const districtId = "districtId" in event ? event.districtId : event.district?.id
-      const district = DISTRICTS.find((candidate) => candidate.id === districtId)
-      const districtName = ("district" in event && event.district?.name) || district?.name || districtId || "a district"
-      pushLog(`district unlocked: ${districtName}`, "success", event.agentId ?? "system")
-      toast.success("District unlocked", { description: String(districtName) })
-      if (district) {
-        spawnParticles("district-win", district.x + district.w / 2, district.y, {
-          color: district.color,
-          spreadW: district.w * 0.7,
-        })
+      case "agent.xp": {
+        audioEngine.playEvent("level_up")
+        pushLog(`XP update: +${event.xp}, level ${event.level}`, "success", event.agentId)
+        const agent = agentsRef.current.find((candidate) => candidate.id === event.agentId)
+        if (agent) {
+          showAgentOverlay(agent, `+${event.xp} XP`, "#22d3ee")
+          const previousLevel = agentLevelsRef.current.get(event.agentId) ?? event.level
+          if (event.level > previousLevel) {
+            toast.success("Agent leveled up", { description: `${agent.name} reached level ${event.level}` })
+            spawnParticles("level-up", agent.pixelX + 8, agent.pixelY, {
+              color: agent.color,
+              level: event.level,
+            })
+          }
+          agentLevelsRef.current.set(event.agentId, event.level)
+        }
+        break
       }
-      return
-    }
 
-    if (event.type === "task.started") {
-      pushLog(`task started: ${event.task.title}`, "info", event.agentId)
-      return
-    }
+      case "badge.unlocked": {
+        audioEngine.playEvent("badge_unlock")
+        pushLog(`badge unlocked: ${event.badge.name}`, "success", event.agentId)
+        toast.success("Badge unlocked", { description: `${event.agentId}: ${event.badge.name}` })
+        const agent = agentsRef.current.find((candidate) => candidate.id === event.agentId)
+        if (agent) {
+          showAgentOverlay(agent, event.badge.name, "#a78bfa")
+          spawnParticles("badge-unlock", agent.pixelX + 8, agent.pixelY, {
+            rarity: event.badge.rarity ?? "common",
+          })
+        }
+        break
+      }
 
-    if (event.type === "agent.status") {
-      if (event.status === "error") audioEngine.playEvent("agent_error")
-      pushLog(`status changed: ${event.status}`, "info", event.agentId)
-      return
+      case "district.unlocked": {
+        audioEngine.playEvent("district_win")
+        const districtId = "districtId" in event ? event.districtId : event.district?.id
+        const district = DISTRICTS.find((candidate) => candidate.id === districtId)
+        const districtName = ("district" in event && event.district?.name) || district?.name || districtId || "a district"
+        pushLog(`district unlocked: ${districtName}`, "success", event.agentId ?? "system")
+        toast.success("District unlocked", { description: String(districtName) })
+        if (district) {
+          spawnParticles("district-win", district.x + district.w / 2, district.y, {
+            color: district.color,
+            spreadW: district.w * 0.7,
+          })
+        }
+        break
+      }
+
+      case "task.started": {
+        pushLog(`task started: ${event.task.title}`, "info", event.agentId)
+        break
+      }
+
+      case "agent.status": {
+        if (event.status === "error") audioEngine.playEvent("agent_error")
+        pushLog(`status changed: ${event.status}`, "info", event.agentId)
+        break
+      }
     }
   }, [animateAgentToDistrict, audioEngine, pushLog, showAgentOverlay, spawnParticles])
 
