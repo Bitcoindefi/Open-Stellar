@@ -134,6 +134,23 @@ describe("agent position store", () => {
     expect(records.at(-1)).toMatchObject({ pixelX: 1015 })
     expect(listAgentPositionHistory("bot-1", 1000)).toHaveLength(1000)
   })
+
+  it("accepts a 500-char agentId but stores it with a 200-char key", () => {
+    const hugeId = "A".repeat(500)
+    const clampedId = "A".repeat(200)
+
+    setAgentPositionForTests(hugeId, { pixelX: 0, pixelY: 0, targetX: 0, targetY: 0, direction: "right" })
+    moveAgentPosition(hugeId, { dx: 1, dy: 1 })
+
+    expect(getAgentPosition(hugeId)).toMatchObject({ agentId: clampedId })
+    expect(readJsonl(clampedId)).toEqual([
+      expect.objectContaining({
+        agentId: clampedId,
+        dx: 1,
+        dy: 1
+      }),
+    ])
+  })
 })
 
 describe("POST /api/agents/[id]/move", () => {

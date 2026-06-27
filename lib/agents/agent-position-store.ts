@@ -128,9 +128,9 @@ function clampAgentId(agentId: string): string {
 }
 
 function normalizeAgentId(agentId: string): string {
-  const cleanId = agentId.trim()
-  if (!cleanId) throw new Error("agentId is required")
-  return clampAgentId(cleanId)
+  const trimmed = agentId.trim()
+  if (!trimmed) throw new Error("agentId must not be empty")
+  return trimmed.slice(0, 200)
 }
 
 function normalizeDelta(value: unknown, field: "dx" | "dy"): number {
