@@ -81,6 +81,17 @@ const leaderboardAgentSchema = {
   required: ["id", "name", "district", "tasksCompleted", "weeklyTasks", "level", "xp", "x402Revenue", "rank", "previousRank", "districtRank", "globalRank"],
 }
 
+const xpHistoryEventSchema = {
+  type: "object",
+  properties: {
+    type: { type: "string", enum: ["earned", "decayed"] },
+    delta: { type: "integer" },
+    reason: { type: "string" },
+    timestamp: { type: "string", format: "date-time" },
+  },
+  required: ["type", "delta", "reason", "timestamp"],
+}
+
 const spec = {
   openapi: "3.1.0",
   info: { title: "Open Stellar API", version: "0.2.0", description: "Developer API for Open Stellar agents, x402 payments, ZK Passport, reputation, Stellar helpers, feeds, and admin workflows." },
@@ -177,6 +188,29 @@ const spec = {
       }),
     },
     "/api/agents/{id}/appearance": { get: op("Agents", "Read agent appearance", ["id"]), post: op("Agents", "Update agent appearance", ["id"], { skin: "default", accessories: [] }) },
+    "/api/agents/{id}/xp/history": {
+      get: op("Agents", "Read agent XP history", ["id"], undefined, {
+        query: [
+          queryParam("page", { type: "integer", minimum: 1 }),
+          queryParam("pageSize", { type: "integer", minimum: 1, maximum: 100 }),
+          queryParam("type", { type: "string", enum: xpHistoryEventSchema.properties.type.enum as string[] }),
+          queryParam("from", { type: "string", format: "date" }),
+          queryParam("to", { type: "string", format: "date" }),
+        ],
+        responseSchema: {
+          type: "object",
+          properties: {
+            agentId: { type: "string" },
+            totalXp: { type: "integer" },
+            events: { type: "array", items: xpHistoryEventSchema },
+            page: { type: "integer" },
+            pageSize: { type: "integer" },
+            total: { type: "integer" },
+          },
+          required: ["agentId", "totalXp", "events", "page", "pageSize", "total"],
+        },
+      }),
+    },
     "/api/agents/{id}/credential": { post: op("Agents", "Issue a reputation credential", ["id"], { contractId: "optional-soroban-contract-id" }) },
     "/api/agents/{id}/credential/latest": { get: op("Agents", "Read latest reputation credential", ["id"]) },
     "/api/agents/{id}/webhooks/failures": {
