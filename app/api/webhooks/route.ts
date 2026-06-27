@@ -21,6 +21,7 @@ export async function POST(req: Request) {
     const webhook = createWebhookRegistration({
       url: body.url,
       events: body.events,
+      filters: body.filters,
     })
     return NextResponse.json(
       { id: webhook.id, secret: webhook.secret },

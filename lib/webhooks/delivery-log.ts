@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 
+export type DeliveryStatus = "success" | "failed" | "filtered"
+
 export interface WebhookDeliveryAttempt {
   id: string
   webhookId: string
@@ -11,6 +13,8 @@ export interface WebhookDeliveryAttempt {
   responseStatus: number | null
   ok: boolean
   retried: boolean
+  attempt: number
+  status: DeliveryStatus
 }
 
 export type CreateWebhookDeliveryAttempt = Omit<WebhookDeliveryAttempt, "id">
@@ -42,13 +46,27 @@ function isWebhookDeliveryAttempt(value: unknown): value is WebhookDeliveryAttem
     typeof attempt.durationMs === "number" &&
     (typeof attempt.responseStatus === "number" || attempt.responseStatus === null) &&
     typeof attempt.ok === "boolean" &&
-    typeof attempt.retried === "boolean"
+    typeof attempt.retried === "boolean" &&
+    typeof attempt.attempt === "number" &&
+    (attempt.status === "success" || attempt.status === "failed" || attempt.status === "filtered")
   )
 }
 
 function parseDeliveryAttempt(line: string): WebhookDeliveryAttempt | null {
   try {
     const parsed = JSON.parse(line) as unknown
+    if (parsed && typeof parsed === "object" && !("attempt" in parsed)) {
+      const withDefaultAttempt = { ...parsed, attempt: 1 }
+      return isWebhookDeliveryAttempt(withDefaultAttempt) ? withDefaultAttempt : null
+    }
+    if (parsed && typeof parsed === "object" && !("status" in parsed)) {
+      // Backfill legacy records without status
+      const withStatus = {
+        ...parsed,
+        status: (parsed as Record<string, unknown>).ok === true ? "success" : "failed",
+      }
+      return isWebhookDeliveryAttempt(withStatus) ? withStatus : null
+    }
     return isWebhookDeliveryAttempt(parsed) ? parsed : null
   } catch {
     return null

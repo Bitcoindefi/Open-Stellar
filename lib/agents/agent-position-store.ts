@@ -127,6 +127,12 @@ function clampAgentId(agentId: string): string {
   return agentId.slice(0, MAX_AGENT_ID_LENGTH)
 }
 
+function normalizeAgentId(agentId: string): string {
+  const trimmed = agentId.trim()
+  if (!trimmed) throw new Error("agentId must not be empty")
+  return trimmed.slice(0, 200)
+}
+
 function normalizeDelta(value: unknown, field: "dx" | "dy"): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`${field} must be a finite number`)
@@ -271,7 +277,7 @@ export function listAgentPositions(): AgentPosition[] {
 
 export function getAgentPosition(agentId: string): AgentPosition | null {
   ensureInitializedPositions()
-  return state.positions.get(clampAgentId(agentId)) ?? null
+  return state.positions.get(normalizeAgentId(agentId)) ?? null
 }
 
 export function moveAgentPosition(agentId: string, input: AgentMoveInput): AgentPosition {
@@ -336,7 +342,7 @@ export function getAgentPositionHistoryPaginated(
     after?: string | null
   } = {},
 ): AgentPositionHistoryResult {
-  const cleanId = clampAgentId(agentId)
+  const cleanId = normalizeAgentId(agentId)
   const all = readHistoryFile(cleanId)
 
   // Compute metadata from full unfiltered array

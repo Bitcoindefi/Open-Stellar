@@ -68,7 +68,7 @@ describe("GET /api/notifications", () => {
       resourceLabel: "Reputation",
     })
 
-    const res = await GET(new Request(`http://localhost/api/notifications?agentId=agent-cursor&since=${first.cursor}`))
+    const res = await GET(new Request(`http://localhost/api/notifications?agentId=agent-cursor&since=${first?.cursor}`))
     const data = await res.json()
 
     expect(data.unreadCount).toBe(3)

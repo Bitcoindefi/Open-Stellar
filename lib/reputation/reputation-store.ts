@@ -64,6 +64,12 @@ function normaliseMetrics(metrics?: Partial<ReputationMetrics>): ReputationMetri
   }
 }
 
+function normalizeActorId(actorId: string): string {
+  const trimmed = actorId.trim()
+  if (!trimmed) throw new Error("actorId must not be empty")
+  return trimmed.slice(0, 200)
+}
+
 export function calculateReputationScore(metrics: Partial<ReputationMetrics>): number {
   const safe = normaliseMetrics(metrics)
   const taskPoints = safe.tasksCompleted
@@ -117,11 +123,12 @@ function snapshot(actorId: string, metrics: Partial<ReputationMetrics>, updatedA
 }
 
 export function getReputation(actorId: string): ReputationSnapshot {
-  const existing = db.get(actorId)
-  if (existing) return snapshot(actorId, existing.metrics, existing.updatedAt)
+  const cleanId = normalizeActorId(actorId)
+  const existing = db.get(cleanId)
+  if (existing) return snapshot(cleanId, existing.metrics, existing.updatedAt)
 
-  const created = snapshot(actorId, defaultMetrics())
-  db.set(actorId, created)
+  const created = snapshot(cleanId, defaultMetrics())
+  db.set(cleanId, created)
   persist(db)
   return created
 }
@@ -131,14 +138,16 @@ export function getReputationByActorId(actorId: string): ReputationSnapshot {
 }
 
 export function upsertReputationMetrics(actorId: string, metrics: Partial<ReputationMetrics>): ReputationSnapshot {
-  const updated = snapshot(actorId, metrics)
-  db.set(actorId, updated)
+  const cleanId = normalizeActorId(actorId)
+  const updated = snapshot(cleanId, metrics)
+  db.set(cleanId, updated)
   persist(db)
   return updated
 }
 
 export function applyReputationAction(action: ReputationAction): ReputationSnapshot {
-  const current = getReputation(action.actorId)
+  const cleanId = normalizeActorId(action.actorId)
+  const current = getReputation(cleanId)
   const metrics = { ...current.metrics }
 
   if (action.reason.includes('task') || action.reason === 'manual-update' || action.reason === 'perfect' || action.reason === 'good-service' || action.reason === 'voted') {
@@ -151,16 +160,16 @@ export function applyReputationAction(action: ReputationAction): ReputationSnaps
     metrics.badges = [...metrics.badges, { id: `${action.reason}-${Date.now()}`, rarity: 'common', awardedAt: new Date().toISOString() }]
   }
 
-  const updated = upsertReputationMetrics(action.actorId, metrics)
+  const updated = upsertReputationMetrics(cleanId, metrics)
   addNotification({
-    agentId: action.actorId,
+    agentId: cleanId,
     type: 'reputation_updated',
     title: 'Reputation updated',
     body: `Reputation changed from ${current.score} to ${updated.score}.`,
-    resourceHref: `/leaderboard/${action.actorId}`,
+    resourceHref: `/leaderboard/${cleanId}`,
     resourceLabel: 'Reputation',
     createdAt: updated.updatedAt,
-    dedupeKey: `reputation_updated:${action.actorId}:${updated.updatedAt}:${action.reason}:${action.delta}`,
+    dedupeKey: `reputation_updated:${cleanId}:${updated.updatedAt}:${action.reason}:${action.delta}`,
   })
   return updated
 }

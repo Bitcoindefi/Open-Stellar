@@ -29,6 +29,7 @@ export type SystemEvent =
   | (BaseEvent & { type: "task.completed"; agentId: string; taskId: string; result: TaskResult; skillId?: string })
   | (BaseEvent & { type: "payment.received"; agentId: string; receipt: X402Receipt })
   | (BaseEvent & { type: "quest.completed"; agentId: string; questId?: string; quest?: unknown; reward?: unknown })
+  | (BaseEvent & { type: "quest.unlocked"; agentId: string; questId: string })
   | (BaseEvent & { type: "agent.xp"; agentId: string; xp: number; totalXp?: number; level: number; xpToNext?: number; reason?: string })
   | (BaseEvent & { type: "badge.unlocked"; agentId: string; badge: Badge })
   | (BaseEvent & { type: "district.unlocked"; districtId?: import("@/lib/types").DistrictId; district?: import("@/lib/types").District })

@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto"
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { WEBHOOK_EVENT_TYPES } from "./event-types"
+import { normalizeFilters, type WebhookFilter } from "./filter"
 
 export interface WebhookRegistration {
   id: string
@@ -9,6 +10,7 @@ export interface WebhookRegistration {
   events: string[]
   secret: string
   createdAt: string
+  filters?: WebhookFilter[]
 }
 
 export type PublicWebhookRegistration = Omit<WebhookRegistration, "secret">
@@ -16,6 +18,7 @@ export type PublicWebhookRegistration = Omit<WebhookRegistration, "secret">
 export interface CreateWebhookInput {
   url: unknown
   events: unknown
+  filters?: unknown
 }
 
 const DEFAULT_WEBHOOKS_PATH = join(process.cwd(), ".data", "webhooks.json")
@@ -41,7 +44,8 @@ function isWebhookRegistration(value: unknown): value is WebhookRegistration {
     Array.isArray(webhook.events) &&
     webhook.events.every((event) => typeof event === "string") &&
     typeof webhook.secret === "string" &&
-    typeof webhook.createdAt === "string"
+    typeof webhook.createdAt === "string" &&
+    (webhook.filters === undefined || Array.isArray(webhook.filters))
   )
 }
 
@@ -109,6 +113,7 @@ export function createWebhookRegistration(input: CreateWebhookInput): WebhookReg
     events: normalizeEvents(input.events),
     secret: randomBytes(32).toString("hex"),
     createdAt: new Date().toISOString(),
+    filters: normalizeFilters(input.filters),
   }
 
   writeWebhooks([webhook, ...readWebhooks()])

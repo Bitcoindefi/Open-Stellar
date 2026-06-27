@@ -11,8 +11,10 @@ import { GET, POST } from "@/app/api/webhooks/route"
 import { publishSystemEvent } from "@/lib/events/system-events"
 import { deliverWebhookEvent } from "@/lib/webhooks/delivery"
 import {
+  resetWebhookRetryCancellationForTests,
   resetWebhookRetryDelayForTests,
   setWebhookRetryDelayForTests,
+  setWebhookRetryDelaysForTests,
 } from "@/lib/webhooks/delivery"
 import {
   appendWebhookDeliveryAttempt,
@@ -21,6 +23,12 @@ import {
   resetWebhookDeliveryLogPathForTests,
   setWebhookDeliveryLogPathForTests,
 } from "@/lib/webhooks/delivery-log"
+import {
+  enqueueWebhookRetry,
+  listWebhookRetryEntries,
+  resetWebhookRetryStorePathForTests,
+  setWebhookRetryStorePathForTests,
+} from "@/lib/webhooks/retry-store"
 import {
   resetWebhookStoreForTests,
   resetWebhookStorePathForTests,
@@ -54,6 +62,7 @@ describe("webhook API", () => {
     testDir = mkdtempSync(join(tmpdir(), "open-stellar-webhooks-"))
     setWebhookStorePathForTests(join(testDir, "webhooks.json"))
     setWebhookDeliveryLogPathForTests(join(testDir, "webhook-delivery-log.jsonl"))
+    setWebhookRetryStorePathForTests(join(testDir, "webhook-retry-queue.json"))
     resetWebhookStoreForTests()
     resetWebhookDeliveryLogForTests()
     setWebhookRetryDelayForTests(0)
@@ -61,9 +70,12 @@ describe("webhook API", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    resetWebhookRetryCancellationForTests()
+    vi.useRealTimers()
     resetWebhookRetryDelayForTests()
     resetWebhookStorePathForTests()
     resetWebhookDeliveryLogPathForTests()
+    resetWebhookRetryStorePathForTests()
     rmSync(testDir, { recursive: true, force: true })
   })
 
@@ -142,7 +154,7 @@ describe("webhook API", () => {
       new Request(`http://localhost/api/webhooks/${registered.id}/rotate`, { method: "POST" }),
       context(registered.id),
     )
-    const rotatedData = await rotated.json() as { id: string; secret: string }
+    const rotatedData = await rotated.json() as { id: string; secret: string; cancelledRetries: number }
     const after = await GET()
     const afterData = await after.json()
 
@@ -151,6 +163,7 @@ describe("webhook API", () => {
     expect(rotatedData.id).toBe(registered.id)
     expect(rotatedData.secret).toHaveLength(64)
     expect(rotatedData.secret).not.toBe(registered.secret)
+    expect(rotatedData.cancelledRetries).toBe(0)
     expect(afterData.webhooks).toHaveLength(1)
     expect(afterData.webhooks[0]).toMatchObject({
       id: registered.id,
@@ -171,6 +184,89 @@ describe("webhook API", () => {
     expect(res.status).toBe(404)
     expect(res.headers.get("Cache-Control")).toBe("no-store")
     expect(data.error).toBe("Webhook not found")
+  })
+
+  it("cancels pending retries on secret rotation and uses the new secret for new deliveries", async () => {
+    vi.useFakeTimers()
+    setWebhookRetryDelaysForTests([5_000, 30_000, 120_000])
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const { data: registered } = await registerWebhook()
+
+    const pendingDelivery = deliverWebhookEvent({
+      id: "evt_cancel_retry_on_rotate",
+      occurredAt: "2026-06-26T00:00:00.000Z",
+      type: "quest.completed",
+      agentId: "nexus-7",
+      questId: "daily-complete-5-tasks",
+      reward: { xp: 50 },
+    })
+
+    await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    const rotated = await ROTATE_POST(
+      new Request(`http://localhost/api/webhooks/${registered.id}/rotate`, { method: "POST" }),
+      context(registered.id),
+    )
+    const rotatedData = await rotated.json() as { id: string; secret: string; cancelledRetries: number }
+
+    expect(rotated.status).toBe(200)
+    expect(rotatedData).toMatchObject({
+      id: registered.id,
+      cancelledRetries: 1,
+    })
+
+    await vi.advanceTimersByTimeAsync(120_000)
+    await pendingDelivery
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await deliverWebhookEvent({
+      id: "evt_agent_status_after_rotate",
+      occurredAt: "2026-06-26T00:01:00.000Z",
+      type: "agent.status",
+      agentId: "nexus-7",
+      status: "working",
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit]
+    const body = init.body as string
+    const oldSignature = `sha256=${createHmac("sha256", registered.secret).update(body).digest("hex")}`
+    const newSignature = `sha256=${createHmac("sha256", rotatedData.secret).update(body).digest("hex")}`
+
+    expect(init.headers).toMatchObject({
+      "X-Open-Stellar-Signature": newSignature,
+    })
+    expect(init.headers).not.toMatchObject({
+      "X-Open-Stellar-Signature": oldSignature,
+    })
+  })
+
+  it("cancels a persisted pending retry on secret rotation", async () => {
+    const { data: registered } = await registerWebhook()
+    enqueueWebhookRetry(registered.id, {
+      type: "agent.status",
+      payload: {
+        id: "evt_persisted_retry_on_rotate",
+        occurredAt: "2026-06-26T00:00:00.000Z",
+        type: "agent.status",
+        agentId: "nexus-7",
+        status: "working",
+      },
+    }, "HTTP 503", 1_000)
+
+    const rotated = await ROTATE_POST(
+      new Request(`http://localhost/api/webhooks/${registered.id}/rotate`, { method: "POST" }),
+      context(registered.id),
+    )
+    const rotatedData = await rotated.json() as { cancelledRetries: number }
+
+    expect(rotatedData.cancelledRetries).toBe(1)
+    expect(listWebhookRetryEntries()).toEqual([])
   })
 
   it("uses the rotated secret for webhook delivery signatures", async () => {
@@ -284,6 +380,7 @@ describe("webhook API", () => {
       responseStatus: 204,
       ok: true,
       retried: false,
+      attempt: 1,
     })
     expect(attempts[0].id).toMatch(/^wha_/)
     expect(attempts[0].deliveredAt).toEqual(expect.any(String))
@@ -340,6 +437,7 @@ describe("webhook API", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
     vi.stubGlobal("fetch", fetchMock)
     const { data: registered } = await registerWebhook()
@@ -354,13 +452,56 @@ describe("webhook API", () => {
     })
 
     const attempts = listWebhookDeliveryAttempts(registered.id)
+    const chronologicalAttempts = [...attempts].reverse()
 
-    expect(attempts).toHaveLength(2)
-    expect(attempts[0]).toMatchObject({ responseStatus: 204, ok: true, retried: true })
-    expect(attempts[1]).toMatchObject({ responseStatus: 500, ok: false, retried: false })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(attempts).toHaveLength(3)
+    expect(chronologicalAttempts).toMatchObject([
+      { responseStatus: 500, ok: false, retried: false, attempt: 1 },
+      { responseStatus: 500, ok: false, retried: true, attempt: 2 },
+      { responseStatus: 204, ok: true, retried: true, attempt: 3 },
+    ])
   })
 
-  it("records null status when fetch fails before a response", async () => {
+  it("waits 5s then 30s before the successful third attempt", async () => {
+    vi.useFakeTimers()
+    setWebhookRetryDelaysForTests([5_000, 30_000, 120_000])
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    await registerWebhook()
+
+    const delivery = deliverWebhookEvent({
+      id: "evt_quest_completed_delays",
+      occurredAt: "2026-06-26T00:00:00.000Z",
+      type: "quest.completed",
+      agentId: "nexus-7",
+      questId: "daily-complete-5-tasks",
+      reward: { xp: 50 },
+    })
+
+    await Promise.resolve()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(4_999)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(1)
+    await delivery
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it("records null status when fetch fails before a response and retries", async () => {
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new Error("network down"))
@@ -379,7 +520,85 @@ describe("webhook API", () => {
     const attempts = listWebhookDeliveryAttempts(registered.id)
 
     expect(attempts).toHaveLength(2)
-    expect(attempts[1]).toMatchObject({ responseStatus: null, ok: false, retried: false })
+    expect(attempts[1]).toMatchObject({ responseStatus: null, ok: false, retried: false, attempt: 1 })
+    expect(attempts[0]).toMatchObject({ responseStatus: 204, ok: true, retried: true, attempt: 2 })
+  })
+
+  it("logs the final failed attempt after all retries are exhausted", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 502 }))
+      .mockRejectedValueOnce(new DOMException("timed out", "AbortError"))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const { data: registered } = await registerWebhook()
+
+    await deliverWebhookEvent({
+      id: "evt_agent_status_failed_retries",
+      occurredAt: "2026-06-26T00:00:00.000Z",
+      type: "agent.status",
+      agentId: "nexus-7",
+      status: "working",
+    })
+
+    const attempts = listWebhookDeliveryAttempts(registered.id)
+    const chronologicalAttempts = [...attempts].reverse()
+
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(chronologicalAttempts).toMatchObject([
+      { responseStatus: 500, ok: false, retried: false, attempt: 1 },
+      { responseStatus: 502, ok: false, retried: true, attempt: 2 },
+      { responseStatus: null, ok: false, retried: true, attempt: 3 },
+      { responseStatus: 503, ok: false, retried: true, attempt: 4 },
+    ])
+    expect(attempts[0]).toMatchObject({ responseStatus: 503, ok: false, retried: true, attempt: 4 })
+  })
+
+  it("does not retry after a successful first response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const { data: registered } = await registerWebhook()
+
+    await deliverWebhookEvent({
+      id: "evt_agent_status_success_no_retry",
+      occurredAt: "2026-06-26T00:00:00.000Z",
+      type: "agent.status",
+      agentId: "nexus-7",
+      status: "working",
+    })
+
+    const attempts = listWebhookDeliveryAttempts(registered.id)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(attempts).toHaveLength(1)
+    expect(attempts[0]).toMatchObject({ responseStatus: 204, ok: true, retried: false, attempt: 1 })
+  })
+
+  it("logs each retry attempt separately", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const { data: registered } = await registerWebhook()
+
+    await deliverWebhookEvent({
+      id: "evt_agent_status_retry_flags",
+      occurredAt: "2026-06-26T00:00:00.000Z",
+      type: "agent.status",
+      agentId: "nexus-7",
+      status: "working",
+    })
+
+    const attempts = listWebhookDeliveryAttempts(registered.id)
+    const retryAttempts = attempts.filter((attempt) => attempt.retried)
+
+    expect(attempts).toHaveLength(4)
+    expect(retryAttempts).toHaveLength(3)
+    expect(retryAttempts.map((attempt) => attempt.attempt)).toEqual([4, 3, 2])
   })
 
   it("returns 404 when listing deliveries for an unknown webhook", async () => {
@@ -403,6 +622,8 @@ describe("webhook API", () => {
         responseStatus: 204,
         ok: true,
         retried: false,
+        attempt: 1,
+        status: "success",
       })
     }
 

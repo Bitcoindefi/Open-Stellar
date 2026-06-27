@@ -1,4 +1,6 @@
-export const NOTIFICATION_TYPES = ["agent_offline", "quest_completed", "reputation_updated"] as const
+import { isNotificationTypeMuted } from "@/lib/notifications/notification-preferences"
+
+export const NOTIFICATION_TYPES = ["agent_offline", "quest_completed", "reputation_updated", "quest_expired"] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
@@ -71,9 +73,10 @@ function agentNotifications(agentId: string): NotificationRecord[] {
   return created
 }
 
-export function addNotification(input: AddNotificationInput): NotificationRecord {
+export function addNotification(input: AddNotificationInput): NotificationRecord | null {
   const agentId = input.agentId.trim()
   if (!agentId) throw new Error("agentId is required")
+  if (isNotificationTypeMuted(agentId, input.type)) return null
 
   const notifications = agentNotifications(agentId)
   if (input.dedupeKey) {

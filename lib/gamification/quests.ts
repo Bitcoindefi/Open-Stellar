@@ -1,4 +1,5 @@
 import { addNotification } from "@/lib/notifications/notification-store"
+import { invalidateLeaderboardCache } from "./leaderboard-cache"
 
 export type QuestType = "daily" | "weekly" | "story"
 
@@ -13,6 +14,7 @@ export interface SubTask {
   id: string
   title: string
   assignedAgentId?: string
+  dependsOn?: string[]
   status: "pending" | "in_progress" | "done"
   completedAt?: string
 }
@@ -24,6 +26,7 @@ export interface Quest {
   description: string
   reward: QuestReward
   progress: number
+  unlocksQuestId?: string
   minReputation?: number
   completedAt?: string
   expiresAt?: string
@@ -39,6 +42,7 @@ interface QuestDefinition {
   reward: QuestReward
   goal: number
   metric: QuestMetric
+  unlocksQuestId?: string
   minReputation?: number
 }
 
@@ -221,12 +225,13 @@ function generateId(): string {
   return Math.random().toString(36).substring(2, 15)
 }
 
-export function addSubTask(questId: string, title: string, assignedAgentId?: string): SubTask {
+export function addSubTask(questId: string, title: string, assignedAgentId?: string, dependsOn?: string[]): SubTask {
   const subtasks = getSubTasks(questId)
   const newSubTask: SubTask = {
     id: generateId(),
     title,
     assignedAgentId,
+    ...(dependsOn !== undefined ? { dependsOn } : {}),
     status: "pending",
   }
   subtasks.push(newSubTask)
@@ -296,6 +301,7 @@ export function buildQuests(stats: QuestStats, now: Date = new Date()): Quest[] 
         progress,
         subTasks,
         status: questStatus,
+        ...(definition.unlocksQuestId ? { unlocksQuestId: definition.unlocksQuestId } : {}),
         ...(definition.minReputation !== undefined ? { minReputation: definition.minReputation } : {}),
         ...(isAllDone ? { completedAt: questCompletedAt } : {}),
         ...(expiresAt ? { expiresAt } : {}),
@@ -312,6 +318,7 @@ export function buildQuests(stats: QuestStats, now: Date = new Date()): Quest[] 
         reward: definition.reward,
         progress,
         status: questStatus,
+        ...(definition.unlocksQuestId ? { unlocksQuestId: definition.unlocksQuestId } : {}),
         ...(definition.minReputation !== undefined ? { minReputation: definition.minReputation } : {}),
         ...(progress >= 100 ? { completedAt } : {}),
         ...(expiresAt ? { expiresAt } : {}),
@@ -350,8 +357,12 @@ export function recordCompletedQuestNotifications(agentId: string, quests: Quest
   const cleanId = agentId.trim()
   if (!cleanId) return
 
+  let anyCompleted = false
+
   for (const quest of quests) {
     if (!quest.completedAt) continue
+    anyCompleted = true
+
     addNotification({
       agentId: cleanId,
       type: "quest_completed",
@@ -362,5 +373,10 @@ export function recordCompletedQuestNotifications(agentId: string, quests: Quest
       createdAt: quest.completedAt,
       dedupeKey: `quest_completed:${cleanId}:${quest.id}:${quest.completedAt}`,
     })
+  }
+
+  // Invalidate cache when any quest is completed so next read reflects latest state
+  if (anyCompleted) {
+    invalidateLeaderboardCache()
   }
 }

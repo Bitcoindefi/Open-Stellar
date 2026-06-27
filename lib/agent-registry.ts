@@ -6,11 +6,19 @@ export interface AgentX402Manifest {
   pricePerTask?: string
 }
 
+export interface SkillRegistration {
+  id: string
+  version?: string
+  minCallerVersion?: string
+}
+
 export interface AgentCapabilityManifest {
   agentId: string
   model: string
   district: DistrictId
   capabilities: string[]
+  skillVersions?: SkillRegistration[]
+  dependencies?: string[]
   x402: AgentX402Manifest
   status: AgentStatus
   endpoint: string
@@ -38,7 +46,7 @@ const globalState = globalThis as typeof globalThis & {
 }
 
 const registry: AgentRegistryState = globalState.__openStellarAgentRegistry__ ?? {
-  agents: new Map<string, AgentCapabilityManifest>(),
+  agents: new Map(),
 }
 
 if (!globalState.__openStellarAgentRegistry__) {
@@ -81,6 +89,35 @@ function normalizeCapabilities(value: unknown): string[] {
   return Array.from(new Set(capabilities))
 }
 
+function normalizeSkillVersions(value: unknown): SkillRegistration[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    throw new Error("skillVersions must be an array")
+  }
+
+  const versions = value.map((item, index) => {
+    if (!isRecord(item)) {
+      throw new Error(`skillVersions[${index}] must be an object`)
+    }
+    const id = normalizeString(item.id, `skillVersions[${index}].id`)
+    const version = item.version === undefined ? "1.0.0" : normalizeString(item.version, `skillVersions[${index}].version`)
+    const minCallerVersion = item.minCallerVersion === undefined ? undefined : normalizeString(item.minCallerVersion, `skillVersions[${index}].minCallerVersion`)
+    return { id, version, minCallerVersion }
+  })
+
+  return versions
+}
+
+function normalizeDependencies(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    throw new TypeError("dependencies must be an array")
+  }
+
+  const dependencies = value.map((dependency, index) => normalizeString(dependency, `dependencies[${index}]`))
+  return Array.from(new Set(dependencies))
+}
+
 function normalizeX402(value: unknown): AgentX402Manifest {
   if (!isRecord(value)) {
     throw new Error("x402 must be an object")
@@ -93,6 +130,33 @@ function normalizeX402(value: unknown): AgentX402Manifest {
   return {
     accepts: value.accepts,
     pricePerTask: value.pricePerTask === undefined ? undefined : normalizeString(value.pricePerTask, "x402.pricePerTask"),
+  }
+}
+
+function validateDependencies(agentId: string, dependencies: string[]): void {
+  for (const dependencyId of dependencies) {
+    if (dependencyId === agentId) {
+      throw new Error("agent cannot depend on itself")
+    }
+    if (!registry.agents.has(dependencyId)) {
+      throw new Error(`dependency agent not found: ${dependencyId}`)
+    }
+  }
+
+  const reachesAgent = (currentId: string, visited: Set<string>): boolean => {
+    if (currentId === agentId) return true
+    if (visited.has(currentId)) return false
+
+    visited.add(currentId)
+    const currentDependencies = currentId === agentId
+      ? dependencies
+      : registry.agents.get(currentId)?.dependencies ?? []
+
+    return currentDependencies.some((dependencyId) => reachesAgent(dependencyId, visited))
+  }
+
+  if (dependencies.some((dependencyId) => reachesAgent(dependencyId, new Set()))) {
+    throw new Error("agent dependencies cannot contain a cycle")
   }
 }
 
@@ -118,17 +182,33 @@ export function getRegisteredAgent(agentId: string): AgentCapabilityManifest | n
   return registry.agents.get(agentId) ?? null
 }
 
+export function getAgentDependencies(agentId: string): string[] {
+  return [...(registry.agents.get(agentId)?.dependencies ?? [])]
+}
+
+export function getAgentDependents(agentId: string): string[] {
+  return Array.from(registry.agents.values())
+    .filter((agent) => agent.dependencies?.includes(agentId))
+    .map((agent) => agent.agentId)
+}
+
 export function registerAgent(input: unknown): AgentCapabilityManifest {
   if (!isRecord(input)) {
     throw new Error("agent manifest must be an object")
   }
 
   const now = new Date().toISOString()
+  const agentId = normalizeString(input.agentId, "agentId")
+  const dependencies = normalizeDependencies(input.dependencies)
+  validateDependencies(agentId, dependencies ?? [])
+
   const agent: AgentCapabilityManifest = {
-    agentId: normalizeString(input.agentId, "agentId"),
+    agentId,
     model: normalizeString(input.model, "model"),
     district: normalizeDistrict(input.district),
     capabilities: normalizeCapabilities(input.capabilities),
+    ...(normalizeSkillVersions(input.skillVersions) === undefined ? {} : { skillVersions: normalizeSkillVersions(input.skillVersions) }),
+    ...(dependencies === undefined ? {} : { dependencies }),
     x402: normalizeX402(input.x402),
     status: normalizeStatus(input.status),
     endpoint: normalizeString(input.endpoint, "endpoint"),
@@ -154,6 +234,7 @@ export function updateAgentCapabilities(agentId: string, input: unknown): AgentC
   const updated: AgentCapabilityManifest = {
     ...existing,
     capabilities: normalizeCapabilities(input.capabilities),
+    ...(normalizeSkillVersions(input.skillVersions) === undefined ? {} : { skillVersions: normalizeSkillVersions(input.skillVersions) }),
     updatedAt: new Date().toISOString(),
   }
 
