@@ -1,72 +1,168 @@
-import fs from 'fs'
-import path from 'path'
-import type { Quest, QuestStats } from './quests'
-import type { AgentXPRecord } from './xp'
+import type { Quest, QuestType, QuestReward, SubTask } from "./quests"
+import { addNotification } from "@/lib/notifications/notification-store"
 
-export interface QuestStoreData {
-  quests: Quest[]
-  questStats: Record<string, QuestStats>
-  agentXp: Record<string, AgentXPRecord>
-  lastUpdated: string
+export type QuestStatus = "in_progress" | "completed" | "expired"
+
+export interface StoredQuest {
+  id: string
+  type: QuestType
+  title: string
+  description: string
+  reward: QuestReward
+  progress: number
+  minReputation?: number
+  completedAt?: string
+  expiresAt?: string | null
+  subTasks?: SubTask[]
+  status: QuestStatus
+  createdAt: string
+  assignedAgentIds: string[]
 }
 
-const STORE_PATH = path.join(process.cwd(), '.data', 'quests.json')
-const TMP_STORE_PATH = path.join(process.cwd(), '.data', 'quests.json.tmp')
-
-const globalStore = globalThis as typeof globalThis & {
-  __openStellarQuestStore__?: QuestStoreData
-  __openStellarQuestStoreLoaded__?: boolean
+interface QuestStore {
+  quests: Map<string, StoredQuest>
 }
 
-if (!globalStore.__openStellarQuestStore__) {
-  globalStore.__openStellarQuestStore__ = {
-    quests: [],
-    questStats: {},
-    agentXp: {},
-    lastUpdated: new Date().toISOString(),
-  }
+const globalState = globalThis as typeof globalThis & {
+  __openStellarQuestStore__?: QuestStore
 }
 
-export const questStoreData = globalStore.__openStellarQuestStore__
-
-export function loadQuestStore() {
-  if (globalStore.__openStellarQuestStoreLoaded__) return
-  globalStore.__openStellarQuestStoreLoaded__ = true
-
-  try {
-    if (fs.existsSync(STORE_PATH)) {
-      const data = fs.readFileSync(STORE_PATH, 'utf-8')
-      const parsed = JSON.parse(data) as QuestStoreData
-      
-      questStoreData.quests = parsed.quests || []
-      questStoreData.questStats = parsed.questStats || {}
-      questStoreData.agentXp = parsed.agentXp || {}
-      questStoreData.lastUpdated = parsed.lastUpdated || new Date().toISOString()
+function getStore(): QuestStore {
+  if (!globalState.__openStellarQuestStore__) {
+    globalState.__openStellarQuestStore__ = {
+      quests: new Map(),
     }
-  } catch (error) {
-    console.warn('Failed to load quest store, falling back to empty store:', error)
-    questStoreData.quests = []
-    questStoreData.questStats = {}
-    questStoreData.agentXp = {}
-    questStoreData.lastUpdated = new Date().toISOString()
   }
+  return globalState.__openStellarQuestStore__
 }
 
-export function persistQuestStore() {
-  questStoreData.lastUpdated = new Date().toISOString()
-  
-  try {
-    const dir = path.dirname(STORE_PATH)
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true })
+export function createQuest(input: {
+  id: string
+  type: QuestType
+  title: string
+  description: string
+  reward: QuestReward
+  progress?: number
+  minReputation?: number
+  expiresAt?: string | null
+  subTasks?: SubTask[]
+  assignedAgentIds?: string[]
+}): StoredQuest {
+  const store = getStore()
+  const quest: StoredQuest = {
+    id: input.id,
+    type: input.type,
+    title: input.title,
+    description: input.description,
+    reward: input.reward,
+    progress: input.progress ?? 0,
+    minReputation: input.minReputation,
+    expiresAt: input.expiresAt ?? null,
+    subTasks: input.subTasks,
+    status: "in_progress",
+    createdAt: new Date().toISOString(),
+    assignedAgentIds: input.assignedAgentIds ?? [],
+  }
+  store.quests.set(quest.id, quest)
+  return quest
+}
+
+export function getStoredQuest(id: string): StoredQuest | null {
+  return getStore().quests.get(id) ?? null
+}
+
+export function listStoredQuests(options?: { includeExpired?: boolean }): StoredQuest[] {
+  const quests = Array.from(getStore().quests.values())
+  if (!options?.includeExpired) {
+    return quests.filter((q) => q.status !== "expired")
+  }
+  return quests
+}
+
+export function updateQuestStatus(id: string, status: QuestStatus): StoredQuest | null {
+  const store = getStore()
+  const quest = store.quests.get(id)
+  if (!quest) return null
+  quest.status = status
+  if (status === "completed") {
+    quest.completedAt = new Date().toISOString()
+  }
+  return quest
+}
+
+export function setQuestExpired(id: string): { quest: StoredQuest | null; notified: string[] } {
+  const quest = updateQuestStatus(id, "expired")
+  if (!quest) return { quest: null, notified: [] }
+
+  const notified: string[] = []
+  for (const agentId of quest.assignedAgentIds) {
+    addNotification({
+      agentId,
+      type: "quest_expired",
+      title: "Quest expired",
+      body: `The quest "${quest.title}" has expired and is no longer available.`,
+      resourceHref: `/?quest=${encodeURIComponent(quest.id)}`,
+      resourceLabel: quest.title,
+      dedupeKey: `quest_expired:${quest.id}:${agentId}`,
+    })
+    notified.push(agentId)
+  }
+
+  return { quest, notified }
+}
+
+export function runQuestExpiryCheck(nowMs = Date.now()): {
+  expired: number
+  checked: number
+  notified: number
+  quests: StoredQuest[]
+} {
+  const store = getStore()
+  const quests = Array.from(store.quests.values())
+  let expired = 0
+  let notified = 0
+  const expiredQuests: StoredQuest[] = []
+
+  for (const quest of quests) {
+    if (quest.status === "completed" || quest.status === "expired") continue
+    if (!quest.expiresAt) continue
+
+    const expiresAtMs = new Date(quest.expiresAt).getTime()
+    if (expiresAtMs <= nowMs) {
+      const result = setQuestExpired(quest.id)
+      if (result.quest) {
+        expired += 1
+        notified += result.notified.length
+        expiredQuests.push(result.quest)
+      }
     }
-    const data = JSON.stringify(questStoreData, null, 2)
-    fs.writeFileSync(TMP_STORE_PATH, data, 'utf-8')
-    fs.renameSync(TMP_STORE_PATH, STORE_PATH)
-  } catch (error) {
-    console.error('Failed to persist quest store:', error)
   }
+
+  return { expired, checked: quests.length, notified, quests: expiredQuests }
 }
 
-// Auto-load once on import
-loadQuestStore()
+export function resetQuestStore(): void {
+  getStore().quests.clear()
+}
+
+export function seedQuest(quest: Partial<StoredQuest> & { id: string }): StoredQuest {
+  const store = getStore()
+  const full: StoredQuest = {
+    type: "daily",
+    title: "Test quest",
+    description: "Test",
+    reward: { xp: 10 },
+    progress: 0,
+    status: "in_progress",
+    createdAt: new Date().toISOString(),
+    assignedAgentIds: [],
+    expiresAt: null,
+    ...quest,
+  } as StoredQuest
+  // Ensure expiresAt is explicitly null when not provided
+  if (!("expiresAt" in quest)) {
+    full.expiresAt = null
+  }
+  store.quests.set(full.id, full)
+  return full
+}

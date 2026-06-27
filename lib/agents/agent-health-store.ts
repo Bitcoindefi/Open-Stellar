@@ -92,6 +92,12 @@ function normalizeStatus(status: unknown): AgentStatus {
   return VALID_AGENT_STATUSES.includes(status as AgentStatus) ? (status as AgentStatus) : "active"
 }
 
+function normalizeAgentId(agentId: string): string {
+  const trimmed = agentId.trim()
+  if (!trimmed) throw new Error("agentId must not be empty")
+  return trimmed.slice(0, 200)
+}
+
 function normalizePercent(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null
   const parsed = Number(value)
@@ -167,8 +173,7 @@ function toSnapshot(record: AgentHealthRecord, nowMs: number): AgentHealthSnapsh
 }
 
 export function recordAgentHeartbeat(agentId: string, input: AgentHeartbeatInput = {}): AgentHealthSnapshot {
-  const cleanId = agentId.trim()
-  if (!cleanId) throw new Error("agentId is required")
+  const cleanId = normalizeAgentId(agentId)
 
   const nowMs = Number.isFinite(input.nowMs) ? Number(input.nowMs) : Date.now()
   const current = db.get(cleanId)
@@ -196,8 +201,13 @@ export function recordAgentHeartbeat(agentId: string, input: AgentHeartbeatInput
 }
 
 export function getAgentHealth(agentId: string, nowMs = Date.now()): AgentHealthSnapshot | null {
-  const record = db.get(agentId.trim())
-  return record ? toSnapshot(record, nowMs) : null
+  try {
+    const cleanId = normalizeAgentId(agentId)
+    const record = db.get(cleanId)
+    return record ? toSnapshot(record, nowMs) : null
+  } catch {
+    return null
+  }
 }
 
 export function listAgentHealth(nowMs = Date.now()): AgentHealthSnapshot[] {

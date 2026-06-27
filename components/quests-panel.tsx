@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import type { Quest } from "@/lib/gamification/quests"
+import type { QuestLeaderboardEntry } from "@/lib/gamification/quest-leaderboard"
 
 const questTypeColors: Record<Quest["type"], string> = {
   daily: "#22d3ee",
@@ -212,6 +213,11 @@ export function QuestsPanel({ selectedAgentId }: { selectedAgentId?: string | nu
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
 
+  // ── Leaderboard state ────────────────────────────────────────────────
+  const [leaderboard, setLeaderboard] = useState<QuestLeaderboardEntry[]>([])
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true)
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null)
+
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000)
     return () => window.clearInterval(timer)
@@ -229,6 +235,31 @@ export function QuestsPanel({ selectedAgentId }: { selectedAgentId?: string | nu
       setLoading(false)
     }
   }
+
+  // ── Load leaderboard ─────────────────────────────────────────────────
+  useEffect(() => {
+    let mounted = true
+    fetch("/api/quests/leaderboard?period=weekly", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!mounted) return
+        if (data.ok) {
+          setLeaderboard(data.entries ?? [])
+        } else {
+          setLeaderboardError(data.error || "Failed to load leaderboard")
+        }
+      })
+      .catch(() => {
+        if (mounted) setLeaderboardError("Failed to load leaderboard")
+      })
+      .finally(() => {
+        if (mounted) setLeaderboardLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   useEffect(() => {
     loadQuests()
@@ -289,6 +320,24 @@ export function QuestsPanel({ selectedAgentId }: { selectedAgentId?: string | nu
 
   const completedCount = quests.filter((quest) => quest.progress >= 100).length
 
+  // ── Leaderboard helpers ──────────────────────────────────────────────
+  const topEntries = leaderboard.slice(0, 3)
+  const userEntry = selectedAgentId ? leaderboard.find((e) => e.agentId === selectedAgentId) : null
+
+  function getRankColor(rank: number): string {
+    if (rank === 1) return "#fbbf24"   // amber-400
+    if (rank === 2) return "#cbd5e1"   // slate-300
+    if (rank === 3) return "#d97706"   // amber-600
+    return "#64748b"                   // slate-500
+  }
+
+  function getRankBg(rank: number): string {
+    if (rank === 1) return "rgba(251,191,36,0.12)"
+    if (rank === 2) return "rgba(203,213,225,0.10)"
+    if (rank === 3) return "rgba(217,119,6,0.10)"
+    return "rgba(15,23,42,0.80)"
+  }
+
   function handleClaim(quest: Quest): void {
     if (quest.reward.xlm) {
       toast.info(`${quest.title} requires wallet signature to claim ${quest.reward.xlm} XLM`)
@@ -328,6 +377,159 @@ export function QuestsPanel({ selectedAgentId }: { selectedAgentId?: string | nu
             </div>
           </section>
         ))}
+
+        {/* ── Leaderboard section ─────────────────────────────────────── */}
+        <section style={{ marginTop: 8, marginBottom: 14 }}>
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 8,
+          }}>
+            <div style={{
+              color: "#a78bfa",
+              fontSize: 11,
+              fontFamily: "monospace",
+              fontWeight: 800,
+              textTransform: "uppercase",
+              letterSpacing: 1,
+            }}>
+              Top agents this week
+            </div>
+            <span style={{
+              color: "#64748b",
+              fontSize: 9,
+              fontFamily: "monospace",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: 0.6,
+            }}>
+              Weekly
+            </span>
+          </div>
+
+          {leaderboardLoading && (
+            <div style={{ color: "#64748b", fontSize: 11, fontFamily: "monospace", padding: "8px 0" }}>
+              Loading leaderboard…
+            </div>
+          )}
+
+          {leaderboardError && (
+            <div style={{ color: "#f87171", fontSize: 11, fontFamily: "monospace", padding: "8px 0" }}>
+              {leaderboardError}
+            </div>
+          )}
+
+          {!leaderboardLoading && !leaderboardError && topEntries.length === 0 && (
+            <div style={{ color: "#64748b", fontSize: 11, fontFamily: "monospace", padding: "8px 0" }}>
+              No quest completions this week yet.
+            </div>
+          )}
+
+          {!leaderboardLoading && !leaderboardError && topEntries.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {topEntries.map((entry) => {
+                const isUser = entry.agentId === selectedAgentId
+                const rankColor = getRankColor(entry.rank)
+                const rankBg = getRankBg(entry.rank)
+
+                return (
+                  <div
+                    key={entry.agentId}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "7px 10px",
+                      borderRadius: 6,
+                      background: isUser ? "rgba(34,211,238,0.08)" : rankBg,
+                      border: `1px solid ${isUser ? "rgba(34,211,238,0.25)" : "#1e293b"}`,
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 24,
+                        height: 24,
+                        borderRadius: 5,
+                        background: entry.rank <= 3 ? "#0f172a" : "transparent",
+                        color: rankColor,
+                        fontSize: 11,
+                        fontFamily: "monospace",
+                        fontWeight: 800,
+                      }}
+                    >
+                      {entry.rank === 1 ? "🏆" : entry.rank}
+                    </span>
+
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div
+                        style={{
+                          color: isUser ? "#22d3ee" : "#e2e8f0",
+                          fontSize: 12,
+                          fontFamily: "monospace",
+                          fontWeight: 700,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {isUser ? "You" : `Agent #${entry.agentId}`}
+                      </div>
+                      <div style={{ color: "#64748b", fontSize: 10, fontFamily: "monospace" }}>
+                        {entry.questsCompleted} quest{entry.questsCompleted !== 1 ? "s" : ""} · {entry.xpFromQuests} XP
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* User's own rank if not in top 3 */}
+          {userEntry && userEntry.rank > 3 && (
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #1e293b" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "7px 10px",
+                  borderRadius: 6,
+                  background: "rgba(34,211,238,0.08)",
+                  border: "1px solid rgba(34,211,238,0.25)",
+                }}
+              >
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 24,
+                    height: 24,
+                    borderRadius: 5,
+                    color: "#22d3ee",
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    fontWeight: 800,
+                  }}
+                >
+                  {userEntry.rank}
+                </span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ color: "#22d3ee", fontSize: 12, fontFamily: "monospace", fontWeight: 700 }}>
+                    You
+                  </div>
+                  <div style={{ color: "#64748b", fontSize: 10, fontFamily: "monospace" }}>
+                    {userEntry.questsCompleted} quest{userEntry.questsCompleted !== 1 ? "s" : ""} · {userEntry.xpFromQuests} XP
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )
