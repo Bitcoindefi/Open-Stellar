@@ -1,7 +1,10 @@
 import type { AgentStatus } from "@/lib/types"
+import { publishSystemEvent } from "@/lib/events/system-events"
+import { addNotification } from "@/lib/notifications/notification-store"
+import { recordAgentUptimeHeartbeat } from "@/lib/agents/agent-uptime-store"
 
 export const HEARTBEAT_INTERVAL_MS = 15_000
-export const OFFLINE_AFTER_MS = 45_000
+export const OFFLINE_AFTER_MS = 30_000
 export const ALERT_AFTER_MS = 5 * 60_000
 
 const VALID_AGENT_STATUSES: AgentStatus[] = ["active", "idle", "working", "error", "offline"]
@@ -89,6 +92,12 @@ function normalizeStatus(status: unknown): AgentStatus {
   return VALID_AGENT_STATUSES.includes(status as AgentStatus) ? (status as AgentStatus) : "active"
 }
 
+function normalizeAgentId(agentId: string): string {
+  const trimmed = agentId.trim()
+  if (!trimmed) throw new Error("agentId must not be empty")
+  return trimmed.slice(0, 200)
+}
+
 function normalizePercent(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null
   const parsed = Number(value)
@@ -117,6 +126,14 @@ function pushEvent(event: AgentHealthEvent) {
   events.push(event)
   if (events.length > 100) {
     events.splice(0, events.length - 100)
+  }
+  if (event.type === "agent.status" && event.status) {
+    publishSystemEvent({
+      type: "agent.status",
+      agentId: event.agentId,
+      status: event.status,
+      occurredAt: event.at,
+    })
   }
 }
 
@@ -156,8 +173,7 @@ function toSnapshot(record: AgentHealthRecord, nowMs: number): AgentHealthSnapsh
 }
 
 export function recordAgentHeartbeat(agentId: string, input: AgentHeartbeatInput = {}): AgentHealthSnapshot {
-  const cleanId = agentId.trim()
-  if (!cleanId) throw new Error("agentId is required")
+  const cleanId = normalizeAgentId(agentId)
 
   const nowMs = Number.isFinite(input.nowMs) ? Number(input.nowMs) : Date.now()
   const current = db.get(cleanId)
@@ -177,12 +193,21 @@ export function recordAgentHeartbeat(agentId: string, input: AgentHeartbeatInput
   }
 
   db.set(cleanId, record)
-  return toSnapshot(record, nowMs)
+  const snapshot = toSnapshot(record, nowMs)
+  if (snapshot.status === "healthy" && snapshot.runtimeStatus !== "offline") {
+    recordAgentUptimeHeartbeat(cleanId, nowMs)
+  }
+  return snapshot
 }
 
 export function getAgentHealth(agentId: string, nowMs = Date.now()): AgentHealthSnapshot | null {
-  const record = db.get(agentId.trim())
-  return record ? toSnapshot(record, nowMs) : null
+  try {
+    const cleanId = normalizeAgentId(agentId)
+    const record = db.get(cleanId)
+    return record ? toSnapshot(record, nowMs) : null
+  } catch {
+    return null
+  }
 }
 
 export function listAgentHealth(nowMs = Date.now()): AgentHealthSnapshot[] {
@@ -213,6 +238,16 @@ export function runAgentHealthCheck(nowMs = Date.now()): HealthCheckResult {
         }
         pushEvent(event)
         checkEvents.push(event)
+        addNotification({
+          agentId: record.agentId,
+          type: "agent_offline",
+          title: "Agent offline",
+          body: `${record.agentId} missed the heartbeat threshold.`,
+          resourceHref: `/agents/${record.agentId}`,
+          resourceLabel: "Agent status",
+          createdAt: event.at,
+          dedupeKey: `agent_offline:${record.agentId}:${event.at}`,
+        })
       }
 
       if (record.autoRestart && record.lastRestartAttemptMs === null) {

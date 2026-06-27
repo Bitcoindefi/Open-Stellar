@@ -25,17 +25,69 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # setup-node's built-in `cache: npm` caches ~/.npm (npm's content-addressed
+      # download cache), keyed internally on this lockfile. That cache alone does
+      # NOT make `npm ci` fast, because `npm ci` always wipes and re-extracts
+      # node_modules from scratch regardless of whether ~/.npm is warm. It's kept
+      # here as a fallback: it speeds up the *install* step below on a node_modules
+      # cache miss (e.g. when package-lock.json changes), since packages can be
+      # linked from the local npm cache instead of re-downloaded from the registry.
       - name: Setup Node
+        id: setup-node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      # Cache node_modules directly so a cache hit can skip `npm ci` entirely.
+      # Key strategy:
+      #   - runner.os: avoids restoring a Linux-built node_modules on a different OS
+      #   - node-version: native/platform-specific binaries (e.g. better-sqlite3-style
+      #     deps) can differ across Node versions, even on the same OS
+      #   - hashFiles(package-lock.json): the cache key changes whenever any dependency,
+      #     version, or resolution changes, so a stale node_modules can never be served
+      #     for a lockfile it doesn't match. This is what keeps real dependency
+      #     conflicts from being hidden by a cache hit -- a conflict only ever shows up
+      #     when the lockfile changes, which always forces a fresh `npm ci` below.
+      # No restore-keys/partial-match fallback is used on purpose: a partial match
+      # would restore a node_modules tree that doesn't correspond to the exact
+      # lockfile, which `npm ci` doesn't reconcile incrementally the way `npm install`
+      # does -- so a fuzzy hit here would defeat the point of the cache check.
+      - name: Cache node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node${{ steps.setup-node.outputs.node-version }}-modules-${{ hashFiles('package-lock.json') }}
 
-      - name: Typecheck
-        run: npx tsc --noEmit --pretty false
+      # Only run a real install on a cache miss. On a hit, the steps below reuse
+      # the restored node_modules as-is, taking install time from ~2min to a few
+      # seconds (just the cache restore).
+      #
+      # Network flakiness (registry timeouts, DNS blips, etc.) is the other half of
+      # the original problem: `npm ci` would fail the whole job on a transient error
+      # even though the dependency set itself was fine. The loop below retries the
+      # exact same command once. It does not catch or hide anything -- if the retry
+      # also fails (including for a genuine reason like a dependency conflict or
+      # integrity mismatch), the step exits non-zero and the job fails normally.
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          attempt=1
+          max_attempts=2
+          until npm ci; do
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              echo "npm ci failed after $attempt attempt(s); not retrying further." >&2
+              exit 1
+            fi
+            attempt=$((attempt + 1))
+            echo "npm ci failed (attempt $((attempt - 1))/$max_attempts). Retrying once after a short delay..." >&2
+            sleep 5
+          done
+
+      - name: Type check
+        run: npx tsc --noEmit
 
       - name: Unit tests
         run: npx vitest run

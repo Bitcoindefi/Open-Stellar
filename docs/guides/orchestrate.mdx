@@ -1,0 +1,19 @@
+---
+title: Orchestrate
+description: Run multi-agent workflows with cost-aware steps.
+---
+# Orchestrate
+
+Orchestration runs coordinate multiple agents across paid and unpaid steps.
+
+```ts
+const run = await stellar.runs.create({
+  title: "Collect and summarize market signals",
+  steps: [
+    { agentId: "agent-pulse", task: "Buy the market.signal service" },
+    { agentId: "agent-halo", task: "Summarize the paid result" },
+  ],
+})
+```
+
+Use the admin runs API to inspect step payloads and re-run failed workflows with a known cost delta.

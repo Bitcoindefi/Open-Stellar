@@ -1,15 +1,22 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
+import { Activity, Bot, BriefcaseBusiness, MessageSquare, PanelBottomOpen, Palette, ScrollText, WalletCards, Wrench } from "lucide-react"
 import { toast } from "sonner"
 import { PixelCity, type FloatingOverlay, type ParticleTrigger, type TxAnimation } from "@/components/pixel-city"
 import { SidebarPanel } from "@/components/sidebar-panel"
 import { AudioControls } from "@/components/audio-controls"
+import { DistrictEventOverlay } from "@/components/open-stellar/district-event-overlay"
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
+import { MOCK_OFFERS } from "@/components/task-board"
 import { CityAudioEngine } from "@/lib/audio/city-audio"
 import { DISTRICTS, createAgents, generateChatMessage, getRandomTask } from "@/lib/data"
 import { LEGAL_LINKS } from "@/lib/legal-links"
 import type { PublishedSystemEvent } from "@/lib/events/system-events"
+import { XP_AWARDS } from "@/lib/gamification/constants"
+import { getActiveDistrictEvent, getDistrictStandings } from "@/lib/gamification/events"
 import { upgradeAgentSkill } from "@/lib/gamification/skill-upgrades"
+import { awardSkillXP, checkLevelUp, getXpToNextLevel } from "@/lib/gamification/xp"
 import type { AgentAppearance, ChatMessage, LogEntry, MoltbotAgent, WalletTransaction } from "@/lib/types"
 
 function nowTime() {
@@ -39,6 +46,16 @@ const ONBOARDING_STEPS = [
   },
 ]
 
+const MOBILE_NAV_ICONS: Record<SidebarTabId, ComponentType<{ size?: number; "aria-hidden"?: boolean | "true" }>> = {
+  overview: Activity,
+  chat: MessageSquare,
+  offers: BriefcaseBusiness,
+  skills: Wrench,
+  quests: ScrollText,
+  wallet: WalletCards,
+  appearance: Palette,
+}
+
 interface AgentHealthApiSnapshot {
   agentId: string
   status: "healthy" | "stale" | "offline"
@@ -48,6 +65,25 @@ interface AgentHealthApiSnapshot {
   cpu: number | null
   memory: number | null
   currentTask: string | null
+}
+
+interface AgentPositionPayload {
+  agentId: string
+  pixelX: number
+  pixelY: number
+  targetX: number
+  targetY: number
+  direction: "left" | "right"
+}
+
+interface AgentPositionSnapshotPayload {
+  type: "agent.positions.snapshot"
+  positions: AgentPositionPayload[]
+}
+
+interface AgentPositionDeltaPayload {
+  type: "agent.position"
+  agents: AgentPositionPayload[]
 }
 
 function OnboardingModal({ onDone }: { onDone: () => void }) {
@@ -210,13 +246,19 @@ export function OpenStellarHub() {
   const [particleTriggers, setParticleTriggers] = useState<ParticleTrigger[]>([])
   const agentLevelsRef = useRef<Map<string, number>>(new Map())
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarTab, setSidebarTab] = useState<SidebarTabId>("overview")
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState<boolean | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [colorBlindMode, setColorBlindMode] = useState(false)
   const [reduceMotion, setReduceMotion] = useState(false)
   const [eventStreamConnected, setEventStreamConnected] = useState(false)
   const [hasRealtimeEvents, setHasRealtimeEvents] = useState(false)
   const fallbackLoggedRef = useRef(false)
+  const positionStreamErrorLoggedRef = useRef(false)
   const [audioEngine] = useState(() => new CityAudioEngine())
+  const [activeDistrictEvent, setActiveDistrictEvent] = useState(() => getActiveDistrictEvent())
+  const lastLeadingDistrictRef = useRef<string | null>(null)
 
   useEffect(() => {
     return () => audioEngine.dispose()
@@ -227,30 +269,56 @@ export function OpenStellarHub() {
     if (typeof window === "undefined") return
     const params = new URLSearchParams(window.location.search)
     const storedColorBlind = localStorage.getItem("colorblind-mode")
+    const storedTab = localStorage.getItem("sidebar-tab") as SidebarTabId | null
     const queryColorBlind = params.get("colorblind")
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const mobileQuery = window.matchMedia("(max-width: 767px)")
 
-    setColorBlindMode(queryColorBlind === "true" || storedColorBlind === "true")
+    const colorBlindEnabled = queryColorBlind === "true" || storedColorBlind === "true"
+    setColorBlindMode(colorBlindEnabled)
+    if (queryColorBlind === "true") {
+      localStorage.setItem("colorblind-mode", "true")
+    }
+    if (storedTab && SIDEBAR_TABS.some((tab) => tab.id === storedTab)) {
+      setSidebarTab(storedTab)
+    }
     setReduceMotion(prefersReducedMotion.matches)
 
     const handleMotionChange = (event: MediaQueryListEvent) => {
       setReduceMotion(event.matches)
     }
 
+    const handleMobileChange = (event: MediaQueryListEvent) => {
+      setIsMobile(event.matches)
+      setSidebarOpen(!event.matches)
+      if (!event.matches) {
+        setMobileControlsOpen(false)
+      }
+    }
+
     prefersReducedMotion.addEventListener("change", handleMotionChange)
+    mobileQuery.addEventListener("change", handleMobileChange)
+    setIsMobile(mobileQuery.matches)
 
     if (!localStorage.getItem("onboarding-seen")) {
       setShowOnboarding(true)
     }
     // Collapse sidebar by default on small screens
-    if (window.innerWidth < 768) {
+    if (mobileQuery.matches) {
       setSidebarOpen(false)
     }
 
     return () => {
       prefersReducedMotion.removeEventListener("change", handleMotionChange)
+      mobileQuery.removeEventListener("change", handleMobileChange)
     }
   }, [])
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("sidebar-tab", sidebarTab)
+    }
+  }, [sidebarTab])
 
   const handleColorBlindModeChange = useCallback((enabled: boolean) => {
     setColorBlindMode(enabled)
@@ -281,7 +349,14 @@ export function OpenStellarHub() {
   }, [])
 
   const agentsRef = useRef(agents)
-  useEffect(() => { agentsRef.current = agents }, [agents])
+  useEffect(() => {
+    agentsRef.current = agents
+    for (const agent of agents) {
+      if (!agentLevelsRef.current.has(agent.id)) {
+        agentLevelsRef.current.set(agent.id, agent.level ?? 1)
+      }
+    }
+  }, [agents])
 
   useEffect(() => {
     pushLog("Open-Stellar v0 frontend initialized", "success")
@@ -336,6 +411,36 @@ export function OpenStellarHub() {
     []
   )
 
+
+  const districtStandings = useMemo(
+    () => getDistrictStandings(agents),
+    [agents]
+  )
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setActiveDistrictEvent(getActiveDistrictEvent())
+    }, 60_000)
+
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const leader = districtStandings[0]
+    if (!leader) return
+    const previousLeader = lastLeadingDistrictRef.current
+    lastLeadingDistrictRef.current = leader.districtId
+    if (!previousLeader || previousLeader === leader.districtId) return
+
+    const district = DISTRICTS.find((candidate) => candidate.id === leader.districtId)
+    if (!district) return
+    pushLog(`${leader.districtName} takes the lead in ${activeDistrictEvent.challenge.name}`, "success")
+    spawnParticles("district-win", district.x + district.w / 2, district.y, {
+      color: district.color,
+      spreadW: district.w * 0.7,
+    })
+  }, [activeDistrictEvent.challenge.name, districtStandings, pushLog, spawnParticles])
+
   const applySystemEvent = useCallback((event: PublishedSystemEvent) => {
     const animatedAgentBox: { current: MoltbotAgent | null } = { current: null }
 
@@ -358,12 +463,14 @@ export function OpenStellarHub() {
 
         if (event.type === "task.completed") {
           animatedAgentBox.current = agent
+          const skillId = event.skillId ?? agent.skills[0]?.id
           return {
             ...agent,
             status: "active",
             currentTask: event.result.summary || getRandomTask(agent.district),
             taskProgress: 0,
             tasksCompleted: agent.tasksCompleted + 1,
+            skills: awardSkillXP(agent.skills, skillId, XP_AWARDS.TASK_COMPLETED),
           }
         }
 
@@ -372,6 +479,16 @@ export function OpenStellarHub() {
           return {
             ...agent,
             status: "active",
+          }
+        }
+
+        if (event.type === "agent.xp") {
+          const level = event.level
+          return {
+            ...agent,
+            xp: event.totalXp ?? (agent.xp ?? 0) + event.xp,
+            level,
+            xpToNext: event.xpToNext ?? getXpToNextLevel(level),
           }
         }
 
@@ -419,6 +536,7 @@ export function OpenStellarHub() {
         showAgentOverlay(agent, `+${event.xp} XP`, "#22d3ee")
         const previousLevel = agentLevelsRef.current.get(event.agentId) ?? event.level
         if (event.level > previousLevel) {
+          toast.success("Agent leveled up", { description: `${agent.name} reached level ${event.level}` })
           spawnParticles("level-up", agent.pixelX + 8, agent.pixelY, {
             color: agent.color,
             level: event.level,
@@ -445,9 +563,9 @@ export function OpenStellarHub() {
 
     if (event.type === "district.unlocked") {
       audioEngine.playEvent("district_win")
-      const districtId = event.districtId ?? event.district?.id
+      const districtId = "districtId" in event ? event.districtId : event.district?.id
       const district = DISTRICTS.find((candidate) => candidate.id === districtId)
-      const districtName = event.district?.name ?? district?.name ?? districtId ?? "a district"
+      const districtName = ("district" in event && event.district?.name) || district?.name || districtId || "a district"
       pushLog(`district unlocked: ${districtName}`, "success", event.agentId ?? "system")
       toast.success("District unlocked", { description: String(districtName) })
       if (district) {
@@ -519,6 +637,97 @@ export function OpenStellarHub() {
       eventSource.close()
     }
   }, [applySystemEvent, pushLog])
+
+  useEffect(() => {
+    const eventSource = new EventSource("/api/agents/stream")
+
+    const applyPositions = (positions: AgentPositionPayload[]) => {
+      if (positions.length === 0) return
+      const positionsById = new Map(positions.map((position) => [position.agentId, position]))
+
+      setAgents((prev) =>
+        prev.map((agent) => {
+          const position = positionsById.get(agent.id)
+          if (!position) return agent
+
+          return {
+            ...agent,
+            pixelX: position.pixelX,
+            pixelY: position.pixelY,
+            targetX: position.targetX,
+            targetY: position.targetY,
+            direction: position.direction,
+          }
+        }),
+      )
+    }
+
+    const handleSnapshot = (message: MessageEvent) => {
+      try {
+        const payload = JSON.parse(String(message.data)) as AgentPositionSnapshotPayload
+        applyPositions(payload.positions)
+      } catch {
+        pushLog("received malformed agent position snapshot", "warning")
+      }
+    }
+
+    const handleDelta = (message: MessageEvent) => {
+      try {
+        const payload = JSON.parse(String(message.data)) as AgentPositionDeltaPayload
+        applyPositions(payload.agents)
+      } catch {
+        pushLog("received malformed agent position delta", "warning")
+      }
+    }
+
+    eventSource.onopen = () => {
+      positionStreamErrorLoggedRef.current = false
+    }
+
+    eventSource.onerror = () => {
+      if (!positionStreamErrorLoggedRef.current) {
+        pushLog("agent position stream reconnecting", "warning")
+        positionStreamErrorLoggedRef.current = true
+      }
+    }
+
+    eventSource.addEventListener("agent.positions.snapshot", handleSnapshot as EventListener)
+    eventSource.addEventListener("agent.position", handleDelta as EventListener)
+
+    return () => {
+      eventSource.removeEventListener("agent.positions.snapshot", handleSnapshot as EventListener)
+      eventSource.removeEventListener("agent.position", handleDelta as EventListener)
+      eventSource.close()
+    }
+  }, [pushLog])
+
+
+  useEffect(() => {
+    let stopped = false
+
+    const syncCloudAgents = async () => {
+      try {
+        const res = await fetch("/api/admin/agents", { cache: "no-store" })
+        if (!res.ok) return
+        const data = await res.json() as { agents?: MoltbotAgent[] }
+        if (stopped || !Array.isArray(data.agents) || data.agents.length === 0) return
+        setAgents((prev) => {
+          const existing = new Set(prev.map((agent) => agent.id))
+          const nextCloudAgents = data.agents!.filter((agent) => !existing.has(agent.id))
+          return nextCloudAgents.length > 0 ? [...prev, ...nextCloudAgents] : prev
+        })
+      } catch {
+        // Cloud agent provisioning is optional for the local simulation.
+      }
+    }
+
+    syncCloudAgents()
+    const interval = window.setInterval(syncCloudAgents, 15_000)
+    return () => {
+      stopped = true
+      window.clearInterval(interval)
+    }
+  }, [])
 
   useEffect(() => {
     let stopped = false
@@ -620,9 +829,17 @@ export function OpenStellarHub() {
           const progressDelta = Math.random() * 14
           const taskProgress = Math.min(100, agent.taskProgress + progressDelta)
           const finishedTask = taskProgress >= 100
+          const gainedXp = finishedTask ? XP_AWARDS.TASK_COMPLETED + (progressDelta >= 12 ? XP_AWARDS.FAST_TASK_BONUS : 0) : 0
+          const nextXp = (agent.xp ?? 0) + gainedXp
+          const levelState = finishedTask ? checkLevelUp(nextXp, agent.level ?? 1) : null
+          const skillId = agent.skills[0]?.id
 
           return {
             ...agent,
+            xp: finishedTask ? nextXp : agent.xp,
+            level: levelState?.level ?? agent.level ?? 1,
+            xpToNext: levelState?.xpToNext ?? agent.xpToNext ?? getXpToNextLevel(agent.level ?? 1),
+            skills: finishedTask ? awardSkillXP(agent.skills, skillId, XP_AWARDS.TASK_COMPLETED) : agent.skills,
             cpu: Math.max(10, Math.min(98, agent.cpu + (Math.random() - 0.5) * 10)),
             memory: Math.max(20, Math.min(95, agent.memory + (Math.random() - 0.5) * 6)),
             status: finishedTask
@@ -633,11 +850,6 @@ export function OpenStellarHub() {
             taskProgress: finishedTask ? 0 : taskProgress,
             tasksCompleted: finishedTask ? agent.tasksCompleted + 1 : agent.tasksCompleted,
             currentTask: finishedTask ? getRandomTask(agent.district) : agent.currentTask,
-            targetX: agent.targetX + (Math.random() - 0.5) * 40,
-            targetY: agent.targetY + (Math.random() - 0.5) * 28,
-            pixelX: agent.pixelX + (Math.random() - 0.5) * 4,
-            pixelY: agent.pixelY + (Math.random() - 0.5) * 3,
-            direction: Math.random() > 0.5 ? "right" : "left",
           }
         })
       )
@@ -773,8 +985,25 @@ export function OpenStellarHub() {
     }
   }, [pushLog])
 
+  const handleMobileTabSelect = useCallback((tab: SidebarTabId) => {
+    setSidebarTab(tab)
+    setMobileControlsOpen(true)
+  }, [])
+
+  const errorCount = agents.filter((agent) => agent.status === "error").length
+  const walletAlert = agents.some((agent) => !agent.wallet || (agent.wallet.funded && parseFloat(agent.wallet.balance) < 10))
+  const openOfferCount = MOCK_OFFERS.filter((offer) => offer.status === "open").length
+
   return (
-    <div style={{ width: "100%", height: "100vh", display: "flex", overflow: "hidden", background: "#030712", position: "relative" }}>
+    <div style={{
+      width: "100%",
+      height: "100dvh",
+      display: "flex",
+      overflow: "hidden",
+      background: "#030712",
+      position: "relative",
+      paddingBottom: isMobile ? "calc(72px + env(safe-area-inset-bottom))" : 0,
+    }}>
       {showOnboarding && <OnboardingModal onDone={handleDoneOnboarding} />}
 
       {/* Canvas area */}
@@ -791,35 +1020,39 @@ export function OpenStellarHub() {
           floatingOverlays={floatingOverlays}
           particleTriggers={particleTriggers}
           audioEngine={audioEngine}
+          districtStandings={districtStandings}
         />
+
+        <DistrictEventOverlay event={activeDistrictEvent} standings={districtStandings} />
 
         <AudioControls engine={audioEngine} />
 
-        {/* Sidebar toggle button */}
-        <button
-          onClick={() => setSidebarOpen(o => !o)}
-          style={{
-            position: "absolute",
-            top: "50%",
-            right: 0,
-            transform: "translateY(-50%)",
-            zIndex: 5,
-            background: "#111827",
-            border: "1px solid #2a3a52",
-            borderRight: "none",
-            borderRadius: "6px 0 0 6px",
-            color: "#22d3ee",
-            fontFamily: "monospace",
-            fontSize: 14,
-            padding: "10px 6px",
-            cursor: "pointer",
-            lineHeight: 1,
-            transition: "background 0.15s",
-          }}
-          title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
-        >
-          {sidebarOpen ? "›" : "‹"}
-        </button>
+        {isMobile === false && (
+          <button
+            onClick={() => setSidebarOpen(o => !o)}
+            style={{
+              position: "absolute",
+              top: "50%",
+              right: 0,
+              transform: "translateY(-50%)",
+              zIndex: 5,
+              background: "#111827",
+              border: "1px solid #2a3a52",
+              borderRight: "none",
+              borderRadius: "6px 0 0 6px",
+              color: "#22d3ee",
+              fontFamily: "monospace",
+              fontSize: 14,
+              padding: "10px 6px",
+              cursor: "pointer",
+              lineHeight: 1,
+              transition: "background 0.15s",
+            }}
+            title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          >
+            {sidebarOpen ? "›" : "‹"}
+          </button>
+        )}
 
         <footer style={{
           position: "absolute",
@@ -853,8 +1086,7 @@ export function OpenStellarHub() {
         </footer>
       </div>
 
-      {/* Sidebar — conditionally rendered */}
-      {sidebarOpen && (
+      {isMobile === false && sidebarOpen && (
         <SidebarPanel
           agents={agents}
           selectedAgent={selectedAgent}
@@ -868,7 +1100,171 @@ export function OpenStellarHub() {
           onUpdateAgentAppearance={handleUpdateAgentAppearance}
           colorBlindMode={colorBlindMode}
           onColorBlindModeChange={handleColorBlindModeChange}
+          activeTab={sidebarTab}
+          onActiveTabChange={setSidebarTab}
         />
+      )}
+
+      {isMobile && (
+        <>
+          <button
+            type="button"
+            onClick={() => setMobileControlsOpen(true)}
+            aria-label="Open agent controls"
+            style={{
+              position: "fixed",
+              right: 16,
+              bottom: "calc(86px + env(safe-area-inset-bottom))",
+              zIndex: 30,
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              border: "1px solid #22d3ee66",
+              background: "#111827",
+              color: "#22d3ee",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.45)",
+              cursor: "pointer",
+            }}
+          >
+            <PanelBottomOpen size={22} aria-hidden="true" />
+          </button>
+
+          <nav
+            aria-label="Agent controls"
+            style={{
+              position: "fixed",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 25,
+              minHeight: "calc(72px + env(safe-area-inset-bottom))",
+              padding: "8px 8px calc(8px + env(safe-area-inset-bottom))",
+              background: "rgba(15,23,42,0.94)",
+              borderTop: "1px solid #2a3a52",
+              display: "grid",
+              gridTemplateColumns: "repeat(8, minmax(0, 1fr))",
+              gap: 4,
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            {SIDEBAR_TABS.map((tab) => {
+              const Icon = MOBILE_NAV_ICONS[tab.id]
+              const active = sidebarTab === tab.id
+              const hasBadge =
+                (tab.id === "chat" && chatMessages.length > 0) ||
+                (tab.id === "overview" && errorCount > 0) ||
+                (tab.id === "offers" && openOfferCount > 0) ||
+                (tab.id === "wallet" && walletAlert)
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleMobileTabSelect(tab.id)}
+                  aria-pressed={active}
+                  aria-label={tab.label}
+                  style={{
+                    position: "relative",
+                    minWidth: 0,
+                    minHeight: 54,
+                    border: active ? "1px solid #22d3ee66" : "1px solid transparent",
+                    borderRadius: 8,
+                    background: active ? "#111827" : "transparent",
+                    color: active ? "#22d3ee" : "#94a3b8",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                    cursor: "pointer",
+                    fontFamily: "monospace",
+                    fontSize: 8,
+                    fontWeight: active ? 700 : 400,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  <Icon size={18} aria-hidden="true" />
+                  <span style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {tab.label}
+                  </span>
+                  {hasBadge && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        top: 7,
+                        right: "22%",
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: tab.id === "wallet" ? "#fbbf24" : tab.id === "overview" ? "#f87171" : "#34d399",
+                      }}
+                    />
+                  )}
+                </button>
+              )
+            })}
+            <a
+              href="/admin"
+              aria-label="Open admin console"
+              style={{
+                minHeight: 54,
+                border: "1px solid transparent",
+                borderRadius: 8,
+                color: "#22d3ee",
+                textDecoration: "none",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                fontFamily: "monospace",
+                fontSize: 8,
+                textTransform: "uppercase",
+              }}
+            >
+              <Bot size={18} aria-hidden="true" />
+              <span>Admin</span>
+            </a>
+          </nav>
+
+          <Drawer open={mobileControlsOpen} onOpenChange={setMobileControlsOpen}>
+            <DrawerContent
+              aria-describedby={undefined}
+              style={{
+                height: "min(78dvh, 680px)",
+                background: "#111827",
+                borderColor: "#2a3a52",
+                borderTopLeftRadius: 8,
+                borderTopRightRadius: 8,
+                overflow: "hidden",
+              }}
+            >
+              <DrawerTitle className="sr-only">Agent controls</DrawerTitle>
+              <SidebarPanel
+                agents={agents}
+                selectedAgent={selectedAgent}
+                logs={logs}
+                chatMessages={chatMessages}
+                transactions={transactions}
+                onSelectAgent={handleSelectAgent}
+                onUpdateAgent={handleUpdateAgentWallet}
+                onAddTransaction={handleAddTransaction}
+                onUpgradeSkill={handleUpgradeSkill}
+                onUpdateAgentAppearance={handleUpdateAgentAppearance}
+                colorBlindMode={colorBlindMode}
+                onColorBlindModeChange={handleColorBlindModeChange}
+                activeTab={sidebarTab}
+                onActiveTabChange={setSidebarTab}
+                variant="mobile"
+                showTabBar={false}
+              />
+            </DrawerContent>
+          </Drawer>
+        </>
       )}
     </div>
   )

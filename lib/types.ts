@@ -50,6 +50,10 @@ export interface MoltbotAgent {
   id: string
   name: string
   model: string
+  deployment?: "local" | "cloud"
+  xp?: number
+  level?: number
+  xpToNext?: number
   status: AgentStatus
   district: DistrictId
   cpu: number
@@ -90,4 +94,15 @@ export interface LogEntry {
   agent: string
   message: string
   type: "info" | "success" | "error" | "warning"
+}
+
+export interface AgentTask {
+  id: string
+  agentId: string
+  type: string
+  payload: unknown
+  status: "pending" | "running" | "completed" | "failed"
+  createdAt: number
+  startedAt?: number
+  completedAt?: number
 }

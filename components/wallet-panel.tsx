@@ -897,7 +897,7 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
           <div style={{ fontFamily: "monospace", fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
             Transactions
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div role="status" aria-live="polite" aria-label="Transaction history content" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {[...transactions].reverse().slice(0, 10).map(tx => (
               <div key={tx.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, fontFamily: "monospace" }}>
                 <span style={{ color: "#f87171" }}>{tx.fromName}</span>

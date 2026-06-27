@@ -7,15 +7,20 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const serviceId = String(body.serviceId || 'ai-agent-service')
-    const chain = body.chain === 'stellar' ? 'stellar' : 'bnb'
+    const chain = body.chain === 'bnb' || body.chain === 'base' || body.chain === 'stellar' ? body.chain : 'bnb'
     const payer = String(body.payer || 'anonymous')
-    const quote = createX402Quote({
+    const quote = await createX402Quote({
       serviceId,
       chain,
       payer,
       units: Number(body.units || 1),
       unitPriceUsd: Number(body.unitPriceUsd || 0.1),
       ttlSeconds: Number(body.ttlSeconds || 300),
+      reputationGate: body.minReputation ? {
+        minReputation: Number(body.minReputation),
+        tier: body.tier ? String(body.tier) : undefined,
+      } : undefined,
+      attestation: body.attestation,
     })
 
     return await api.json({ ok: true, quote }, undefined, {
