@@ -1,7 +1,10 @@
 {
-  "name": "my-project",
+  "name": "open-stellar",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "open-stellar": "./scripts/bootstrap.mjs"
+  },
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
