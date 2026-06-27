@@ -1,6 +1,7 @@
 import type { ReputationAction } from '@/lib/protocols/track8004'
 import { addNotification } from '@/lib/notifications/notification-store'
 import { getAgentUptime } from '@/lib/agents/agent-uptime-store'
+import { isPostgresConfigured, sql } from '@/lib/db/postgres'
 
 export type ReputationTier = 'unrated' | 'bronze' | 'silver' | 'gold' | 'platinum'
 export type ReputationBadgeRarity = 'common' | 'rare' | 'epic' | 'legendary'
@@ -177,6 +178,37 @@ export function applyReputationAction(action: ReputationAction): ReputationSnaps
 export function listReputations(limit = 50): ReputationSnapshot[] {
   return Array.from(db.values())
     .map((entry) => snapshot(entry.actorId, entry.metrics, entry.updatedAt))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+}
+
+
+export async function getReputationAsync(actorId: string): Promise<ReputationSnapshot> {
+  const local = getReputation(actorId)
+  if (!isPostgresConfigured()) return local
+
+  const latest = await sql<{ agent_id: string; score: number; reason: string; timestamp: Date }>`SELECT "agentId" as agent_id, score, reason, timestamp FROM "ReputationEntry" WHERE "agentId" = ${local.actorId} ORDER BY timestamp DESC LIMIT 1`
+  if (latest.rows[0]) {
+    return { ...local, score: latest.rows[0].score, tier: getReputationTier(latest.rows[0].score), updatedAt: latest.rows[0].timestamp.toISOString() }
+  }
+  return local
+}
+
+export async function applyReputationActionAsync(action: ReputationAction): Promise<ReputationSnapshot> {
+  const updated = applyReputationAction(action)
+  if (isPostgresConfigured()) {
+    await sql`INSERT INTO "ReputationEntry" ("agentId", score, reason, timestamp) VALUES (${updated.actorId}, ${updated.score}, ${action.reason}, ${new Date(updated.updatedAt)})`
+  }
+  return updated
+}
+
+export async function listReputationsAsync(limit = 50): Promise<ReputationSnapshot[]> {
+  const local = listReputations(limit)
+  if (!isPostgresConfigured()) return local
+
+  const result = await sql<{ agent_id: string; score: number; reason: string; timestamp: Date }>`SELECT DISTINCT ON ("agentId") "agentId" as agent_id, score, reason, timestamp FROM "ReputationEntry" ORDER BY "agentId", timestamp DESC`
+  return result.rows
+    .map((row) => ({ ...getReputation(row.agent_id), score: row.score, tier: getReputationTier(row.score), updatedAt: row.timestamp.toISOString() }))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
 }

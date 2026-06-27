@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { enqueueTask, isQueuedTaskStatus, listTasks } from "@/lib/agent-runtime/task-queue"
+import { enqueueTaskAsync, isQueuedTaskStatus, listTasksAsync } from "@/lib/agent-runtime/task-queue"
 
 export const dynamic = "force-dynamic"
 
@@ -12,14 +12,14 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     ok: true,
-    tasks: listTasks({ agentId, includeDeadLetter, status }),
+    tasks: await listTasksAsync({ agentId, includeDeadLetter, status }),
   })
 }
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const task = enqueueTask({
+    const task = await enqueueTaskAsync({
       id: body.id ? String(body.id) : undefined,
       type: String(body.type || ""),
       payload: body.payload && typeof body.payload === "object" ? body.payload : {},

@@ -1,7 +1,7 @@
 import { StrKey } from '@stellar/stellar-sdk'
 import { verifyEvmPayment, type EvmSettlementChain } from '@/lib/evm-utils'
 
-import { getX402Receipt, listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
+import { listX402Receipts, listX402ReceiptsAsync, saveX402Receipt, saveX402ReceiptAsync, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
 import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
 import { checkReputationGate } from '@/lib/reputation/attestation'
 
@@ -195,6 +195,10 @@ export function listX402ExplorerReceipts(filters: X402ReceiptQuery = {}) {
   return listX402Receipts(filters)
 }
 
+export async function listX402ExplorerReceiptsAsync(filters: X402ReceiptQuery = {}) {
+  return listX402ReceiptsAsync(filters)
+}
+
 export function settleX402(input: X402Settlement): X402SettlementResult {
   const paymentRef = input.paymentRef || input.quoteId || ''
   const quote = quoteRegistry.get(paymentRef)
@@ -243,6 +247,14 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
   quoteRegistry.delete(paymentRef)
   quoteRegistry.delete(quote.quoteId)
   return { ok: true, receipt: storedReceipt }
+}
+
+
+export async function settleX402Async(input: X402Settlement): Promise<X402SettlementResult> {
+  const result = settleX402(input)
+  if (!result.ok || !result.receipt) return result
+  await saveX402ReceiptAsync(result.receipt as X402ExplorerReceipt)
+  return result
 }
 
 export type X402SubscriptionPlan = 'starter' | 'growth' | 'pro' | 'custom' | 'monthly'

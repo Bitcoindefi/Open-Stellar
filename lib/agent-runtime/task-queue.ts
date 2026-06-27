@@ -1,4 +1,5 @@
 import { DISTRICTS } from "@/lib/data"
+import { isKvConfigured, kv } from '@/lib/db/kv'
 import type { DistrictId } from "@/lib/types"
 
 export type QueuedTaskPriority = "critical" | "high" | "normal" | "low"
@@ -210,4 +211,36 @@ export function retryDeadLetterTask(id: string): QueuedTask {
   }
   queueState.tasks.set(id, retry)
   return retry
+}
+
+const KV_TASK_IDS_KEY = 'open-stellar:tasks:ids'
+const kvTaskKey = (id: string) => `open-stellar:tasks:${id}`
+
+export async function enqueueTaskAsync(input: EnqueueTaskInput): Promise<QueuedTask> {
+  const task = enqueueTask(input)
+  if (isKvConfigured()) {
+    await kv.set(kvTaskKey(task.id), task)
+    await kv.sadd(KV_TASK_IDS_KEY, task.id)
+  }
+  return task
+}
+
+export async function getTaskAsync(id: string): Promise<QueuedTask | undefined> {
+  if (isKvConfigured()) {
+    const task = await kv.get<QueuedTask>(kvTaskKey(id))
+    if (task) return task
+  }
+  return getTask(id)
+}
+
+export async function listTasksAsync(filters: { agentId?: string; status?: QueuedTaskStatus; includeDeadLetter?: boolean } = {}): Promise<QueuedTask[]> {
+  if (!isKvConfigured()) return listTasks(filters)
+  const ids = await kv.smembers<string[]>(KV_TASK_IDS_KEY)
+  const tasks = (await Promise.all(ids.map((id) => kv.get<QueuedTask>(kvTaskKey(id))))).filter((task): task is QueuedTask => Boolean(task))
+  const now = Date.now()
+  return tasks
+    .filter((task) => (filters.status ? task.status === filters.status : filters.includeDeadLetter || task.status !== 'dead-letter'))
+    .filter((task) => !filters.agentId || task.targetAgentId === filters.agentId)
+    .filter((task) => task.status !== 'pending' || !task.scheduledFor || Date.parse(task.scheduledFor) <= now || !filters.agentId)
+    .sort(sortTasks)
 }

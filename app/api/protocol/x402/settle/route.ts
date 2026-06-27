@@ -1,6 +1,6 @@
 import { createApiRouteLogger } from '@/lib/api-logging'
 import { authorizePayment } from '@/lib/passport/passport'
-import { getX402SubscriptionById, peekX402Quote, settleX402 } from '@/lib/protocols/x402'
+import { getX402SubscriptionById, peekX402Quote, settleX402Async } from '@/lib/protocols/x402'
 import { subscription_anchor, type SubscriptionPaymentProof } from '@/lib/protocols/subscription-anchor'
 import { isMockMode } from '@/lib/mock/mock-mode'
 import { settleMockX402 } from '@/lib/mock/x402-mock'
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const result = settleX402({
+    const result = await settleX402Async({
       paymentRef,
       chain,
       txHash: String(body.txHash || ''),

@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model Agent {
+  id              String   @id
+  name            String
+  model           String
+  district        String
+  status          String
+  pixelX          Float
+  pixelY          Float
+  tasksCompleted  Int      @default(0)
+  xp              Int      @default(0)
+  level           Int      @default(1)
+  walletPublicKey String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model X402Receipt {
+  id        String   @id
+  agentId   String?
+  amount    String
+  txHash    String
+  service   String
+  createdAt DateTime @default(now())
+}
+
+model ReputationEntry {
+  agentId   String
+  score     Int
+  reason    String
+  timestamp DateTime @default(now())
+
+  @@id([agentId, timestamp])
+}

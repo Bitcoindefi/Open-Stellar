@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { listX402ExplorerReceipts, type SettlementChain } from '@/lib/protocols/x402'
+import { listX402ExplorerReceiptsAsync, type SettlementChain } from '@/lib/protocols/x402'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const rawChain = searchParams.get('chain') || 'all'
   const chain: SettlementChain | 'all' = rawChain === 'stellar' || rawChain === 'bnb' ? rawChain : 'all'
 
-  const data = listX402ExplorerReceipts({
+  const data = await listX402ExplorerReceiptsAsync({
     q: searchParams.get('q') || undefined,
     service: searchParams.get('service') || undefined,
     chain,

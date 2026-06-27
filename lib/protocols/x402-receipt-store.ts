@@ -1,119 +1,51 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { cwd } from 'node:process'
+import { isPostgresConfigured, sql } from '@/lib/db/postgres'
 import type { SettlementChain, X402ExplorerReceipt } from '@/lib/protocols/x402'
 
-export interface X402ReceiptQuery {
-  agent?: string
-  q?: string
-  service?: string
-  chain?: SettlementChain | 'all'
-  page?: number
-  pageSize?: number
-}
-
-export interface X402ReceiptPage {
-  receipts: X402ExplorerReceipt[]
-  page: number
-  pageSize: number
-  total: number
-  totalPages: number
-  stats: {
-    totalPayments: number
-    totalUsd: number
-    uniqueAgents: number
-    services: number
-  }
-}
+export interface X402ReceiptQuery { agent?: string; q?: string; service?: string; chain?: SettlementChain | 'all'; page?: number; pageSize?: number }
+export interface X402ReceiptPage { receipts: X402ExplorerReceipt[]; page: number; pageSize: number; total: number; totalPages: number; stats: { totalPayments: number; totalUsd: number; uniqueAgents: number; services: number } }
 
 const DEFAULT_DB_PATH = join(cwd(), '.data', 'x402-receipts.json')
 const DB_PATH = process.env.X402_RECEIPT_DB_PATH || DEFAULT_DB_PATH
 
-function ensureDb(): void {
-  const dir = dirname(DB_PATH)
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
+function ensureDb(): void { const dir = dirname(DB_PATH); if (!existsSync(dir)) mkdirSync(dir, { recursive: true }); if (!existsSync(DB_PATH)) writeFileSync(DB_PATH, '[]\n', 'utf8') }
+function readReceipts(): X402ExplorerReceipt[] { ensureDb(); const raw = readFileSync(DB_PATH, 'utf8').trim(); if (!raw) return []; const parsed = JSON.parse(raw) as X402ExplorerReceipt[]; return Array.isArray(parsed) ? parsed : [] }
+function writeReceipts(receipts: X402ExplorerReceipt[]): void { ensureDb(); const tmpPath = `${DB_PATH}.${process.pid}.tmp`; writeFileSync(tmpPath, `${JSON.stringify(receipts, null, 2)}\n`, 'utf8'); renameSync(tmpPath, DB_PATH) }
+
+function dbReceiptToExplorer(row: { id: string; agent_id: string | null; amount: string; tx_hash: string; service: string; created_at: Date }): X402ExplorerReceipt {
+  return { id: row.id, agentId: row.agent_id ?? 'anonymous', amount: row.amount, txHash: row.tx_hash, service: row.service, createdAt: row.created_at.toISOString(), accepted: true, paymentRef: row.id, settledAt: row.created_at.toISOString(), chain: 'stellar', serviceId: row.service, agent: row.agent_id ?? 'anonymous', amountUsd: Number.parseFloat(row.amount) || 0, amountUnits: row.amount, passportVerified: true, reputationTier: 'standard' } as X402ExplorerReceipt
+}
+
+export async function saveX402ReceiptAsync(receipt: X402ExplorerReceipt): Promise<X402ExplorerReceipt> {
+  if (isPostgresConfigured()) {
+    await sql`INSERT INTO "X402Receipt" (id, "agentId", amount, "txHash", service, "createdAt") VALUES (${receipt.id}, ${receipt.agentId}, ${receipt.amount}, ${receipt.txHash}, ${receipt.service}, ${new Date(receipt.settledAt)}) ON CONFLICT (id) DO UPDATE SET "agentId" = EXCLUDED."agentId", amount = EXCLUDED.amount, "txHash" = EXCLUDED."txHash", service = EXCLUDED.service`
+    return receipt
   }
-  if (!existsSync(DB_PATH)) {
-    writeFileSync(DB_PATH, '[]\n', 'utf8')
-  }
+  return saveX402Receipt(receipt)
 }
 
-function readReceipts(): X402ExplorerReceipt[] {
-  ensureDb()
-  const raw = readFileSync(DB_PATH, 'utf8').trim()
-  if (!raw) return []
-  const parsed = JSON.parse(raw) as X402ExplorerReceipt[]
-  return Array.isArray(parsed) ? parsed : []
+export function saveX402Receipt(receipt: X402ExplorerReceipt): X402ExplorerReceipt { const receipts = readReceipts(); const next = [receipt, ...receipts.filter((item) => item.id !== receipt.id)]; writeReceipts(next); return receipt }
+export function getX402Receipt(receiptId: string): X402ExplorerReceipt | undefined { return readReceipts().find((receipt) => receipt.id === receiptId) }
+
+export async function getX402ReceiptAsync(receiptId: string): Promise<X402ExplorerReceipt | undefined> {
+  if (!isPostgresConfigured()) return getX402Receipt(receiptId)
+  const result = await sql<{ id: string; agent_id: string | null; amount: string; tx_hash: string; service: string; created_at: Date }>`SELECT id, "agentId" as agent_id, amount, "txHash" as tx_hash, service, "createdAt" as created_at FROM "X402Receipt" WHERE id = ${receiptId} LIMIT 1`
+  return result.rows[0] ? dbReceiptToExplorer(result.rows[0]) : undefined
 }
 
-function writeReceipts(receipts: X402ExplorerReceipt[]): void {
-  ensureDb()
-  const tmpPath = `${DB_PATH}.${process.pid}.tmp`
-  writeFileSync(tmpPath, `${JSON.stringify(receipts, null, 2)}\n`, 'utf8')
-  renameSync(tmpPath, DB_PATH)
+export async function listX402ReceiptsAsync(filters: X402ReceiptQuery = {}): Promise<X402ReceiptPage> {
+  if (!isPostgresConfigured()) return listX402Receipts(filters)
+  const all = await sql<{ id: string; agent_id: string | null; amount: string; tx_hash: string; service: string; created_at: Date }>`SELECT id, "agentId" as agent_id, amount, "txHash" as tx_hash, service, "createdAt" as created_at FROM "X402Receipt" ORDER BY "createdAt" DESC`
+  return paginateReceipts(all.rows.map(dbReceiptToExplorer), filters)
 }
 
-export function saveX402Receipt(receipt: X402ExplorerReceipt): X402ExplorerReceipt {
-  const receipts = readReceipts()
-  const next = [receipt, ...receipts.filter((item) => item.id !== receipt.id)]
-  writeReceipts(next)
-  return receipt
+function paginateReceipts(allReceipts: X402ExplorerReceipt[], filters: X402ReceiptQuery = {}): X402ReceiptPage {
+  const pageSize = Math.max(1, Math.min(50, Math.floor(filters.pageSize ?? 50))); const page = Math.max(1, Math.floor(filters.page ?? 1)); const q = (filters.q || '').trim().toLowerCase(); const agent = (filters.agent || '').trim().toLowerCase(); const service = (filters.service || '').trim().toLowerCase(); const chain = filters.chain && filters.chain !== 'all' ? filters.chain : null
+  const filtered = allReceipts.filter((receipt) => { if (chain && receipt.chain !== chain) return false; if (agent && receipt.agentId.toLowerCase() !== agent && receipt.agent.toLowerCase() !== agent) return false; if (service && receipt.serviceId.toLowerCase() !== service && receipt.service.toLowerCase() !== service) return false; if (q) { const haystack = [receipt.id, receipt.paymentRef, receipt.agentId, receipt.agent, receipt.service, receipt.serviceId, receipt.txHash, receipt.chain, receipt.amount].join(' ').toLowerCase(); if (!haystack.includes(q)) return false } return true })
+  const total = filtered.length; const start = (page - 1) * pageSize; const receipts = filtered.slice(start, start + pageSize)
+  return { receipts, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)), stats: { totalPayments: allReceipts.length, totalUsd: Number(allReceipts.reduce((sum, receipt) => sum + receipt.amountUsd, 0).toFixed(6)), uniqueAgents: new Set(allReceipts.map((receipt) => receipt.agentId)).size, services: new Set(allReceipts.map((receipt) => receipt.service)).size } }
 }
-
-export function getX402Receipt(receiptId: string): X402ExplorerReceipt | undefined {
-  return readReceipts().find((receipt) => receipt.id === receiptId)
-}
-
-export function listX402Receipts(filters: X402ReceiptQuery = {}): X402ReceiptPage {
-  const pageSize = Math.max(1, Math.min(50, Math.floor(filters.pageSize ?? 50)))
-  const page = Math.max(1, Math.floor(filters.page ?? 1))
-  const q = (filters.q || '').trim().toLowerCase()
-  const agent = (filters.agent || '').trim().toLowerCase()
-  const service = (filters.service || '').trim().toLowerCase()
-  const chain = filters.chain && filters.chain !== 'all' ? filters.chain : null
-  const allReceipts = readReceipts()
-
-  const filtered = allReceipts.filter((receipt) => {
-    if (chain && receipt.chain !== chain) return false
-    if (agent && receipt.agentId.toLowerCase() !== agent && receipt.agent.toLowerCase() !== agent) return false
-    if (service && receipt.serviceId.toLowerCase() !== service && receipt.service.toLowerCase() !== service) return false
-    if (q) {
-      const haystack = [
-        receipt.id,
-        receipt.paymentRef,
-        receipt.agentId,
-        receipt.agent,
-        receipt.service,
-        receipt.serviceId,
-        receipt.txHash,
-        receipt.chain,
-        receipt.amount,
-      ].join(' ').toLowerCase()
-      if (!haystack.includes(q)) return false
-    }
-    return true
-  })
-
-  const total = filtered.length
-  const start = (page - 1) * pageSize
-  const receipts = filtered.slice(start, start + pageSize)
-
-  return {
-    receipts,
-    page,
-    pageSize,
-    total,
-    totalPages: Math.max(1, Math.ceil(total / pageSize)),
-    stats: {
-      totalPayments: allReceipts.length,
-      totalUsd: Number(allReceipts.reduce((sum, receipt) => sum + receipt.amountUsd, 0).toFixed(6)),
-      uniqueAgents: new Set(allReceipts.map((receipt) => receipt.agentId)).size,
-      services: new Set(allReceipts.map((receipt) => receipt.service)).size,
-    },
-  }
-}
-
-export function resetX402ReceiptStoreForTests(): void {
-  writeReceipts([])
-}
+export function listX402Receipts(filters: X402ReceiptQuery = {}): X402ReceiptPage { return paginateReceipts(readReceipts(), filters) }
+export function resetX402ReceiptStoreForTests(): void { writeReceipts([]) }
