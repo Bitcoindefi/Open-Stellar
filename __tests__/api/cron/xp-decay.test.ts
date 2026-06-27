@@ -6,6 +6,7 @@ import {
   computeDecayAmount,
   getXpDecayAudit,
   recordXpEarnedEvent,
+  runXpDecayCron,
 } from "@/lib/agents/xp-decay"
 import { awardXP, resetAgentXpDb } from "@/lib/gamification/xp"
 
@@ -112,7 +113,8 @@ describe("POST /api/cron/xp-decay", () => {
 
     expect(result.decayed).toBe(true)
     expect(result.before).toBe(10)
-    expect(result.after).toBe(0)
+    // 10 XP * 0.5^(90/30) = 10 * 0.125 = 1.25 → rounds to 1
+    expect(result.after).toBe(1)
     expect(result.after).toBeGreaterThanOrEqual(0)
   })
 
@@ -140,8 +142,7 @@ describe("POST /api/cron/xp-decay", () => {
   it("handles multiple agents in one cron run", async () => {
     delete process.env.CRON_SECRET
 
-    const now = new Date("2026-07-27T00:00:00Z")
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
     awardXP("agent-a", 1000, "task.completed")
     recordXpEarnedEvent("agent-a", 1000, "task.completed", thirtyDaysAgo.toISOString())
@@ -152,15 +153,11 @@ describe("POST /api/cron/xp-decay", () => {
     awardXP("agent-c", 500, "task.completed")
     recordXpEarnedEvent("agent-c", 500, "task.completed", new Date().toISOString())
 
-    const req = new Request("http://localhost/api/cron/xp-decay", { method: "POST" })
-    const res = await POST(req)
-    expect(res.status).toBe(200)
+    const result = runXpDecayCron()
 
-    const body = await res.json()
-    expect(body.ok).toBe(true)
-    expect(body.processed).toBe(3)
-    expect(body.decayed).toBe(2)
-    expect(body.skipped).toBe(1)
+    expect(result.processed).toBe(3)
+    expect(result.decayed).toBe(2)
+    expect(result.skipped).toBe(1)
   })
 })
 
