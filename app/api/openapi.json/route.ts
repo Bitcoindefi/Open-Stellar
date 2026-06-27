@@ -355,6 +355,7 @@ const spec = {
         },
       }),
     },
+    "/api/orchestrate": { post: op("Orchestrator", "Plan and enqueue a multi-agent workflow", [], { goal: "Analyze the last 1000 log entries and produce a threat report", budget: { maxXLM: 1, maxTasks: 10 }, deadline: "2026-06-22T18:00:00Z" }) },
     "/api/admin/runs": { get: op("Admin", "List orchestration runs"), post: op("Admin", "Create an orchestration run", [], { title: "Research run", steps: [] }) },
     "/api/admin/runs/{runId}": { get: op("Admin", "Read orchestration run", ["runId"]), post: op("Admin", "Update or re-run orchestration run", ["runId"], { action: "rerun" }) },
     "/api/user/export": { get: op("User", "Export user data") },

@@ -244,6 +244,11 @@ export function getOrchestrationRun(runId: string) {
   return runsStore().find((run) => run.id === runId) ?? null
 }
 
+export function addOrchestrationRun(run: OrchestrationRun): OrchestrationRun {
+  runsStore().unshift(run)
+  return run
+}
+
 export function estimateRerun(run: OrchestrationRun) {
   const originalCost = Number(run.totalCostXlm)
   const retryFactor = run.status === "failed" ? 0.75 : 1
