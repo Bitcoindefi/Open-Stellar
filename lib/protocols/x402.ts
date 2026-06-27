@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { cwd } from 'node:process'
 import { StrKey } from '@stellar/stellar-sdk'
 import { verifyEvmPayment, type EvmSettlementChain } from '@/lib/evm-utils'
 
@@ -102,6 +105,9 @@ const globalState = globalThis as typeof globalThis & {
   __x402QuoteRegistry__?: QuoteRegistry
   __x402SubscriptionRegistry__?: SubscriptionRegistry
 }
+
+const DEFAULT_SUBSCRIPTIONS_DB_PATH = join(cwd(), '.data', 'x402-subscriptions.json')
+let subscriptionsDbPath = process.env.X402_SUBSCRIPTION_DB_PATH || DEFAULT_SUBSCRIPTIONS_DB_PATH
 
 const quoteRegistry: QuoteRegistry = globalState.__x402QuoteRegistry__ ?? new Map()
 if (!globalState.__x402QuoteRegistry__) globalState.__x402QuoteRegistry__ = quoteRegistry
@@ -312,6 +318,44 @@ if (!globalState.__x402SubscriptionRegistry__) {
   globalState.__x402SubscriptionRegistry__ = subscriptionRegistry
 }
 
+function ensureSubscriptionStore(): void {
+  const dir = dirname(subscriptionsDbPath)
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  if (!existsSync(subscriptionsDbPath)) writeFileSync(subscriptionsDbPath, '[]\n', 'utf8')
+}
+
+function isX402Subscription(value: unknown): value is X402Subscription {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Partial<X402Subscription>
+  return typeof item.id === 'string' && typeof item.serviceId === 'string' && typeof item.agentId === 'string' && typeof item.renewsAt === 'string' && Array.isArray(item.billingEvents)
+}
+
+function readSubscriptionStore(): X402Subscription[] {
+  ensureSubscriptionStore()
+  const raw = readFileSync(subscriptionsDbPath, 'utf8').trim()
+  if (!raw) return []
+  const parsed = JSON.parse(raw) as unknown
+  return Array.isArray(parsed) ? parsed.filter(isX402Subscription) : []
+}
+
+function writeSubscriptionStore(subscriptions: X402Subscription[]): void {
+  ensureSubscriptionStore()
+  const tmpPath = `${subscriptionsDbPath}.${process.pid}.tmp`
+  writeFileSync(tmpPath, `${JSON.stringify(subscriptions, null, 2)}\n`, 'utf8')
+  renameSync(tmpPath, subscriptionsDbPath)
+}
+
+function hydrateSubscriptionRegistry(): void {
+  subscriptionRegistry.clear()
+  for (const subscription of readSubscriptionStore()) {
+    subscriptionRegistry.set(subscriptionKey(subscription.agentId, subscription.serviceId), subscription)
+  }
+}
+
+function persistSubscriptionRegistry(): void {
+  writeSubscriptionStore(Array.from(subscriptionRegistry.values()))
+}
+
 function subscriptionKey(agentId: string, serviceId: string) {
   return `${agentId}:${serviceId}`
 }
@@ -367,11 +411,14 @@ export function createX402Subscription(input: X402SubscriptionRequest): X402Subs
     }],
   }
 
+  hydrateSubscriptionRegistry()
   subscriptionRegistry.set(subscriptionKey(agentId, serviceId), subscription)
+  persistSubscriptionRegistry()
   return subscription
 }
 
 export function renewX402Subscriptions(now: Date = new Date(), balances: Record<string, number> = {}) {
+  hydrateSubscriptionRegistry()
   const renewed: X402Subscription[] = []
   const paused: X402Subscription[] = []
 
@@ -413,14 +460,14 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
     renewed.push(subscription)
   }
 
+  if (renewed.length > 0 || paused.length > 0) persistSubscriptionRegistry()
   return { renewed, paused }
 }
 
 export function checkX402Subscription(agentId: string, serviceId: string, options: { consumeCall?: boolean } = {}): X402SubscriptionAccess {
+  renewX402Subscriptions()
   const subscription = subscriptionRegistry.get(subscriptionKey(agentId.trim(), serviceId.trim()))
   if (!subscription) return { active: false, callsRemaining: 0, renewsAt: '', status: 'missing' }
-
-  renewX402Subscriptions()
   if (!subscription.active) {
     return { active: false, callsRemaining: Math.max(0, (subscription.callsPerMonth ?? 0) - subscription.callsUsed), renewsAt: subscription.renewsAt, status: subscription.status, graceEndsAt: subscription.graceEndsAt, subscription }
   }
@@ -432,7 +479,10 @@ export function checkX402Subscription(agentId: string, serviceId: string, option
     return { active: false, callsRemaining: 0, renewsAt: subscription.renewsAt, status: 'exhausted', subscription }
   }
 
-  if (options.consumeCall && monthlyCallLimit !== null) subscription.callsUsed += 1
+  if (options.consumeCall && monthlyCallLimit !== null) {
+    subscription.callsUsed += 1
+    persistSubscriptionRegistry()
+  }
   return {
     active: true,
     callsRemaining: monthlyCallLimit === null ? null : Math.max(0, monthlyCallLimit - subscription.callsUsed),
@@ -444,12 +494,14 @@ export function checkX402Subscription(agentId: string, serviceId: string, option
 }
 
 export function getX402SubscriptionById(subscriptionId: string): X402Subscription | undefined {
+  hydrateSubscriptionRegistry()
   const id = subscriptionId.trim()
   if (!id) return undefined
   return Array.from(subscriptionRegistry.values()).find((subscription) => subscription.id === id)
 }
 
 export function listX402Subscriptions() {
+  hydrateSubscriptionRegistry()
   const subscriptions = Array.from(subscriptionRegistry.values()).sort((a, b) => a.renewsAt.localeCompare(b.renewsAt))
   const active = subscriptions.filter((subscription) => subscription.active)
   const mrrXlm = active.reduce((sum, subscription) => sum + parseXlmAmount(subscription.pricePerMonth), 0)
@@ -465,5 +517,16 @@ export function listX402Subscriptions() {
 }
 
 export function resetX402SubscriptionsForTests() {
+  subscriptionRegistry.clear()
+  writeSubscriptionStore([])
+}
+
+export function setX402SubscriptionStorePathForTests(path: string): void {
+  subscriptionsDbPath = path
+  subscriptionRegistry.clear()
+}
+
+export function resetX402SubscriptionStorePathForTests(): void {
+  subscriptionsDbPath = process.env.X402_SUBSCRIPTION_DB_PATH || DEFAULT_SUBSCRIPTIONS_DB_PATH
   subscriptionRegistry.clear()
 }

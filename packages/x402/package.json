@@ -1,0 +1,11 @@
+{
+  "name": "@open-stellar/x402",
+  "version": "0.1.0",
+  "description": "Five-line x402 HTTP payment gate for Open Stellar services.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src"],
+  "scripts": { "build": "tsc -p tsconfig.json" },
+  "dependencies": {}
+}
