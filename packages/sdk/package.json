@@ -1,0 +1,32 @@
+{
+  "name": "@open-stellar/sdk",
+  "version": "0.1.0",
+  "description": "One-liner x402 payment gating and client integration for Open Stellar.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "open-stellar",
+    "x402",
+    "stellar",
+    "payments",
+    "nextjs"
+  ],
+  "license": "MIT",
+  "sideEffects": false
+}

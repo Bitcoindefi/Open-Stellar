@@ -15,7 +15,9 @@
     "test:coverage": "vitest run --coverage",
     "deploy:evm:guide": "node scripts/deploy/evm/guide.mjs",
     "deploy:soroban:guide": "node scripts/deploy/soroban/guide.mjs",
-    "generate:audio": "node scripts/generate-audio-assets.mjs"
+    "generate:audio": "node scripts/generate-audio-assets.mjs",
+    "build:sdk": "npm run build -w @open-stellar/sdk",
+    "typecheck:sdk": "npm run typecheck -w @open-stellar/sdk"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -106,5 +108,8 @@
     "typescript": "5.7.3",
     "vitest": "^4.1.9",
     "webpack": "^5.97.1"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }
