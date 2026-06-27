@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Copy, ExternalLink, Play, RefreshCw } from "lucide-react"
+import { ArrowLeft, Copy, ExternalLink, Play } from "lucide-react"
 import type { OrchestrationRun, RunListItem } from "@/lib/orchestration/runs"
 import { formatDuration } from "@/lib/orchestration/runs"
 

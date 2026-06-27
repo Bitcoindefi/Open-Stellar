@@ -2,7 +2,6 @@ import { DISTRICTS, createAgents } from "@/lib/data"
 import {
   findAgentByLookup,
   getAgentDistrict,
-  getAgentProfilePath,
   getAgentSpritePath,
   slugifyAgent,
 } from "@/lib/og-card-data"
@@ -211,57 +210,73 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
     occurredAt: event.occurredAt,
   }
 
-  if (event.type === "payment.received") {
-    const amount = event.receipt.amountUsd ? `$${event.receipt.amountUsd.toFixed(3)}` : event.receipt.chain
-    return {
-      ...base,
-      kind: "payment",
-      title: `${base.agentName} received a payment`,
-      detail: `${amount} settled with tx ${event.receipt.txHash.slice(0, 12)}...`,
-      highlight: "Payment received",
-      shareText: `${base.agentName} received a payment on Open Stellar`,
+  switch (event.type) {
+    case "payment.received": {
+      const amount = event.receipt.amountUsd
+        ? `$${event.receipt.amountUsd.toFixed(3)}`
+        : event.receipt.chain
+      return {
+        ...base,
+        kind: "payment",
+        title: `${base.agentName} received a payment`,
+        detail: `${amount} settled with tx ${event.receipt.txHash.slice(0, 12)}...`,
+        highlight: "Payment received",
+        shareText: `${base.agentName} received a payment on Open Stellar`,
+      }
     }
-  }
-
-  if (event.type === "agent.xp") {
-    return {
-      ...base,
-      kind: "level-up",
-      title: `${base.agentName} reached Level ${event.level}`,
-      detail: `+${event.xp} XP earned in ${base.districtName ?? "Open Stellar"}`,
-      highlight: "Level-up",
-      shareText: `${base.agentName} reached Level ${event.level} on Open Stellar`,
-    }
-  }
-
-  if (event.type === "badge.unlocked") {
-    return {
-      ...base,
-      kind: "badge",
-      title: `${base.agentName} unlocked ${event.badge.name}`,
-      detail: `${event.badge.rarity ?? "common"} badge unlocked`,
-      highlight: "Badge unlocked",
-      shareText: `${base.agentName} unlocked ${event.badge.name} on Open Stellar`,
-    }
-  }
-
-  if (event.type === "task.completed") {
-    return {
-      ...base,
-      kind: "task",
-      title: `${base.agentName} completed a task`,
-      detail: event.result.summary,
-      highlight: "Task completed",
-      shareText: `${base.agentName} completed a task on Open Stellar`,
-    }
-  }
-
-  return {
-    ...base,
-    kind: "task",
-    title: `${base.agentName} activity update`,
-    detail: event.type === "task.started" ? event.task.title : `Status changed to ${(event as any).status}`,
-    highlight: event.type,
-    shareText: `${base.agentName} activity update on Open Stellar`,
+    case "agent.xp":
+      return {
+        ...base,
+        kind: "level-up",
+        title: `${base.agentName} reached Level ${event.level}`,
+        detail: `+${event.xp} XP earned in ${base.districtName ?? "Open Stellar"}`,
+        highlight: "Level-up",
+        shareText: `${base.agentName} reached Level ${event.level} on Open Stellar`,
+      }
+    case "badge.unlocked":
+      return {
+        ...base,
+        kind: "badge",
+        title: `${base.agentName} unlocked ${event.badge.name}`,
+        detail: `${event.badge.rarity ?? "common"} badge unlocked`,
+        highlight: "Badge unlocked",
+        shareText: `${base.agentName} unlocked ${event.badge.name} on Open Stellar`,
+      }
+    case "task.completed":
+      return {
+        ...base,
+        kind: "task",
+        title: `${base.agentName} completed a task`,
+        detail: event.result.summary,
+        highlight: "Task completed",
+        shareText: `${base.agentName} completed a task on Open Stellar`,
+      }
+    case "task.started":
+      return {
+        ...base,
+        kind: "task",
+        title: `${base.agentName} activity update`,
+        detail: event.task.title,
+        highlight: event.type,
+        shareText: `${base.agentName} activity update on Open Stellar`,
+      }
+    case "agent.status":
+      return {
+        ...base,
+        kind: "task",
+        title: `${base.agentName} activity update`,
+        detail: `Status changed to ${event.status}`,
+        highlight: event.type,
+        shareText: `${base.agentName} activity update on Open Stellar`,
+      }
+    default:
+      return {
+        ...base,
+        kind: "task",
+        title: `${base.agentName} activity update`,
+        detail: `Event type: ${event.type}`,
+        highlight: event.type,
+        shareText: `${base.agentName} activity update on Open Stellar`,
+      }
   }
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 
 // Use function keyword (not arrow) so `new Server()` works correctly as a constructor mock
 vi.mock("@stellar/stellar-sdk", async (importOriginal) => {

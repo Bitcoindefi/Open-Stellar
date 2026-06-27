@@ -36,7 +36,12 @@ function makeAgent(skill: Skill): MoltbotAgent {
     frame: 0,
     direction: "right",
     spriteId: 1,
-    skills: [skill], appearance: { skin: "default", accessories: [], customColor: null },
+    skills: [skill],
+    appearance: {
+      skin: "default",
+      accessories: [],
+      customColor: null,
+    },
   }
 }
 
