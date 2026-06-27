@@ -133,6 +133,27 @@ const spec = {
     "/api/agents/{id}/appearance": { get: op("Agents", "Read agent appearance", ["id"]), post: op("Agents", "Update agent appearance", ["id"], { skin: "default", accessories: [] }) },
     "/api/agents/{id}/credential": { post: op("Agents", "Issue a reputation credential", ["id"], { contractId: "optional-soroban-contract-id" }) },
     "/api/agents/{id}/credential/latest": { get: op("Agents", "Read latest reputation credential", ["id"]) },
+    "/api/agents/{id}/webhooks/failures": {
+      get: op("Agents", "List dead webhook deliveries for an agent", ["id"], undefined, {
+        responseSchema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              webhookId: { type: "string" },
+              payload: { type: "object" },
+              attempts: { type: "integer" },
+              nextRetryAt: { type: "integer" },
+              lastError: { type: "string" },
+              createdAt: { type: "integer" },
+              status: { type: "string", enum: ["dead"] },
+            },
+            required: ["id", "webhookId", "payload", "attempts", "nextRetryAt", "createdAt", "status"],
+          },
+        },
+      }),
+    },
     "/api/protocol/x402/quote": { get: op("Protocol", "Create an x402 payment quote"), post: op("Protocol", "Create an x402 payment quote", [], { serviceId: "weather.v1", amount: "0.25", payer: "agent-nexus" }) },
     "/api/protocol/x402/settle": { post: op("Protocol", "Settle an x402 payment", [], { quoteId: "quote_123", paymentSource: "stellar:testnet" }) },
     "/api/protocol/passport/authorize": { post: op("Protocol", "Authorize a spend with ZK Passport", [], { agentId: "agent-nexus", amount: "0.25", quoteId: "quote_123" }) },
@@ -149,6 +170,21 @@ const spec = {
     "/api/webhooks/{id}": { delete: op("Webhooks", "Delete a webhook registration", ["id"]) },
     "/api/webhooks/{id}/rotate": { post: op("Webhooks", "Rotate a webhook signing secret", ["id"]) },
     "/api/webhooks/event-types": { get: op("Webhooks", "List supported webhook event types") },
+    "/api/cron/webhook-retry": {
+      post: op("Webhooks", "Retry due webhook deliveries", [], undefined, {
+        responseSchema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean", enum: [true] },
+            processed: { type: "integer" },
+            succeeded: { type: "integer" },
+            failed: { type: "integer" },
+            dead: { type: "integer" },
+          },
+          required: ["ok", "processed", "succeeded", "failed", "dead"],
+        },
+      }),
+    },
     "/api/feed": { get: op("Events", "List public activity feed") },
     "/api/districts/{districtId}/broadcast": { post: op("Events", "Broadcast a district event", ["districtId"], { message: "Throughput race started" }) },
     "/api/explorer/receipts": { get: op("Explorer", "List payment receipts") },

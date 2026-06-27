@@ -24,6 +24,12 @@ import {
   setWebhookDeliveryLogPathForTests,
 } from "@/lib/webhooks/delivery-log"
 import {
+  enqueueWebhookRetry,
+  listWebhookRetryEntries,
+  resetWebhookRetryStorePathForTests,
+  setWebhookRetryStorePathForTests,
+} from "@/lib/webhooks/retry-store"
+import {
   resetWebhookStoreForTests,
   resetWebhookStorePathForTests,
   setWebhookStorePathForTests,
@@ -56,6 +62,7 @@ describe("webhook API", () => {
     testDir = mkdtempSync(join(tmpdir(), "open-stellar-webhooks-"))
     setWebhookStorePathForTests(join(testDir, "webhooks.json"))
     setWebhookDeliveryLogPathForTests(join(testDir, "webhook-delivery-log.jsonl"))
+    setWebhookRetryStorePathForTests(join(testDir, "webhook-retry-queue.json"))
     resetWebhookStoreForTests()
     resetWebhookDeliveryLogForTests()
     setWebhookRetryDelayForTests(0)
@@ -68,6 +75,7 @@ describe("webhook API", () => {
     resetWebhookRetryDelayForTests()
     resetWebhookStorePathForTests()
     resetWebhookDeliveryLogPathForTests()
+    resetWebhookRetryStorePathForTests()
     rmSync(testDir, { recursive: true, force: true })
   })
 
@@ -236,6 +244,29 @@ describe("webhook API", () => {
     expect(init.headers).not.toMatchObject({
       "X-Open-Stellar-Signature": oldSignature,
     })
+  })
+
+  it("cancels a persisted pending retry on secret rotation", async () => {
+    const { data: registered } = await registerWebhook()
+    enqueueWebhookRetry(registered.id, {
+      type: "agent.status",
+      payload: {
+        id: "evt_persisted_retry_on_rotate",
+        occurredAt: "2026-06-26T00:00:00.000Z",
+        type: "agent.status",
+        agentId: "nexus-7",
+        status: "working",
+      },
+    }, "HTTP 503", 1_000)
+
+    const rotated = await ROTATE_POST(
+      new Request(`http://localhost/api/webhooks/${registered.id}/rotate`, { method: "POST" }),
+      context(registered.id),
+    )
+    const rotatedData = await rotated.json() as { cancelledRetries: number }
+
+    expect(rotatedData.cancelledRetries).toBe(1)
+    expect(listWebhookRetryEntries()).toEqual([])
   })
 
   it("uses the rotated secret for webhook delivery signatures", async () => {

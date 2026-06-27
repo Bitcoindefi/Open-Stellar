@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { cancelPendingWebhookRetries, registerWebhookDeliveryListener } from "@/lib/webhooks/delivery"
+import { removePendingWebhookRetries } from "@/lib/webhooks/retry-store"
 import { rotateWebhookSecret } from "@/lib/webhooks/store"
 
 export const dynamic = "force-dynamic"
@@ -22,7 +23,7 @@ export async function POST(_req: Request, context: RouteContext) {
     )
   }
 
-  const cancelledRetries = cancelPendingWebhookRetries(webhook.id)
+  const cancelledRetries = cancelPendingWebhookRetries(webhook.id) + removePendingWebhookRetries(webhook.id)
 
   return NextResponse.json(
     { id: webhook.id, secret: webhook.secret, cancelledRetries },
