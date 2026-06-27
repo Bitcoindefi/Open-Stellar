@@ -399,7 +399,7 @@ export function PassportPanel() {
           <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Live console</p>
           <div className="mt-3 h-56 overflow-auto rounded-2xl border border-slate-800 bg-black/50 p-3 font-mono text-[11px] leading-relaxed text-slate-300">
             {log.length === 0 ? (
-              <span className="text-slate-600">// waiting for the first proof…</span>
+              <span className="text-slate-600">{"// waiting for the first proof…"}</span>
             ) : (
               log.map((l, i) => (
                 <div key={i} className={l.includes("DENIED") || l.startsWith("!") ? "text-rose-300" : l.includes("APPROVED") || l.includes("VERIFIED") || l.includes("COMMITTED") ? "text-emerald-300" : l.includes("SIMULATION PASSED") ? "text-amber-300" : ""}>

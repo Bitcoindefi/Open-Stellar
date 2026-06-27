@@ -26,8 +26,7 @@ export * as contract from "@stellar/stellar-sdk/contract";
 export * as rpc from "@stellar/stellar-sdk/rpc";
 
 if (typeof window !== "undefined") {
-  //@ts-ignore Buffer exists
-  window.Buffer = window.Buffer || Buffer;
+  (window as any).Buffer = (window as any).Buffer || Buffer;
 }
 
 
@@ -79,6 +78,7 @@ export interface Groth16Proof {
   c: Buffer;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export interface Client {
   /**
    * Construct and simulate a init transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
@@ -128,6 +128,7 @@ export interface Client {
   verify_and_register: ({proof, public_inputs}: {proof: Groth16Proof, public_inputs: Array<u256>}, options?: MethodOptions) => Promise<AssembledTransaction<Result<Attestation>>>
 
 }
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class Client extends ContractClient {
   static async deploy<T = Client>(
     /** Options for initializing a Client as well as for calling a method, with extras specific to deploying. */
@@ -147,7 +148,7 @@ export class Client extends ContractClient {
     super(
       new ContractSpec([ "AAAABAAAAAAAAAAAAAAABUVycm9yAAAAAAAABQAAAAAAAAAOTm90SW5pdGlhbGl6ZWQAAAAAAAEAAAAAAAAAEkFscmVhZHlJbml0aWFsaXplZAAAAAAAAgAAAD1Xcm9uZyBudW1iZXIgb2YgcHVibGljIGlucHV0cyBmb3IgdGhlIGFnZW50X3Bhc3Nwb3J0IGNpcmN1aXQuAAAAAAAAD0JhZFB1YmxpY0lucHV0cwAAAAADAAAAPFRoaXMgbnVsbGlmaWVyIHdhcyBhbHJlYWR5IHNwZW50IOKAlCByZXBsYXkgLyBTeWJpbCBhdHRlbXB0LgAAAA1OdWxsaWZpZXJVc2VkAAAAAAAABAAAADpUaGUgR3JvdGgxNiBwcm9vZiBkaWQgbm90IHZlcmlmeSBhZ2FpbnN0IHRoZSBlbWJlZGRlZCBrZXkuAAAAAAAMSW52YWxpZFByb29mAAAABQ==",
         "AAAAAQAAAAAAAAAAAAAAC0F0dGVzdGF0aW9uAAAAAAUAAAAAAAAACGFnZW50X2lkAAAADAAAADFMZWRnZXIgc2VxdWVuY2UgYXQgd2hpY2ggdGhlIHBhc3Nwb3J0IHdhcyBtaW50ZWQuAAAAAAAABmxlZGdlcgAAAAAABAAAAAAAAAAJbnVsbGlmaWVyAAAAAAAADAAAAAAAAAANcmVnaXN0cnlfcm9vdAAAAAAAAAwAAAAAAAAACXNwZW5kX2NhcAAAAAAAAAw=",
-        "AAAAAQAAAN1Hcm90aDE2IHByb29mIG92ZXIgQk4yNTQsIHJlLWRlY2xhcmVkIGluICp0aGlzKiBjb250cmFjdCdzIHNwZWMgKHRoZQppbXBvcnRlZCBvbmUgaXNuJ3QgZXhwb3J0ZWQpIHNvIFNES3MvQ0xJIGNhbiBidWlsZCB0aGUgYXJndW1lbnQgZGlyZWN0bHkuCkJ5dGUgbGF5b3V0OiBHMSBgYWAvYGNgID0geHx8eSAoMzJCIEJFIGVhY2gpOyBHMiBgYmAgPSB4LmMxfHx4LmMwfHx5LmMxfHx5LmMwLgAAAAAAAAAAAAAMR3JvdGgxNlByb29mAAAAAwAAAAAAAAABYQAAAAAAA+4AAABAAAAAAAAAAAFiAAAAAAAD7gAAAIAAAAAAAAAAAWMAAAAAAAPuAAAAQA==",
+        "AAAAAQAAAN1Hcm90aDE2IHByb29mIG92ZXIgQk4yNTQsIHJlLWRlY2xhcmVkIGluICp0aGlzKiBjb250cmFjdCdzIHNwZWMgKHRoZQppbXBvcnRlZCBvbmUgaXNuJ3QgZXhwb3J0ZWQpIHNvIFNES3MvQ0xJIGNhbiBidWlsZCB0aGUgYXJndW1lbnQgZGlyZWN0bHkuCkJ5dGUgbGF5b3V0OiBHMSBgYWAvYGNgID0geHx8eSAoMzJCIEJFIGVhY2gpOyBHMiBgYmAgPSB4LmMxfHx4LmMwfHx5LmMxfHx5LmMw.AAAAAAAAAAAAAMR3JvdGgxNlByb29mAAAAAwAAAAAAAAABYQAAAAAAA+4AAABAAAAAAAAAAAFiAAAAAAAD7gAAAIAAAAAAAAAAAWMAAAAAAAPuAAAAQA==",
         "AAAAAAAAAG1PbmUtdGltZSB3aXJpbmc6IHdobyBjYW4gcmUtcG9pbnQgdGhlIHZlcmlmaWVyLCBhbmQgdGhlIHZlcmlmaWVyJ3MKY29udHJhY3QgYWRkcmVzcy4gUGFuaWNzIG9uIGEgc2Vjb25kIGNhbGwuAAAAAAAABGluaXQAAAACAAAAAAAAAAVhZG1pbgAAAAAAABMAAAAAAAAACHZlcmlmaWVyAAAAEwAAAAA=",
         "AAAAAAAAAEFUaGUgdmVyaWZpZXIgY29udHJhY3QgdGhpcyB2YWxpZGF0b3IgZGVsZWdhdGVzIHByb29mLWNoZWNraW5nIHRvLgAAAAAAAAh2ZXJpZmllcgAAAAAAAAABAAAD6QAAABMAAAAD",
         "AAAAAAAAADJGZXRjaCB0aGUgc3RvcmVkIGF0dGVzdGF0aW9uIGZvciBhbiBhZ2VudCwgaWYgYW55LgAAAAAADGdldF9wYXNzcG9ydAAAAAEAAAAAAAAACGFnZW50X2lkAAAADAAAAAEAAAPoAAAH0AAAAAtBdHRlc3RhdGlvbgA=",
