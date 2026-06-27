@@ -11,6 +11,7 @@ export interface AgentCapabilityManifest {
   model: string
   district: DistrictId
   capabilities: string[]
+  dependencies?: string[]
   x402: AgentX402Manifest
   status: AgentStatus
   endpoint: string
@@ -81,6 +82,16 @@ function normalizeCapabilities(value: unknown): string[] {
   return Array.from(new Set(capabilities))
 }
 
+function normalizeDependencies(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    throw new Error("dependencies must be an array")
+  }
+
+  const dependencies = value.map((dependency, index) => normalizeString(dependency, `dependencies[${index}]`))
+  return Array.from(new Set(dependencies))
+}
+
 function normalizeX402(value: unknown): AgentX402Manifest {
   if (!isRecord(value)) {
     throw new Error("x402 must be an object")
@@ -93,6 +104,33 @@ function normalizeX402(value: unknown): AgentX402Manifest {
   return {
     accepts: value.accepts,
     pricePerTask: value.pricePerTask === undefined ? undefined : normalizeString(value.pricePerTask, "x402.pricePerTask"),
+  }
+}
+
+function validateDependencies(agentId: string, dependencies: string[]): void {
+  for (const dependencyId of dependencies) {
+    if (dependencyId === agentId) {
+      throw new Error("agent cannot depend on itself")
+    }
+    if (!registry.agents.has(dependencyId)) {
+      throw new Error(`dependency agent not found: ${dependencyId}`)
+    }
+  }
+
+  const reachesAgent = (currentId: string, visited: Set<string>): boolean => {
+    if (currentId === agentId) return true
+    if (visited.has(currentId)) return false
+
+    visited.add(currentId)
+    const currentDependencies = currentId === agentId
+      ? dependencies
+      : registry.agents.get(currentId)?.dependencies ?? []
+
+    return currentDependencies.some((dependencyId) => reachesAgent(dependencyId, visited))
+  }
+
+  if (dependencies.some((dependencyId) => reachesAgent(dependencyId, new Set()))) {
+    throw new Error("agent dependencies cannot contain a cycle")
   }
 }
 
@@ -118,17 +156,32 @@ export function getRegisteredAgent(agentId: string): AgentCapabilityManifest | n
   return registry.agents.get(agentId) ?? null
 }
 
+export function getAgentDependencies(agentId: string): string[] {
+  return [...(registry.agents.get(agentId)?.dependencies ?? [])]
+}
+
+export function getAgentDependents(agentId: string): string[] {
+  return Array.from(registry.agents.values())
+    .filter((agent) => agent.dependencies?.includes(agentId))
+    .map((agent) => agent.agentId)
+}
+
 export function registerAgent(input: unknown): AgentCapabilityManifest {
   if (!isRecord(input)) {
     throw new Error("agent manifest must be an object")
   }
 
   const now = new Date().toISOString()
+  const agentId = normalizeString(input.agentId, "agentId")
+  const dependencies = normalizeDependencies(input.dependencies)
+  validateDependencies(agentId, dependencies ?? [])
+
   const agent: AgentCapabilityManifest = {
-    agentId: normalizeString(input.agentId, "agentId"),
+    agentId,
     model: normalizeString(input.model, "model"),
     district: normalizeDistrict(input.district),
     capabilities: normalizeCapabilities(input.capabilities),
+    ...(dependencies === undefined ? {} : { dependencies }),
     x402: normalizeX402(input.x402),
     status: normalizeStatus(input.status),
     endpoint: normalizeString(input.endpoint, "endpoint"),

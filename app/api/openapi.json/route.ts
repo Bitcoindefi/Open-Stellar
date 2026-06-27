@@ -90,6 +90,44 @@ const spec = {
     "/api/agents/{id}/messages": { post: op("Agents", "Send a message to an agent", ["id"], { role: "user", content: "Hello" }) },
     "/api/agents/{id}/health": { get: op("Agents", "Read agent health", ["id"]) },
     "/api/agents/{id}/heartbeat": { post: op("Agents", "Record agent heartbeat", ["id"], { status: "active", load: 0.2 }) },
+    "/api/agents/{id}/dependencies": {
+      get: op("Agents", "Read an agent dependency graph", ["id"], undefined, {
+        query: [
+          queryParam("flat", { type: "boolean" }),
+          queryParam("maxDepth", { type: "integer", minimum: 0, maximum: 10 }),
+        ],
+        responseSchema: {
+          type: "object",
+          properties: {
+            agentId: { type: "string" },
+            dependencies: { type: "array" },
+            totalCount: { type: "integer" },
+            maxDepth: { type: "integer" },
+          },
+          required: ["agentId", "dependencies"],
+        },
+        responses: { 404: notFound },
+      }),
+    },
+    "/api/agents/{id}/dependents": {
+      get: op("Agents", "Read an agent dependent graph", ["id"], undefined, {
+        query: [
+          queryParam("flat", { type: "boolean" }),
+          queryParam("maxDepth", { type: "integer", minimum: 0, maximum: 10 }),
+        ],
+        responseSchema: {
+          type: "object",
+          properties: {
+            agentId: { type: "string" },
+            dependents: { type: "array" },
+            totalCount: { type: "integer" },
+            maxDepth: { type: "integer" },
+          },
+          required: ["agentId", "dependents"],
+        },
+        responses: { 404: notFound },
+      }),
+    },
     "/api/agents/{id}/appearance": { get: op("Agents", "Read agent appearance", ["id"]), post: op("Agents", "Update agent appearance", ["id"], { skin: "default", accessories: [] }) },
     "/api/agents/{id}/credential": { post: op("Agents", "Issue a reputation credential", ["id"], { contractId: "optional-soroban-contract-id" }) },
     "/api/agents/{id}/credential/latest": { get: op("Agents", "Read latest reputation credential", ["id"]) },

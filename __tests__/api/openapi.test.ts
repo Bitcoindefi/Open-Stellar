@@ -49,7 +49,23 @@ describe("GET /api/openapi.json", () => {
 
     expect(spec.paths["/api/leaderboard"]).toHaveProperty("get")
 
+    for (const path of [
+      "/api/agents/{id}/dependencies",
+      "/api/agents/{id}/dependents",
+    ]) {
+      expect(spec.paths[path]).toHaveProperty("get")
+      expectPathParam(spec.paths[path].get, "id")
+      expect(spec.paths[path].get.parameters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "flat", in: "query" }),
+          expect.objectContaining({ name: "maxDepth", in: "query" }),
+        ]),
+      )
+    }
+
     for (const operation of [
+      spec.paths["/api/agents/{id}/dependencies"].get,
+      spec.paths["/api/agents/{id}/dependents"].get,
       spec.paths["/api/notifications"].get,
       spec.paths["/api/notifications"].post,
       spec.paths["/api/quests/{id}/subtasks"].post,
