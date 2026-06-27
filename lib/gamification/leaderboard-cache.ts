@@ -1,81 +1,128 @@
-import { describe, it, expect, beforeEach } from "vitest"
-import {
-  getCachedLeaderboard,
-  setCachedLeaderboard,
-  invalidateLeaderboardCache,
-  getCacheStatus,
-  resetLeaderboardCache,
-  CACHE_TTL_MS,
-} from "@/lib/gamification/leaderboard-cache"
-import type { QuestLeaderboardEntry } from "@/lib/gamification/quest-leaderboard"
+// Inline type to avoid circular import with quest-leaderboard.ts
+export interface QuestLeaderboardEntry {
+  agentId: string
+  questsCompleted: number
+  xpFromQuests: number
+  rank: number
+}
 
-beforeEach(() => {
-  resetLeaderboardCache()
-})
+export interface CachedLeaderboard {
+  entries: QuestLeaderboardEntry[]
+  computedAt: number
+  weekKey: string
+}
 
-describe("leaderboard-cache", () => {
-  it("returns null when cache is empty", () => {
-    expect(getCachedLeaderboard("weekly")).toBeNull()
-  })
+export const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
-  it("returns cached entry when fresh", () => {
-    const entries: QuestLeaderboardEntry[] = [
-      { agentId: "agent-1", questsCompleted: 5, xpFromQuests: 300, rank: 1 },
-    ]
-    setCachedLeaderboard("weekly", entries)
+// In-memory cache store (global singleton, same pattern as other stores)
+const globalCache = globalThis as typeof globalThis & {
+  __questLeaderboardCache__?: Map<string, CachedLeaderboard>
+}
 
-    const result = getCachedLeaderboard("weekly")
-    expect(result).not.toBeNull()
-    expect(result!.cached.entries).toEqual(entries)
-  })
+function getCacheStore(): Map<string, CachedLeaderboard> {
+  if (!globalCache.__questLeaderboardCache__) {
+    globalCache.__questLeaderboardCache__ = new Map()
+  }
+  return globalCache.__questLeaderboardCache__
+}
 
-  it("returns null when entry is stale (> 5 minutes)", () => {
-    const entries: QuestLeaderboardEntry[] = [
-      { agentId: "agent-1", questsCompleted: 5, xpFromQuests: 300, rank: 1 },
-    ]
-    const now = Date.now()
-    setCachedLeaderboard("weekly", entries, now)
+/**
+ * Generate a week key for cache segmentation.
+ * Weekly rankings change every Monday, so we key by ISO week.
+ */
+function getWeekKey(nowMs = Date.now()): string {
+  const now = new Date(nowMs)
+  const dayOfWeek = now.getDay() // 0=Sun, 1=Mon, ...
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceMonday, 0, 0, 0, 0)
+  return monday.toISOString().split("T")[0] // YYYY-MM-DD
+}
 
-    const result = getCachedLeaderboard("weekly", now + CACHE_TTL_MS + 1000)
-    expect(result).toBeNull()
-  })
+/**
+ * Build a composite cache key from period and week.
+ */
+function buildCacheKey(period: string, nowMs = Date.now()): string {
+  return `${period}:${getWeekKey(nowMs)}`
+}
 
-  it("clears all cached entries on invalidate", () => {
-    setCachedLeaderboard("weekly", [])
-    setCachedLeaderboard("daily", [])
+/**
+ * Read the cached leaderboard if it exists and is fresh.
+ */
+export function getCachedLeaderboard(
+  period: string,
+  nowMs = Date.now(),
+): { cached: CachedLeaderboard; ageMs: number } | null {
+  const store = getCacheStore()
+  const key = buildCacheKey(period, nowMs)
+  const entry = store.get(key)
 
-    invalidateLeaderboardCache()
+  if (!entry) return null
 
-    expect(getCachedLeaderboard("weekly")).toBeNull()
-    expect(getCachedLeaderboard("daily")).toBeNull()
-  })
+  const ageMs = nowMs - entry.computedAt
+  if (ageMs >= CACHE_TTL_MS) {
+    // Stale — treat as miss
+    return null
+  }
 
-  it("reports hit=true when cache is fresh", () => {
-    setCachedLeaderboard("weekly", [])
-    const status = getCacheStatus("weekly")
-    expect(status.hit).toBe(true)
-    expect(status.ageMs).toBeGreaterThanOrEqual(0)
-  })
+  return { cached: entry, ageMs }
+}
 
-  it("reports hit=false when cache is empty", () => {
-    const status = getCacheStatus("weekly")
-    expect(status.hit).toBe(false)
-    expect(status.ageMs).toBeNull()
-  })
+/**
+ * Store a freshly computed leaderboard in the cache.
+ */
+export function setCachedLeaderboard(
+  period: string,
+  entries: QuestLeaderboardEntry[],
+  nowMs = Date.now(),
+): CachedLeaderboard {
+  const store = getCacheStore()
+  const weekKey = getWeekKey(nowMs)
+  const key = buildCacheKey(period, nowMs)
 
-  it("returns HIT on second call within TTL", () => {
-    const now = Date.now()
-    // First call primes the cache
-    setCachedLeaderboard("weekly", [], now)
-    // Second call — should be HIT
-    const status = getCacheStatus("weekly", now + 1000)
-    expect(status.hit).toBe(true)
-  })
+  const cached: CachedLeaderboard = {
+    entries,
+    computedAt: nowMs,
+    weekKey,
+  }
 
-  it("returns MISS after TTL expires", () => {
-    const now = Date.now()
-    setCachedLeaderboard("weekly", [], now)
-    const status = getCacheStatus("weekly", now + CACHE_TTL_MS + 1000)
-    expect(status.hit).toBe(false)
-  })
-})
+  store.set(key, cached)
+  return cached
+}
+
+/**
+ * Manually invalidate the cache for a given period.
+ * Called when quest completion events fire.
+ */
+export function invalidateLeaderboardCache(period?: string): void {
+  const store = getCacheStore()
+  if (period) {
+    // Invalidate all week keys for this period
+    for (const key of store.keys()) {
+      if (key.startsWith(`${period}:`)) {
+        store.delete(key)
+      }
+    }
+  } else {
+    // Invalidate all cached leaderboards (both daily and weekly)
+    store.clear()
+  }
+}
+
+/**
+ * Get cache metadata for response headers.
+ */
+export function getCacheStatus(
+  period: string,
+  nowMs = Date.now(),
+): { hit: boolean; ageMs: number | null } {
+  const result = getCachedLeaderboard(period, nowMs)
+  if (!result) return { hit: false, ageMs: null }
+  return { hit: true, ageMs: result.ageMs }
+}
+
+/**
+ * Reset cache (useful for testing).
+ */
+export function resetLeaderboardCache(): void {
+  getCacheStore().clear()
+}
