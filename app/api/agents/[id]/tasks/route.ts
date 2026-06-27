@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createTask } from "@/lib/agents/task-queue"
+import { createTask, purgeAgentTasks } from "@/lib/agents/task-queue"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -37,6 +37,25 @@ export async function POST(req: Request, context: RouteContext) {
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Failed to create task" },
+      { status: 400 },
+    )
+  }
+}
+
+export async function DELETE(_req: Request, context: RouteContext) {
+  try {
+    const { id } = await context.params
+    const agentId = decodeURIComponent(id)
+
+    const purged = purgeAgentTasks(agentId)
+
+    return NextResponse.json(
+      { ok: true, purged },
+      { status: 200 },
+    )
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: error instanceof Error ? error.message : "Failed to purge tasks" },
       { status: 400 },
     )
   }
