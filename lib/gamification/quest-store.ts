@@ -1,5 +1,6 @@
 import type { Quest, QuestType, QuestReward, SubTask } from "./quests"
 import { addNotification } from "@/lib/notifications/notification-store"
+import { publishSystemEvent } from "@/lib/events/system-events"
 
 export type QuestStatus = "in_progress" | "completed" | "expired"
 
@@ -10,6 +11,7 @@ export interface StoredQuest {
   description: string
   reward: QuestReward
   progress: number
+  unlocksQuestId?: string
   minReputation?: number
   completedAt?: string
   expiresAt?: string | null
@@ -43,6 +45,7 @@ export function createQuest(input: {
   description: string
   reward: QuestReward
   progress?: number
+  unlocksQuestId?: string
   minReputation?: number
   expiresAt?: string | null
   subTasks?: SubTask[]
@@ -56,6 +59,7 @@ export function createQuest(input: {
     description: input.description,
     reward: input.reward,
     progress: input.progress ?? 0,
+    unlocksQuestId: input.unlocksQuestId,
     minReputation: input.minReputation,
     expiresAt: input.expiresAt ?? null,
     subTasks: input.subTasks,
@@ -83,9 +87,26 @@ export function updateQuestStatus(id: string, status: QuestStatus): StoredQuest 
   const store = getStore()
   const quest = store.quests.get(id)
   if (!quest) return null
+  const wasCompleted = quest.status === "completed"
   quest.status = status
   if (status === "completed") {
     quest.completedAt = new Date().toISOString()
+
+    if (!wasCompleted && quest.unlocksQuestId) {
+      const unlockedQuest = store.quests.get(quest.unlocksQuestId)
+      if (unlockedQuest) {
+        for (const agentId of new Set(quest.assignedAgentIds)) {
+          if (!unlockedQuest.assignedAgentIds.includes(agentId)) {
+            unlockedQuest.assignedAgentIds.push(agentId)
+          }
+          publishSystemEvent({
+            type: "quest.unlocked",
+            agentId,
+            questId: quest.unlocksQuestId,
+          })
+        }
+      }
+    }
   }
   return quest
 }

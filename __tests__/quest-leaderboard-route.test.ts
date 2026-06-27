@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
 import { GET } from "@/app/api/quests/leaderboard/route"
 import { addNotification, resetNotificationStore } from "@/lib/notifications/notification-store"
+import { resetLeaderboardCache } from "@/lib/gamification/quest-leaderboard"
 
 function seedQuestCompleted(agentId: string, createdAt: Date) {
   addNotification({
@@ -17,10 +18,12 @@ function seedQuestCompleted(agentId: string, createdAt: Date) {
 describe("GET /api/quests/leaderboard", () => {
   beforeEach(() => {
     resetNotificationStore()
+    resetLeaderboardCache()
   })
 
   afterEach(() => {
     resetNotificationStore()
+    resetLeaderboardCache()
   })
 
   it("returns ranked entries for weekly period", async () => {

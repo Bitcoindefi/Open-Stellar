@@ -1,13 +1,17 @@
 import type { NotificationRecord } from "@/lib/notifications/notification-store"
-
-export interface QuestLeaderboardEntry {
-  agentId: string
-  questsCompleted: number
-  xpFromQuests: number
-  rank: number
-}
+import type { QuestLeaderboardEntry } from "./leaderboard-cache"
+import {
+  getCachedLeaderboard,
+  setCachedLeaderboard,
+  invalidateLeaderboardCache,
+  getCacheStatus,
+} from "./leaderboard-cache"
 
 export type LeaderboardPeriod = "daily" | "weekly"
+
+export { invalidateLeaderboardCache, getCacheStatus }
+export { resetLeaderboardCache } from "./leaderboard-cache"
+export type { QuestLeaderboardEntry } from "./leaderboard-cache"
 
 function getPeriodWindow(period: LeaderboardPeriod, nowMs = Date.now()): { startMs: number; endMs: number } {
   const now = new Date(nowMs)
@@ -40,11 +44,10 @@ function estimateXpFromQuests(count: number): number {
 }
 
 /**
- * Build the quest leaderboard from the global notification store.
- * Reads all agents' quest_completed notifications within the period window.
- * Returns top 20 entries ranked by questsCompleted descending.
+ * Compute the raw leaderboard from notification store.
+ * This is the expensive operation we want to cache.
  */
-export function getQuestLeaderboard(
+function computeQuestLeaderboard(
   period: LeaderboardPeriod = "weekly",
   nowMs = Date.now(),
 ): QuestLeaderboardEntry[] {
@@ -89,6 +92,26 @@ export function getQuestLeaderboard(
 
   // Cap at 20 entries
   return entries.slice(0, 20)
+}
+
+/**
+ * Build the quest leaderboard with caching.
+ * Checks cache first; if fresh, returns cached. Otherwise recomputes and stores.
+ */
+export function getQuestLeaderboard(
+  period: LeaderboardPeriod = "weekly",
+  nowMs = Date.now(),
+): QuestLeaderboardEntry[] {
+  // Check cache
+  const cached = getCachedLeaderboard(period, nowMs)
+  if (cached) {
+    return cached.cached.entries
+  }
+
+  // Cache miss or stale — recompute
+  const entries = computeQuestLeaderboard(period, nowMs)
+  setCachedLeaderboard(period, entries, nowMs)
+  return entries
 }
 
 /**

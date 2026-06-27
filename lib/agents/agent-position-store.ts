@@ -71,6 +71,7 @@ interface AgentPositionState {
 
 const DEFAULT_HISTORY_LIMIT = 50
 const MAX_HISTORY_LIMIT = 1000
+const MAX_AGENT_ID_LENGTH = 200
 const DEFAULT_POSITIONS_DIR = join(process.cwd(), ".data", "positions")
 
 const globalState = globalThis as typeof globalThis & {
@@ -119,6 +120,11 @@ function ensureInitializedPositions(): void {
   }
 
   ensureSeededPositions()
+}
+
+function clampAgentId(agentId: string): string {
+  if (agentId.length <= MAX_AGENT_ID_LENGTH) return agentId
+  return agentId.slice(0, MAX_AGENT_ID_LENGTH)
 }
 
 function normalizeAgentId(agentId: string): string {
@@ -271,7 +277,7 @@ export function listAgentPositions(): AgentPosition[] {
 
 export function getAgentPosition(agentId: string): AgentPosition | null {
   ensureInitializedPositions()
-  return state.positions.get(agentId.trim()) ?? null
+  return state.positions.get(normalizeAgentId(agentId)) ?? null
 }
 
 export function moveAgentPosition(agentId: string, input: AgentMoveInput): AgentPosition {

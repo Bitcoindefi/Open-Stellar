@@ -14,6 +14,7 @@ function storedToQuest(q: StoredQuest) {
     description: q.description,
     reward: q.reward,
     progress: q.progress,
+    unlocksQuestId: q.unlocksQuestId,
     minReputation: q.minReputation,
     completedAt: q.completedAt,
     expiresAt: q.expiresAt ?? undefined,
@@ -55,6 +56,9 @@ export async function POST(req: Request) {
     const description = String(body.description || "")
     const reward = body.reward ?? { xp: 0 }
     const expiresAt = body.expiresAt ? String(body.expiresAt) : null
+    const unlocksQuestId = typeof body.unlocksQuestId === "string" && body.unlocksQuestId.trim()
+      ? body.unlocksQuestId.trim()
+      : undefined
     const minReputation = body.minReputation !== undefined ? Number(body.minReputation) : undefined
     const assignedAgentIds = Array.isArray(body.assignedAgentIds)
       ? body.assignedAgentIds.map(String)
@@ -74,6 +78,7 @@ export async function POST(req: Request) {
       description,
       reward,
       expiresAt,
+      unlocksQuestId,
       minReputation,
       assignedAgentIds,
     })

@@ -6,9 +6,14 @@ import {
   listUnseenNotifications,
   resetNotificationStore,
 } from "@/lib/notifications/notification-store"
+import {
+  resetNotificationPreferences,
+  setNotificationPreferences,
+} from "@/lib/notifications/notification-preferences"
 
 afterEach(() => {
   resetNotificationStore()
+  resetNotificationPreferences()
 })
 
 describe("notification store", () => {
@@ -34,5 +39,63 @@ describe("notification store", () => {
     expect(notifications).toHaveLength(50)
     expect(notifications[0].title).toBe("Quest 59")
     expect(notifications.at(-1)?.title).toBe("Quest 10")
+  })
+
+  it("does not store a muted notification type", () => {
+    setNotificationPreferences("agent-muted", ["agent_offline"])
+
+    const notification = addNotification({
+      agentId: "agent-muted",
+      type: "agent_offline",
+      title: "Offline",
+      body: "Agent went offline",
+      resourceHref: "/agents/agent-muted",
+      resourceLabel: "Agent",
+    })
+
+    expect(notification).toBeNull()
+    expect(listUnseenNotifications("agent-muted")).toEqual([])
+  })
+
+  it("stores a notification type again after it is unmuted", () => {
+    setNotificationPreferences("agent-unmuted", ["agent_offline"])
+    setNotificationPreferences("agent-unmuted", [])
+
+    const notification = addNotification({
+      agentId: "agent-unmuted",
+      type: "agent_offline",
+      title: "Offline",
+      body: "Agent went offline",
+      resourceHref: "/agents/agent-unmuted",
+      resourceLabel: "Agent",
+    })
+
+    expect(notification?.type).toBe("agent_offline")
+    expect(listUnseenNotifications("agent-unmuted")).toHaveLength(1)
+  })
+
+  it("continues storing other types when one type is muted", () => {
+    setNotificationPreferences("agent-selective", ["agent_offline"])
+
+    addNotification({
+      agentId: "agent-selective",
+      type: "agent_offline",
+      title: "Offline",
+      body: "Agent went offline",
+      resourceHref: "/agents/agent-selective",
+      resourceLabel: "Agent",
+    })
+    addNotification({
+      agentId: "agent-selective",
+      type: "quest_completed",
+      title: "Quest complete",
+      body: "Agent completed a quest",
+      resourceHref: "/?quest=quest-1",
+      resourceLabel: "Quest",
+    })
+
+    expect(listUnseenNotifications("agent-selective").map((notification) => notification.type)).toEqual([
+      "quest_completed",
+    ])
   })
 })

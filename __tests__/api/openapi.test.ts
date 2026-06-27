@@ -32,13 +32,23 @@ function expectRateLimited(operation: OpenApiOperation) {
 }
 
 describe("GET /api/openapi.json", () => {
-  it("documents implemented notifications, quests, leaderboard, and rate-limit responses", async () => {
+  it("documents implemented agent task/rate-limit endpoints plus shared rate-limit responses", async () => {
     const spec = await loadSpec()
 
     expect(spec.openapi).toBe("3.1.0")
 
+    expect(spec.paths["/api/agents/{id}/task"]).toHaveProperty("get")
+    expect(spec.paths["/api/agents/{id}/task"]).toHaveProperty("post")
+    expectPathParam(spec.paths["/api/agents/{id}/task"].get, "id")
+    expectPathParam(spec.paths["/api/agents/{id}/task"].post, "id")
+
+    expect(spec.paths["/api/agents/{id}/rate-limit/status"]).toHaveProperty("get")
+    expectPathParam(spec.paths["/api/agents/{id}/rate-limit/status"].get, "id")
+
     expect(spec.paths["/api/notifications"]).toHaveProperty("get")
     expect(spec.paths["/api/notifications"]).toHaveProperty("post")
+    expect(spec.paths["/api/notifications/preferences"]).toHaveProperty("get")
+    expect(spec.paths["/api/notifications/preferences"]).toHaveProperty("patch")
 
     expect(spec.paths["/api/quests/{id}/subtasks"]).toHaveProperty("post")
     expectPathParam(spec.paths["/api/quests/{id}/subtasks"].post, "id")
@@ -47,13 +57,38 @@ describe("GET /api/openapi.json", () => {
     expectPathParam(spec.paths["/api/quests/{id}/subtasks/{subtaskId}"].patch, "id")
     expectPathParam(spec.paths["/api/quests/{id}/subtasks/{subtaskId}"].patch, "subtaskId")
 
+    expect(spec.paths["/api/quests/{id}/chain"]).toHaveProperty("get")
+    expectPathParam(spec.paths["/api/quests/{id}/chain"].get, "id")
+
     expect(spec.paths["/api/leaderboard"]).toHaveProperty("get")
 
+    for (const path of [
+      "/api/agents/{id}/dependencies",
+      "/api/agents/{id}/dependents",
+    ]) {
+      expect(spec.paths[path]).toHaveProperty("get")
+      expectPathParam(spec.paths[path].get, "id")
+      expect(spec.paths[path].get.parameters).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "flat", in: "query" }),
+          expect.objectContaining({ name: "maxDepth", in: "query" }),
+        ]),
+      )
+    }
+
     for (const operation of [
+      spec.paths["/api/agents/{id}/task"].get,
+      spec.paths["/api/agents/{id}/task"].post,
+      spec.paths["/api/agents/{id}/rate-limit/status"].get,
+      spec.paths["/api/agents/{id}/dependencies"].get,
+      spec.paths["/api/agents/{id}/dependents"].get,
       spec.paths["/api/notifications"].get,
       spec.paths["/api/notifications"].post,
+      spec.paths["/api/notifications/preferences"].get,
+      spec.paths["/api/notifications/preferences"].patch,
       spec.paths["/api/quests/{id}/subtasks"].post,
       spec.paths["/api/quests/{id}/subtasks/{subtaskId}"].patch,
+      spec.paths["/api/quests/{id}/chain"].get,
       spec.paths["/api/leaderboard"].get,
     ]) {
       expectRateLimited(operation)

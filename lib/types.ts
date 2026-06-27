@@ -95,3 +95,14 @@ export interface LogEntry {
   message: string
   type: "info" | "success" | "error" | "warning"
 }
+
+export interface AgentTask {
+  id: string
+  agentId: string
+  type: string
+  payload: unknown
+  status: "pending" | "running" | "completed" | "failed"
+  createdAt: number
+  startedAt?: number
+  completedAt?: number
+}

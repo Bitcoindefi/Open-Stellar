@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { NOTIFICATION_TYPES } from "@/lib/notifications/notification-store"
+
 const json = { "application/json": { schema: { type: "object" } } }
 const error = { description: "Error", content: json }
 const notFound = { description: "Not found", content: json }
@@ -31,7 +33,7 @@ const notificationSchema = {
     id: { type: "string" },
     cursor: { type: "string" },
     agentId: { type: "string" },
-    type: { type: "string", enum: ["agent_offline", "quest_completed", "reputation_updated"] },
+    type: { type: "string", enum: [...NOTIFICATION_TYPES] },
     title: { type: "string" },
     body: { type: "string" },
     resourceHref: { type: "string" },
@@ -87,12 +89,117 @@ const spec = {
     { name: "Agents" }, { name: "Protocol" }, { name: "Stellar" }, { name: "Events" }, { name: "Webhooks" }, { name: "Admin" }, { name: "User" }, { name: "Explorer" }, { name: "Prices" }, { name: "Notifications" }, { name: "Quests" }, { name: "Leaderboard" },
   ],
   paths: {
+    "/api/agents/{id}/task": {
+      get: op("Agents", "List task records for an agent", ["id"], undefined, {
+        responseSchema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean", enum: [true] },
+            tasks: { type: "array", items: { type: "object", additionalProperties: true } },
+          },
+          required: ["ok", "tasks"],
+        },
+      }),
+      post: op("Agents", "Execute a task for an agent", ["id"], { title: "Inspect feed", payload: { scope: "latest" } }, {
+        successStatus: 201,
+        responseSchema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean", enum: [true] },
+            result: { type: "object", additionalProperties: true },
+          },
+          required: ["ok", "result"],
+        },
+      }),
+    },
+    "/api/agents/{id}/rate-limit/status": {
+      get: op("Agents", "Read rate limit usage for an agent", ["id"], undefined, {
+        responseSchema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean", enum: [true] },
+            agentId: { type: "string" },
+            status: {
+              type: "object",
+              properties: {
+                requestsInWindow: { type: "integer", minimum: 0 },
+                limit: { type: "integer", minimum: 1 },
+                windowMs: { type: "integer", minimum: 1 },
+                resetsAt: { type: "string", format: "date-time" },
+                rateLimitHits: { type: "integer", minimum: 0 },
+              },
+              required: ["requestsInWindow", "limit", "windowMs", "resetsAt", "rateLimitHits"],
+            },
+          },
+          required: ["ok", "agentId", "status"],
+        },
+      }),
+    },
     "/api/agents/{id}/messages": { post: op("Agents", "Send a message to an agent", ["id"], { role: "user", content: "Hello" }) },
     "/api/agents/{id}/health": { get: op("Agents", "Read agent health", ["id"]) },
     "/api/agents/{id}/heartbeat": { post: op("Agents", "Record agent heartbeat", ["id"], { status: "active", load: 0.2 }) },
+    "/api/agents/{id}/dependencies": {
+      get: op("Agents", "Read an agent dependency graph", ["id"], undefined, {
+        query: [
+          queryParam("flat", { type: "boolean" }),
+          queryParam("maxDepth", { type: "integer", minimum: 0, maximum: 10 }),
+        ],
+        responseSchema: {
+          type: "object",
+          properties: {
+            agentId: { type: "string" },
+            dependencies: { type: "array" },
+            totalCount: { type: "integer" },
+            maxDepth: { type: "integer" },
+          },
+          required: ["agentId", "dependencies"],
+        },
+        responses: { 404: notFound },
+      }),
+    },
+    "/api/agents/{id}/dependents": {
+      get: op("Agents", "Read an agent dependent graph", ["id"], undefined, {
+        query: [
+          queryParam("flat", { type: "boolean" }),
+          queryParam("maxDepth", { type: "integer", minimum: 0, maximum: 10 }),
+        ],
+        responseSchema: {
+          type: "object",
+          properties: {
+            agentId: { type: "string" },
+            dependents: { type: "array" },
+            totalCount: { type: "integer" },
+            maxDepth: { type: "integer" },
+          },
+          required: ["agentId", "dependents"],
+        },
+        responses: { 404: notFound },
+      }),
+    },
     "/api/agents/{id}/appearance": { get: op("Agents", "Read agent appearance", ["id"]), post: op("Agents", "Update agent appearance", ["id"], { skin: "default", accessories: [] }) },
     "/api/agents/{id}/credential": { post: op("Agents", "Issue a reputation credential", ["id"], { contractId: "optional-soroban-contract-id" }) },
     "/api/agents/{id}/credential/latest": { get: op("Agents", "Read latest reputation credential", ["id"]) },
+    "/api/agents/{id}/webhooks/failures": {
+      get: op("Agents", "List dead webhook deliveries for an agent", ["id"], undefined, {
+        responseSchema: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              webhookId: { type: "string" },
+              payload: { type: "object" },
+              attempts: { type: "integer" },
+              nextRetryAt: { type: "integer" },
+              lastError: { type: "string" },
+              createdAt: { type: "integer" },
+              status: { type: "string", enum: ["dead"] },
+            },
+            required: ["id", "webhookId", "payload", "attempts", "nextRetryAt", "createdAt", "status"],
+          },
+        },
+      }),
+    },
     "/api/protocol/x402/quote": { get: op("Protocol", "Create an x402 payment quote"), post: op("Protocol", "Create an x402 payment quote", [], { serviceId: "weather.v1", amount: "0.25", payer: "agent-nexus" }) },
     "/api/protocol/x402/settle": { post: op("Protocol", "Settle an x402 payment", [], { quoteId: "quote_123", paymentSource: "stellar:testnet" }) },
     "/api/protocol/passport/authorize": { post: op("Protocol", "Authorize a spend with ZK Passport", [], { agentId: "agent-nexus", amount: "0.25", quoteId: "quote_123" }) },
@@ -109,6 +216,21 @@ const spec = {
     "/api/webhooks/{id}": { delete: op("Webhooks", "Delete a webhook registration", ["id"]) },
     "/api/webhooks/{id}/rotate": { post: op("Webhooks", "Rotate a webhook signing secret", ["id"]) },
     "/api/webhooks/event-types": { get: op("Webhooks", "List supported webhook event types") },
+    "/api/cron/webhook-retry": {
+      post: op("Webhooks", "Retry due webhook deliveries", [], undefined, {
+        responseSchema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean", enum: [true] },
+            processed: { type: "integer" },
+            succeeded: { type: "integer" },
+            failed: { type: "integer" },
+            dead: { type: "integer" },
+          },
+          required: ["ok", "processed", "succeeded", "failed", "dead"],
+        },
+      }),
+    },
     "/api/feed": { get: op("Events", "List public activity feed") },
     "/api/districts/{districtId}/broadcast": { post: op("Events", "Broadcast a district event", ["districtId"], { message: "Throughput race started" }) },
     "/api/explorer/receipts": { get: op("Explorer", "List payment receipts") },
@@ -146,6 +268,44 @@ const spec = {
             unreadCount: { type: "integer" },
           },
           required: ["ok", "agentId", "markedRead", "unreadCount"],
+        },
+      }),
+    },
+    "/api/notifications/preferences": {
+      get: op("Notifications", "Read notification preferences", [], undefined, {
+        query: [queryParam("agentId", { type: "string" }, true)],
+        responseSchema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean", enum: [true] },
+            agentId: { type: "string" },
+            muted: { type: "array", items: { type: "string", enum: [...NOTIFICATION_TYPES] } },
+            updatedAt: { type: "string", format: "date-time" },
+          },
+          required: ["ok", "agentId", "muted", "updatedAt"],
+        },
+      }),
+      patch: op("Notifications", "Update notification preferences", [], {
+        agentId: "agent-nexus",
+        muted: ["agent_offline"],
+      }, {
+        requestBodySchema: {
+          type: "object",
+          properties: {
+            agentId: { type: "string" },
+            muted: { type: "array", items: { type: "string", enum: [...NOTIFICATION_TYPES] } },
+          },
+          required: ["agentId", "muted"],
+        },
+        responseSchema: {
+          type: "object",
+          properties: {
+            ok: { type: "boolean", enum: [true] },
+            agentId: { type: "string" },
+            muted: { type: "array", items: { type: "string", enum: [...NOTIFICATION_TYPES] } },
+            updatedAt: { type: "string", format: "date-time" },
+          },
+          required: ["ok", "agentId", "muted", "updatedAt"],
         },
       }),
     },
@@ -209,6 +369,19 @@ const spec = {
             },
           },
         },
+      }),
+    },
+    "/api/quests/{id}/chain": {
+      get: op("Quests", "Read the forward quest chain", ["id"], undefined, {
+        responseSchema: {
+          type: "object",
+          properties: {
+            chain: { type: "array", items: { type: "string" } },
+            length: { type: "integer", minimum: 1 },
+          },
+          required: ["chain", "length"],
+        },
+        responses: { 404: notFound },
       }),
     },
     "/api/leaderboard": {
