@@ -75,7 +75,6 @@ export interface MoltbotAgent {
   offlineForSeconds?: number
   wallet?: StellarWallet
   appearance: AgentAppearance
-  tags?: string[]
 }
 
 export interface District {
