@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import http from 'node:http'
+import { randomInt } from 'node:crypto'
 
 const args = process.argv.slice(2)
 const [scope, command] = args
@@ -46,7 +47,7 @@ async function startAgent() {
     try {
       await fetch(`${baseUrl}/api/agents/${encodeURIComponent(agentId)}/heartbeat`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ status: 'active', cpu: 5 + Math.round(Math.random() * 20), memory: 24, currentTask: 'Awaiting tasks', autoRestart: true }),
+        body: JSON.stringify({ status: 'active', cpu: 5 + randomInt(21), memory: 24, currentTask: 'Awaiting tasks', autoRestart: true }),
       })
     } catch (error) {
       console.error(`heartbeat failed: ${error.message}`)
@@ -60,5 +61,12 @@ async function startAgent() {
     process.exit(0)
   })
 }
-if (scope === 'agent' && command === 'start') startAgent().catch((e) => { console.error(e.message); process.exit(1) })
+if (scope === 'agent' && command === 'start') {
+  try {
+    await startAgent()
+  } catch (e) {
+    console.error(e.message)
+    process.exit(1)
+  }
+}
 else { usage(); process.exit(scope ? 1 : 0) }

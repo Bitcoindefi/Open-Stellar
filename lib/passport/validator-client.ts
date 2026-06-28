@@ -26,8 +26,9 @@ export * as contract from "@stellar/stellar-sdk/contract";
 export * as rpc from "@stellar/stellar-sdk/rpc";
 
 if (typeof window !== "undefined") {
-  //@ts-ignore Buffer exists
-  window.Buffer = window.Buffer || Buffer;
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore Buffer exists
+  (window as any).Buffer = (window as any).Buffer || Buffer;
 }
 
 
@@ -89,6 +90,7 @@ export interface Groth16Proof {
   c: Buffer;
 }
 
+/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 export interface Client {
   /**
    * Construct and simulate a init transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
