@@ -18,3 +18,6 @@ node_modules
 
 # Local file-backed stores
 .data/
+
+# Build artifacts
+tsconfig.tsbuildinfo
