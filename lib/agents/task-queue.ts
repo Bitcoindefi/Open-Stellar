@@ -1,7 +1,7 @@
 import type { AgentTask } from "@/lib/types"
 
 export const TASK_TIMEOUT_MS = 5 * 60 * 1000
-export const MAX_PENDING_PER_AGENT = 100
+export const MAX_PENDING_PER_AGENT = 500
 
 export type TaskStatus = AgentTask["status"]
 

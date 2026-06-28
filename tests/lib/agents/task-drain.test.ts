@@ -209,12 +209,12 @@ describe("task-queue drain and purge", () => {
       expect(purged).toBe(0)
     })
 
-    it("does not purge running tasks", () => {
+    it("does not purge running tasks", async () => {
       createTask("agent-1", { type: "a", payload: {} })
       createTask("agent-1", { type: "b", payload: {} })
 
       // Start processing first task (it will be running)
-      const { result } = drainAgentTasks("agent-1", {
+      const { result } = await drainAgentTasks("agent-1", {
         maxItems: 1,
         processor: async (task) => {
           // First task is now running, then completed
