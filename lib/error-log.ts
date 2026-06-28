@@ -54,7 +54,7 @@ export function appendErrorLog(
   entry: Omit<ErrorLogEntry, "id" | "createdAt">,
 ): ErrorLogEntry {
   const nextEntry: ErrorLogEntry = {
-    id: `err_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `err_${crypto.randomUUID()}`,
     createdAt: new Date().toISOString(),
     ...entry,
   };

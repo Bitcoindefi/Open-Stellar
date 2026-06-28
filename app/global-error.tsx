@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportClientError } from "@/lib/client-error-reporting";
 
 type GlobalErrorProps = {
   error: Error & { digest?: string };
   reset: () => void;
 };
 
-export default function GlobalError({ error, reset }: GlobalErrorProps) {
+export default function GlobalError({
+  error,
+  reset,
+}: Readonly<GlobalErrorProps>) {
   const isDev = process.env.NODE_ENV !== "production";
 
   useEffect(() => {
@@ -16,19 +20,9 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
       return;
     }
 
-    void fetch("/api/errors/report", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        source: "global",
-        route: window.location.pathname,
-        message: error.message,
-        stack: error.stack,
-        digest: error.digest,
-      }),
-    }).catch(() => {});
+    void reportClientError("global", globalThis.location.pathname, error).catch(
+      () => {},
+    );
   }, [error, isDev]);
 
   return (
@@ -164,7 +158,7 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
 
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => globalThis.location.reload()}
               style={{
                 borderRadius: 999,
                 border: "1px solid rgba(148,163,184,0.35)",
