@@ -15,6 +15,7 @@ node_modules
 .next/
 .DS_Store
 .vercel
+*.tsbuildinfo
 
 # Local file-backed stores
 .data/
