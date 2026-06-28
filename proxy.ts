@@ -15,7 +15,7 @@ function getClientIp(req: NextRequest): string {
   )
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname
   const ip = getClientIp(req)
 
