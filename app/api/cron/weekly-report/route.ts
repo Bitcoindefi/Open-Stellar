@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server"
 import { createUnsubscribeUrl, emails, getEmailPreferences } from "@/lib/email/resend"
-
-function isCronAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return true
-  return req.headers.get("authorization") === `Bearer ${secret}`
-}
+import { isCronAuthorized } from "@/lib/auth"
 
 function operatorEmails(): string[] {
   return (process.env.OPERATOR_EMAILS || process.env.OPERATOR_EMAIL || "")

@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server"
-import { runPassportExpiryCheck, listPassportExpiryEvents } from "@/lib/passport/passport-store"
+import { runPassportExpiryCheck } from "@/lib/passport/passport-store"
 import { createApiRouteLogger } from "@/lib/api-logging"
-
-function isCronAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return true
-  return req.headers.get("authorization") === `Bearer ${secret}`
-}
+import { isCronAuthorized } from "@/lib/auth"
 
 export async function GET(req: Request) {
   const api = createApiRouteLogger(req, "/api/cron/passport-expiry")

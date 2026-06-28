@@ -21,3 +21,12 @@ export function isAuthorized(req: Request): boolean {
   const bearerToken = authHeader.substring(7)
   return bearerToken === token
 }
+
+/**
+ * Authorization utility for cron jobs.
+ */
+export function isCronAuthorized(req: Request): boolean {
+  const secret = process.env.CRON_SECRET
+  if (!secret) return true
+  return req.headers.get("authorization") === `Bearer ${secret}`
+}

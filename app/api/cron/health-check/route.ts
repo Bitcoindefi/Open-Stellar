@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server"
 import { listAgentHealth, listAgentHealthEvents, runAgentHealthCheck } from "@/lib/agents/agent-health-store"
-
-function isCronAuthorized(req: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return true
-  return req.headers.get("authorization") === `Bearer ${secret}`
-}
+import { isCronAuthorized } from "@/lib/auth"
 
 export async function GET(req: Request) {
   if (!isCronAuthorized(req)) {
