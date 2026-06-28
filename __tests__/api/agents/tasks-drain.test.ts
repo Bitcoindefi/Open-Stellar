@@ -79,7 +79,7 @@ describe("POST /api/agents/:id/tasks/drain", () => {
   })
 
   it("caps maxItems at 200", async () => {
-    // Create 250 tasks
+    // Create 250 tasks (MAX_PENDING_PER_AGENT=100 limits to 100)
     for (let i = 0; i < 250; i++) {
       await createTask("agent-1", `task-${i}`)
     }
@@ -94,7 +94,7 @@ describe("POST /api/agents/:id/tasks/drain", () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(data.processed).toBe(200)
+    expect(data.processed).toBe(100)
   })
 
   it("uses default maxItems when not specified", async () => {

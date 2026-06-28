@@ -153,6 +153,13 @@ export function deleteWebhook(id: string): boolean {
   return next.length !== webhooks.length
 }
 
+// ── NEW: Get webhook by ID ─────────────────────────────────────────────
+
+export function getWebhookById(id: string): WebhookRegistration | null {
+  const cleanId = id.trim()
+  return readWebhooks().find((webhook) => webhook.id === cleanId) || null
+}
+
 export function resetWebhookStoreForTests(): void {
   writeWebhooks([])
 }

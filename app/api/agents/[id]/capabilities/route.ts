@@ -12,22 +12,32 @@ interface RouteContext {
 export async function GET(req: Request, context: RouteContext) {
   const { id } = await context.params
   const agentId = decodeURIComponent(id)
-  
+
   const agent = getRegisteredAgent(agentId)
   if (!agent) {
     return NextResponse.json({ ok: false, error: "agent not found" }, { status: 404 })
   }
-  
+
   const reputation = getReputation(agentId)
   const stats = getAgentQuestStats(agentId)
-  
+
+  // Map capabilities to skills with actual registered versions
+  const skillVersions = agent.skillVersions ?? []
+  const skills = agent.capabilities.map((cap) => {
+    const skillVersion = skillVersions.find((sv) => sv.id === cap)
+    return {
+      id: cap,
+      version: skillVersion?.version ?? "1.0.0",
+    }
+  })
+
   return NextResponse.json({
     agentId,
-    skills: agent.capabilities.map(cap => ({ id: cap, version: "1.0.0" })),
+    skills,
     districts: [{ districtId: agent.district, unlockedAt: agent.registeredAt }],
     badges: (reputation.metrics?.badges ?? []).map((b: { id: string; awardedAt: string }) => ({ id: b.id, awardedAt: b.awardedAt })),
     xp: stats.xpFromQuests,
-    questsCompleted: stats.questsCompleted
+    questsCompleted: stats.questsCompleted,
   })
 }
 

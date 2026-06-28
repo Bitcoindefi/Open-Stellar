@@ -19,12 +19,16 @@ describe("GET /api/agents/:id/capabilities", () => {
     expect(json.ok).toBe(false)
   })
 
-  it("returns full agent capabilities", async () => {
+  it("returns full agent capabilities with actual registered versions", async () => {
     const agent = registerAgent({
       agentId: "bot-full",
       model: "test-model",
       district: "data-center",
-      capabilities: ["translate"],
+      capabilities: ["translate", "summarize"],
+      skillVersions: [
+        { id: "translate", version: "2.1.0" },
+        { id: "summarize", version: "3.0.0", minCallerVersion: ">=2.0.0" },
+      ],
       status: "active",
       endpoint: "http://test",
       x402: { accepts: true }
@@ -43,12 +47,34 @@ describe("GET /api/agents/:id/capabilities", () => {
     const json = await res.json()
     expect(json).toEqual({
       agentId: "bot-full",
-      skills: [{ id: "translate", version: "1.0.0" }],
+      skills: [
+        { id: "translate", version: "2.1.0" },
+        { id: "summarize", version: "3.0.0" },
+      ],
       districts: [{ districtId: "data-center", unlockedAt: agent.registeredAt }],
       badges: [{ id: "badge-speed", awardedAt: "2026-06-25T08:00:00Z" }],
       xp: 1250,
       questsCompleted: 8
     })
+  })
+
+  it("returns default version 1.0.0 for skills without explicit version", async () => {
+    registerAgent({
+      agentId: "bot-default",
+      model: "test-model",
+      district: "data-center",
+      capabilities: ["translate"],
+      status: "active",
+      endpoint: "http://test",
+      x402: { accepts: true }
+    })
+
+    const req = new Request("http://localhost/api/agents/bot-default/capabilities")
+    const res = await GET(req, { params: Promise.resolve({ id: "bot-default" }) })
+    expect(res.status).toBe(200)
+
+    const json = await res.json()
+    expect(json.skills).toEqual([{ id: "translate", version: "1.0.0" }])
   })
 
   it("returns empty arrays for agent with no skills/badges", async () => {

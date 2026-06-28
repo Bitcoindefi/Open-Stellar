@@ -6,11 +6,18 @@ export interface AgentX402Manifest {
   pricePerTask?: string
 }
 
+export interface SkillRegistration {
+  id: string
+  version?: string
+  minCallerVersion?: string
+}
+
 export interface AgentCapabilityManifest {
   agentId: string
   model: string
   district: DistrictId
   capabilities: string[]
+  skillVersions?: SkillRegistration[]
   dependencies?: string[]
   x402: AgentX402Manifest
   status: AgentStatus
@@ -39,7 +46,7 @@ const globalState = globalThis as typeof globalThis & {
 }
 
 const registry: AgentRegistryState = globalState.__openStellarAgentRegistry__ ?? {
-  agents: new Map<string, AgentCapabilityManifest>(),
+  agents: new Map(),
 }
 
 if (!globalState.__openStellarAgentRegistry__) {
@@ -80,6 +87,25 @@ function normalizeCapabilities(value: unknown): string[] {
 
   const capabilities = value.map((capability, index) => normalizeString(capability, `capabilities[${index}]`))
   return Array.from(new Set(capabilities))
+}
+
+function normalizeSkillVersions(value: unknown): SkillRegistration[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) {
+    throw new Error("skillVersions must be an array")
+  }
+
+  const versions = value.map((item, index) => {
+    if (!isRecord(item)) {
+      throw new Error(`skillVersions[${index}] must be an object`)
+    }
+    const id = normalizeString(item.id, `skillVersions[${index}].id`)
+    const version = item.version === undefined ? "1.0.0" : normalizeString(item.version, `skillVersions[${index}].version`)
+    const minCallerVersion = item.minCallerVersion === undefined ? undefined : normalizeString(item.minCallerVersion, `skillVersions[${index}].minCallerVersion`)
+    return { id, version, minCallerVersion }
+  })
+
+  return versions
 }
 
 function normalizeDependencies(value: unknown): string[] | undefined {
@@ -181,6 +207,7 @@ export function registerAgent(input: unknown): AgentCapabilityManifest {
     model: normalizeString(input.model, "model"),
     district: normalizeDistrict(input.district),
     capabilities: normalizeCapabilities(input.capabilities),
+    ...(normalizeSkillVersions(input.skillVersions) === undefined ? {} : { skillVersions: normalizeSkillVersions(input.skillVersions) }),
     ...(dependencies === undefined ? {} : { dependencies }),
     x402: normalizeX402(input.x402),
     status: normalizeStatus(input.status),
@@ -207,6 +234,7 @@ export function updateAgentCapabilities(agentId: string, input: unknown): AgentC
   const updated: AgentCapabilityManifest = {
     ...existing,
     capabilities: normalizeCapabilities(input.capabilities),
+    ...(normalizeSkillVersions(input.skillVersions) === undefined ? {} : { skillVersions: normalizeSkillVersions(input.skillVersions) }),
     updatedAt: new Date().toISOString(),
   }
 
