@@ -27,4 +27,5 @@ export interface Agent {
   status: 'idle' | 'moving' | 'working'
   assignedTask?: Task
   targetBuilding?: Building
+  tags?: string[]
 }

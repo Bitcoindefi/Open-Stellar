@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.env*
+README.md
+__tests__
+Dockerfile
+.dockerignore
+vercel.json
+vitest.config.ts

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import {
   createTask,
   drainAgentTasks,
@@ -11,6 +11,10 @@ import {
 describe("task-queue drain and purge", () => {
   beforeEach(() => {
     resetTaskQueue()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   describe("drainAgentTasks", () => {
@@ -173,11 +177,16 @@ describe("task-queue drain and purge", () => {
     it("records accurate durationMs", async () => {
       createTask("agent-1", { type: "task", payload: {} })
 
-      const { result } = await drainAgentTasks("agent-1", {
+      vi.useFakeTimers()
+
+      const drainPromise = drainAgentTasks("agent-1", {
         processor: async () => {
           await new Promise((r) => setTimeout(r, 10))
         },
       })
+
+      await vi.advanceTimersByTimeAsync(10)
+      const { result } = await drainPromise
 
       expect(result).not.toBeNull()
       expect(result!.durationMs).toBeGreaterThanOrEqual(10)

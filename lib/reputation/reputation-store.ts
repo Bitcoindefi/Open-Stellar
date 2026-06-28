@@ -3,7 +3,7 @@ import { addNotification } from '@/lib/notifications/notification-store'
 import { getAgentUptime } from '@/lib/agents/agent-uptime-store'
 
 export type ReputationTier = 'unrated' | 'bronze' | 'silver' | 'gold' | 'platinum'
-export type ReputationBadgeRarity = 'common' | 'rare' | 'epic' | 'legendary'
+export type ReputationBadgeRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
 
 export interface ReputationBadge {
   id: string
@@ -34,6 +34,7 @@ type PersistableState = Record<string, ReputationSnapshot>
 const MAX_REPUTATION_SCORE = 1000
 const BADGE_POINTS: Record<ReputationBadgeRarity, number> = {
   common: 5,
+  uncommon: 10,
   rare: 20,
   epic: 50,
   legendary: 100,
@@ -179,4 +180,9 @@ export function listReputations(limit = 50): ReputationSnapshot[] {
     .map((entry) => snapshot(entry.actorId, entry.metrics, entry.updatedAt))
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
+}
+
+export function resetReputationStoreForTests(): void {
+  db.clear()
+  globalDb.__openStellarReputationStorage__ = {}
 }
