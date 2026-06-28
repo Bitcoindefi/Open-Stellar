@@ -459,15 +459,54 @@ export function PixelCity({
     drawRoads(ctx, districts)
 
     for (const d of districts) {
-      drawDistrict(ctx, d, tick, images[d.id], colorBlindMode)
+      const standing = districtStandings.find((s) => s.districtId === d.id)
+      drawDistrict(
+        ctx,
+        d,
+        tick,
+        images[d.id],
+        colorBlindMode,
+        standing
+          ? {
+              scoreLabel: standing.formattedScore,
+              rank: standing.rank,
+              multiplier: standing.multiplier,
+              isLeading: standing.rank === 1,
+            }
+          : null,
+      )
     }
+
+    // Re-derive leaderboard enrichment so the renderer can draw top-3 crowns
+    // and per-district leader rings (regressed out by PR #206, restored here).
+    const topGlobalRanks = new Map(
+      [...agents]
+        .sort((a, b) => b.tasksCompleted - a.tasksCompleted)
+        .slice(0, 3)
+        .map((a, i) => [a.id, i + 1] as const),
+    )
+    const districtLeaderIds = new Set(
+      districts
+        .map(
+          (dist) =>
+            [...agents]
+              .filter((a) => a.district === dist.id)
+              .sort((a, b) => b.tasksCompleted - a.tasksCompleted)[0]?.id,
+        )
+        .filter(Boolean),
+    )
 
     const sorted = [...agents].sort((a, b) => a.pixelY - b.pixelY)
     for (const agent of sorted) {
       const spriteIdx = agent.spriteId % sprites.length
       const agentSprite = sprites[spriteIdx] || sprites[0]
       const crop = spriteCrops.current[agent.spriteId % SPRITE_CONFIGS.length]
-      drawBot(ctx, agent, tick, agent.id === selectedAgentId, agentSprite, crop, colorBlindMode)
+      const enriched = {
+        ...agent,
+        leaderboardRank: topGlobalRanks.get(agent.id),
+        isDistrictLeader: districtLeaderIds.has(agent.id),
+      }
+      drawBot(ctx, enriched, tick, agent.id === selectedAgentId, agentSprite, crop, colorBlindMode)
     }
 
     if (!reduceMotion) {

@@ -8,7 +8,6 @@ import {
   XP_AWARDS,
 } from "@/lib/gamification/constants"
 import { getSkillUpgradeCost } from "@/lib/gamification/skill-upgrades"
-import { questStoreData, persistQuestStore } from "./quest-store"
 
 export type XPAwardReason =
   | "task.completed"
@@ -52,11 +51,6 @@ const globalXp = globalThis as typeof globalThis & {
 const agentXpDb: AgentXPDb = globalXp.__openStellarAgentXpDb__ ?? new Map()
 if (!globalXp.__openStellarAgentXpDb__) {
   globalXp.__openStellarAgentXpDb__ = agentXpDb
-  if (questStoreData && questStoreData.agentXp) {
-    for (const [agentId, record] of Object.entries(questStoreData.agentXp)) {
-      agentXpDb.set(agentId, record)
-    }
-  }
 }
 
 export function getXpToNextLevel(level: number): number {
@@ -94,9 +88,6 @@ export function awardXP(agentId: string, amount: number, reason: XPAwardReason):
   const levelState = checkLevelUp(xp, previous.level)
   const next: AgentXPRecord = { agentId, xp, level: levelState.level }
   agentXpDb.set(agentId, next)
-
-  questStoreData.agentXp[agentId] = next
-  persistQuestStore()
 
   const result: XPAwardResult = {
     ...next,
