@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
+import { useSearchParams } from 'next/navigation'
 import type { Agent, Task, Building } from '@/lib/map-types'
 import { sampleBuildings, defaultSpawnPoint } from '@/lib/map-data'
 import TaskPanel from './TaskPanel'
+import { clusterPositions } from '@/lib/agents/position-cluster'
 
 // Leaflet must be loaded client-side only (no SSR)
 const LeafletMap = dynamic(() => import('./LeafletMap'), { ssr: false })
@@ -13,6 +15,8 @@ let nextAgentId = 1
 let nextTaskId = 1
 
 export default function AgentsMap() {
+  const searchParams = useSearchParams()
+  const isCluster = searchParams.get('cluster') === 'true'
   const [agents, setAgents] = useState<Agent[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const buildings: Building[] = sampleBuildings
@@ -92,10 +96,25 @@ export default function AgentsMap() {
     }
   }, [])
 
+  const clusteredPositions = useMemo(() => {
+    if (!isCluster) return []
+    return clusterPositions(agents.map(a => ({
+      agentId: a.id,
+      lat: a.position.lat,
+      lng: a.position.lng
+    })), 5)
+  }, [agents, isCluster])
+
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       <div className="flex-1 min-w-0">
-        <LeafletMap buildings={buildings} agents={agents} onTaskSelect={handleTaskSelect} />
+        <LeafletMap 
+          buildings={buildings} 
+          agents={agents} 
+          onTaskSelect={handleTaskSelect}
+          cluster={isCluster}
+          clusteredPositions={clusteredPositions}
+        />
       </div>
       <TaskPanel
         agents={agents}
