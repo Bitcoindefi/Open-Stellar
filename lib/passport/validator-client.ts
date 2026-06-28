@@ -25,10 +25,10 @@ export * from "@stellar/stellar-sdk";
 export * as contract from "@stellar/stellar-sdk/contract";
 export * as rpc from "@stellar/stellar-sdk/rpc";
 
-if (typeof window !== "undefined") {
+if (typeof globalThis !== "undefined") {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore Buffer exists
-  (window as any).Buffer = (window as any).Buffer || Buffer;
+  (globalThis as any).Buffer = (globalThis as any).Buffer || Buffer;
 }
 
 

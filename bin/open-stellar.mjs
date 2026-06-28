@@ -50,7 +50,8 @@ async function startAgent() {
         body: JSON.stringify({ status: 'active', cpu: 5 + randomInt(21), memory: 24, currentTask: 'Awaiting tasks', autoRestart: true }),
       })
     } catch (error) {
-      console.error(`heartbeat failed: ${error.message}`)
+      const message = (error.message || '').replace(/[\r\n]/g, '');
+      console.error(`heartbeat failed: ${message}`)
     }
   }
   await heartbeat()
@@ -65,7 +66,8 @@ if (scope === 'agent' && command === 'start') {
   try {
     await startAgent()
   } catch (e) {
-    console.error(e.message)
+    const message = (e.message || '').replace(/[\r\n]/g, '');
+    console.error(message)
     process.exit(1)
   }
 }
