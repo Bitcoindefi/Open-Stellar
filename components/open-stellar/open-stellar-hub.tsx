@@ -587,6 +587,11 @@ export function OpenStellarHub() {
       pushLog(`status changed: ${event.status}`, "info", event.agentId)
       return
     }
+
+    if (event.type === "agent.registry") {
+      pushLog(`registry ${event.action}: ${event.agent.agentId}`, "info", event.agentId)
+      return
+    }
   }, [animateAgentToDistrict, audioEngine, pushLog, showAgentOverlay, spawnParticles])
 
   useEffect(() => {
@@ -599,6 +604,7 @@ export function OpenStellarHub() {
       "agent.xp",
       "badge.unlocked",
       "district.unlocked",
+      "agent.registry",
     ]
 
     const handleEvent = (message: MessageEvent) => {
