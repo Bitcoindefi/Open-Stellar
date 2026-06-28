@@ -1,89 +1,156 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 import { GET } from "@/app/api/agents/[id]/xp/history/route"
 import {
-  resetXpDecayStore,
-  recordXpEarnedEvent,
+  getAgentXpHistory,
   recordXpDecayEvent,
+  recordXpEarnedEvent,
+  resetXpDecayStore,
 } from "@/lib/agents/xp-decay"
 
-describe("GET /api/agents/:id/xp/history", () => {
+function context(id: string) {
+  return { params: Promise.resolve({ id }) }
+}
+
+describe("GET /api/agents/[id]/xp/history", () => {
   beforeEach(() => {
     resetXpDecayStore()
   })
 
-  it("returns empty events for unknown agent", async () => {
-    const req = new Request("http://localhost/api/agents/unknown/xp/history")
-    const res = await GET(req, { params: Promise.resolve({ id: "unknown" }) })
-    expect(res.status).toBe(200)
+  it("returns paginated events newest-first", async () => {
+    recordXpEarnedEvent("bot-1", 10, "task_completed", "2026-06-01T10:00:00.000Z")
+    recordXpEarnedEvent("bot-1", 50, "quest_completed", "2026-06-02T10:00:00.000Z")
+    recordXpDecayEvent("bot-1", -25, "xp_decayed", "2026-06-03T10:00:00.000Z")
 
-    const json = await res.json()
-    expect(json.agentId).toBe("unknown")
-    expect(json.events).toEqual([])
+    const res = await GET(
+      new Request("http://localhost/api/agents/bot-1/xp/history?page=1&pageSize=2"),
+      context("bot-1"),
+    )
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data).toMatchObject({
+      agentId: "bot-1",
+      totalXp: 35,
+      page: 1,
+      pageSize: 2,
+      total: 3,
+    })
+    expect(data.events).toEqual([
+      {
+        type: "decayed",
+        delta: -25,
+        reason: "xp_decayed",
+        timestamp: "2026-06-03T10:00:00.000Z",
+      },
+      {
+        type: "earned",
+        delta: 50,
+        reason: "quest_completed",
+        timestamp: "2026-06-02T10:00:00.000Z",
+      },
+    ])
   })
 
-  it("returns chronological list of XP events", async () => {
-    recordXpEarnedEvent("agent-1", 100, "task_completed", "2026-06-01T10:00:00Z")
-    recordXpEarnedEvent("agent-1", 50, "quest_completed", "2026-06-05T12:00:00Z")
-    recordXpDecayEvent("agent-1", -30, "xp_decayed", "2026-06-15T00:00:00Z")
+  it("filters by type", async () => {
+    recordXpEarnedEvent("bot-1", 100, "quest_completed", "2026-06-01T10:00:00.000Z")
+    recordXpDecayEvent("bot-1", -20, "xp_decayed", "2026-06-02T10:00:00.000Z")
 
-    const req = new Request("http://localhost/api/agents/agent-1/xp/history")
-    const res = await GET(req, { params: Promise.resolve({ id: "agent-1" }) })
+    const res = await GET(
+      new Request("http://localhost/api/agents/bot-1/xp/history?type=earned"),
+      context("bot-1"),
+    )
+    const data = await res.json()
+
     expect(res.status).toBe(200)
+    expect(data.totalXp).toBe(80)
+    expect(data.total).toBe(1)
+    expect(data.events).toEqual([
+      {
+        type: "earned",
+        delta: 100,
+        reason: "quest_completed",
+        timestamp: "2026-06-01T10:00:00.000Z",
+      },
+    ])
+  })
 
-    const json = await res.json()
-    expect(json.agentId).toBe("agent-1")
-    expect(json.events).toHaveLength(3)
+  it("filters by date range using YYYY-MM-DD params", async () => {
+    recordXpEarnedEvent("bot-1", 10, "task_completed", "2025-12-31T23:59:59.999Z")
+    recordXpEarnedEvent("bot-1", 100, "quest_completed", "2026-01-01T12:00:00.000Z")
+    recordXpDecayEvent("bot-1", -50, "xp_decayed", "2026-06-30T08:30:00.000Z")
+    recordXpEarnedEvent("bot-1", 25, "payment_received", "2026-07-01T00:00:00.000Z")
 
-    expect(json.events[0]).toEqual({
-      type: "earned",
-      delta: 100,
-      reason: "task_completed",
-      timestamp: "2026-06-01T10:00:00Z",
-    })
+    const res = await GET(
+      new Request("http://localhost/api/agents/bot-1/xp/history?from=2026-01-01&to=2026-06-30&pageSize=20"),
+      context("bot-1"),
+    )
+    const data = await res.json()
 
-    expect(json.events[1]).toEqual({
-      type: "earned",
-      delta: 50,
-      reason: "quest_completed",
-      timestamp: "2026-06-05T12:00:00Z",
-    })
+    expect(res.status).toBe(200)
+    expect(data.totalXp).toBe(85)
+    expect(data.total).toBe(2)
+    expect(data.events).toEqual([
+      {
+        type: "decayed",
+        delta: -50,
+        reason: "xp_decayed",
+        timestamp: "2026-06-30T08:30:00.000Z",
+      },
+      {
+        type: "earned",
+        delta: 100,
+        reason: "quest_completed",
+        timestamp: "2026-01-01T12:00:00.000Z",
+      },
+    ])
+  })
 
-    expect(json.events[2]).toEqual({
-      type: "decayed",
-      delta: -30,
-      reason: "xp_decayed",
-      timestamp: "2026-06-15T00:00:00Z",
+  it("returns 400 when pageSize exceeds 100", async () => {
+    const res = await GET(
+      new Request("http://localhost/api/agents/bot-1/xp/history?pageSize=101"),
+      context("bot-1"),
+    )
+    const data = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(data.ok).toBe(false)
+  })
+
+  it("returns empty history cleanly", async () => {
+    const res = await GET(
+      new Request("http://localhost/api/agents/bot-1/xp/history"),
+      context("bot-1"),
+    )
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data).toEqual({
+      agentId: "bot-1",
+      totalXp: 0,
+      events: [],
+      page: 1,
+      pageSize: 20,
+      total: 0,
     })
   })
 
-  it("returns events in insertion order", async () => {
-    recordXpEarnedEvent("agent-2", 200, "task_completed", "2026-06-01T10:00:00Z")
-    recordXpDecayEvent("agent-2", -20, "xp_decayed", "2026-06-10T00:00:00Z")
+  it("preserves raw history order in the underlying store", () => {
+    recordXpEarnedEvent("bot-1", 10, "task_completed", "2026-06-01T10:00:00.000Z")
+    recordXpDecayEvent("bot-1", -5, "xp_decayed", "2026-06-03T10:00:00.000Z")
 
-    const req = new Request("http://localhost/api/agents/agent-2/xp/history")
-    const res = await GET(req, { params: Promise.resolve({ id: "agent-2" }) })
-    expect(res.status).toBe(200)
-
-    const json = await res.json()
-    expect(json.events).toHaveLength(2)
-    expect(json.events[0].timestamp).toBe("2026-06-01T10:00:00Z")
-    expect(json.events[1].timestamp).toBe("2026-06-10T00:00:00Z")
-  })
-
-  it("isolates history between agents", async () => {
-    recordXpEarnedEvent("agent-a", 100, "task_completed", "2026-06-01T10:00:00Z")
-    recordXpEarnedEvent("agent-b", 200, "quest_completed", "2026-06-02T10:00:00Z")
-
-    const reqA = new Request("http://localhost/api/agents/agent-a/xp/history")
-    const resA = await GET(reqA, { params: Promise.resolve({ id: "agent-a" }) })
-    const jsonA = await resA.json()
-    expect(jsonA.events).toHaveLength(1)
-    expect(jsonA.events[0].delta).toBe(100)
-
-    const reqB = new Request("http://localhost/api/agents/agent-b/xp/history")
-    const resB = await GET(reqB, { params: Promise.resolve({ id: "agent-b" }) })
-    const jsonB = await resB.json()
-    expect(jsonB.events).toHaveLength(1)
-    expect(jsonB.events[0].delta).toBe(200)
+    expect(getAgentXpHistory("bot-1")).toEqual([
+      {
+        type: "earned",
+        delta: 10,
+        reason: "task_completed",
+        timestamp: "2026-06-01T10:00:00.000Z",
+      },
+      {
+        type: "decayed",
+        delta: -5,
+        reason: "xp_decayed",
+        timestamp: "2026-06-03T10:00:00.000Z",
+      },
+    ])
   })
 })

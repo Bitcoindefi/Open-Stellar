@@ -6,7 +6,7 @@
 
 Plataforma de infraestructura de pagos para agentes de IA, construida sobre Stellar y compatibilidad EVM. Implementa los protocolos x402 (HTTP payment gate), ZK Agent Passport (Groth16 sobre Soroban), track 8004 con fallback de reputación, y un admin console multi-tab para operar y vender el stack como servicio.
 
-[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleocagli%2FOpen-Stellar&project-name=open-stellar&repository-name=open-stellar)
+[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbitcoindefi%2FOpen-Stellar&project-name=open-stellar&repository-name=open-stellar&env=NEXT_PUBLIC_NODE_NAME%2CSTELLAR_NETWORK%2CNEXT_PUBLIC_WALLETCONNECT_PROJECT_ID%2CADMIN_API_KEY&envDescription=Open+Stellar+node+configuration&envLink=https%3A%2F%2Fgithub.com%2Fbitcoindefi%2FOpen-Stellar%23variables-de-entorno&envDefaults=%7B%22NEXT_PUBLIC_NODE_NAME%22%3A%22My+Open+Stellar+Node%22%2C%22STELLAR_NETWORK%22%3A%22testnet%22%2C%22NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID%22%3A%22your-walletconnect-project-id%22%2C%22ADMIN_API_KEY%22%3A%22osk_auto_generated_on_first_boot%22%7D)
 
 ---
 
@@ -162,11 +162,32 @@ Para desarrolladores que quieren su propio nodo Open Stellar:
 
 ---
 
+## Quickstart CLI
+
+Scaffold a new node in one command:
+
+```bash
+npx create-open-stellar-app my-node
+```
+
+Prompts for node name, network (`testnet` / `mainnet`), and deploy target (`Vercel` / `Docker` / `local-only`). The CLI creates `.env.local`, configures `vercel.json` when needed, and generates an admin API key.
+
+---
+
 ## Variables de entorno
 
 ```env
+# Display name in admin console header
+NEXT_PUBLIC_NODE_NAME=My Open Stellar Node
+
+# Stellar network
+STELLAR_NETWORK=testnet
+
 # WalletConnect Cloud project ID (requerido para conectores EVM)
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=abc123...
+
+# Admin API key (auto-generated on first boot if unset)
+ADMIN_API_KEY=osk_...
 
 # URL pública del deployment (opcional, usado en metadata)
 NEXT_PUBLIC_APP_URL=https://tu-instancia.vercel.app
@@ -204,6 +225,14 @@ Alertas recomendadas en Better Stack:
 ---
 
 ## Instalación y desarrollo local
+
+```bash
+npx create-open-stellar-app my-node
+cd my-node
+npm install
+```
+
+O clonar el repositorio completo:
 
 ```bash
 git clone https://github.com/bitcoindefi/Open-Stellar.git
