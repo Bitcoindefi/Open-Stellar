@@ -25,7 +25,7 @@ export async function POST(req: Request, context: RouteContext) {
           type: "task.completed",
           agentId: task.agentId,
           taskId: task.id,
-          taskType: task.type,
+          result: { summary: `Task ${task.type} completed via drain` },
         })
       },
     })
