@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Activity, AlertTriangle, Check, Cloud, Code2, Copy, Cpu, Download, ExternalLink, Fingerprint, ReceiptText, History, KeyRound, Layers3, ListChecks, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
 import type { District, MoltbotAgent } from "@/lib/types"
 import { PassportPanel } from "@/components/admin/passport-panel"
+import { buildVercelDeployUrl } from "@/lib/vercel-deploy-url"
+import { generateAdminApiKey } from "@/lib/admin-api-key.client"
 
 type AdminTab = "overview" | "queue" | "passport" | "private-deploy" | "receipts" | "cloud-agents"
 
@@ -48,7 +50,7 @@ const plans: Plan[] = [
   },
 ]
 
-const demoKey = "sk_live_8f3b1c9a4d7e2b6f"
+const nodeDisplayName = process.env.NEXT_PUBLIC_NODE_NAME || "Open Stellar"
 const monthlyLimit = 1000
 const monthlyUsed = 153
 
@@ -62,6 +64,7 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
   const [copied, setCopied] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<Plan>(plans[1])
   const [tab, setTab] = useState<AdminTab>("overview")
+  const [demoKey] = useState(() => generateAdminApiKey())
 
   const activeAgents = agents.filter((agent) => agent.status === "active" || agent.status === "working")
   const totalTasks = agents.reduce((sum, agent) => sum + agent.tasksCompleted, 0)
@@ -106,7 +109,7 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
               <div className="max-w-3xl">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.32em] text-cyan-200">
                   <RadioTower className="h-3.5 w-3.5" />
-                  Admin Command Deck
+                  {nodeDisplayName}
                 </div>
                 <h1 className="font-pixel text-2xl uppercase leading-tight text-cyan-100 sm:text-3xl">
                   Agent Payments Infra for Orchestrated Teams
@@ -535,11 +538,22 @@ const API_ENDPOINTS = [
 ] as const
 
 const ENV_VARS = [
+  { name: "NEXT_PUBLIC_NODE_NAME", example: "My Open Stellar Node", desc: "Display name in the admin console header" },
+  { name: "STELLAR_NETWORK", example: "testnet", desc: "Stellar network: testnet or mainnet" },
   { name: "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID", example: "abc123…", desc: "WalletConnect Cloud project ID" },
+  { name: "ADMIN_API_KEY", example: "osk_…", desc: "Admin API key (auto-generated on first boot if unset)" },
   { name: "NEXT_PUBLIC_APP_URL", example: "https://your-instance.vercel.app", desc: "Public URL of your deployment" },
 ] as const
 
 function PrivateDeployTab() {
+  const deployUrl = useMemo(() => {
+    const adminApiKey = generateAdminApiKey()
+    return buildVercelDeployUrl({
+      nodeName: process.env.NEXT_PUBLIC_NODE_NAME || "My Open Stellar Node",
+      network: "testnet",
+      adminApiKey,
+    })
+  }, [])
   return (
     <>
       <section className="rounded-[28px] border border-amber-500/20 bg-slate-950/80 p-5 shadow-[0_24px_80px_rgba(2,8,23,0.45)] backdrop-blur">
@@ -560,7 +574,7 @@ function PrivateDeployTab() {
           </div>
 
           <a
-            href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fleocagli%2FOpen-Stellar&project-name=open-stellar&repository-name=open-stellar"
+            href={deployUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex shrink-0 items-center gap-2 rounded-full border border-amber-400/40 bg-amber-400/10 px-5 py-3 text-xs uppercase tracking-[0.2em] text-amber-200 transition hover:border-amber-400/70 hover:bg-amber-400/20 hover:text-amber-100"
@@ -577,8 +591,8 @@ function PrivateDeployTab() {
           <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Setup guide</p>
           <h3 className="mt-3 font-pixel text-lg uppercase text-slate-100">Quick start</h3>
           <div className="mt-5 space-y-4">
-            <DeployStep n={1} title="Fork" text="Fork bitcoindefi/Open-Stellar on GitHub. The repo includes all ZK artifacts and Soroban contract bindings — no extra setup." />
-            <DeployStep n={2} title="Configure" text="Add the environment variables below to your Vercel project settings. WalletConnect project ID is the only required external credential." />
+            <DeployStep n={1} title="Scaffold" text="Run npx create-open-stellar-app my-node or fork bitcoindefi/Open-Stellar on GitHub. The repo includes ZK artifacts and Soroban bindings." />
+            <DeployStep n={2} title="Configure" text="Set node name, network, and WalletConnect project ID. An admin API key is generated automatically on first boot." />
             <DeployStep n={3} title="Deploy" text="Push to main — Vercel picks it up automatically. The vercel.json enforces --webpack mode for snarkjs compatibility." />
           </div>
 

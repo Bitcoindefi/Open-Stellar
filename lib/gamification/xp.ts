@@ -38,6 +38,10 @@ export interface TaskXpInput {
   skillId?: string
 }
 
+export function resetAgentXpDb(): void {
+  agentXpDb.clear()
+}
+
 type AgentXPDb = Map<string, AgentXPRecord>
 
 const globalXp = globalThis as typeof globalThis & {

@@ -1,5 +1,6 @@
 import { addNotification } from "@/lib/notifications/notification-store"
 import { invalidateLeaderboardCache } from "./leaderboard-cache"
+import { listStoredQuests } from "./quest-store"
 
 export type QuestType = "daily" | "weekly" | "story"
 
@@ -208,6 +209,13 @@ const globalQuests = globalThis as typeof globalThis & {
 function hydrateSubTasks(): SubTaskStore {
   if (globalQuests.__openStellarQuestSubTasks__) return globalQuests.__openStellarQuestSubTasks__
   const map: SubTaskStore = new Map()
+  
+  for (const q of listStoredQuests({ includeExpired: true })) {
+    if (q.subTasks && q.subTasks.length > 0) {
+      map.set(q.id, q.subTasks)
+    }
+  }
+
   globalQuests.__openStellarQuestSubTasks__ = map
   return map
 }
@@ -236,6 +244,7 @@ export function addSubTask(questId: string, title: string, assignedAgentId?: str
   }
   subtasks.push(newSubTask)
   subtaskDb.set(questId, subtasks)
+
   return newSubTask
 }
 
@@ -262,6 +271,7 @@ export function updateSubTask(
 
   subtasks[index] = updated
   subtaskDb.set(questId, subtasks)
+
   return updated
 }
 

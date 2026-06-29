@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import {
   createTask,
   drainAgentTasks,
@@ -11,6 +11,10 @@ import {
 describe("task-queue drain and purge", () => {
   beforeEach(() => {
     resetTaskQueue()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   describe("drainAgentTasks", () => {
@@ -62,18 +66,21 @@ describe("task-queue drain and purge", () => {
       expect(stats.completedTasks).toBe(5)
     })
 
-    it("caps maxItems at 100", async () => {
-      for (let i = 0; i < 150; i++) {
+    it("caps maxItems at 200", async () => {
+      // Create 250 tasks (MAX_PENDING_PER_AGENT=100 limits to 100)
+      for (let i = 0; i < 250; i++) {
         createTask("agent-1", { type: `task-${i}`, payload: {} })
       }
 
       const { result } = await drainAgentTasks("agent-1", { maxItems: 200 })
 
       expect(result).not.toBeNull()
+      // MAX_PENDING_PER_AGENT=100 limits queue to 100 tasks
       expect(result!.processed).toBe(100)
-      // Verify at least 100 were completed; remaining tasks may be in various states
+
       const stats = getQueueStats()
-      expect(stats.completedTasks).toBeGreaterThanOrEqual(100)
+      expect(stats.pendingTasks).toBe(0)
+      expect(stats.completedTasks).toBe(100)
     })
 
     it("uses default maxItems of 50", async () => {
@@ -170,11 +177,16 @@ describe("task-queue drain and purge", () => {
     it("records accurate durationMs", async () => {
       createTask("agent-1", { type: "task", payload: {} })
 
-      const { result } = await drainAgentTasks("agent-1", {
+      vi.useFakeTimers()
+
+      const drainPromise = drainAgentTasks("agent-1", {
         processor: async () => {
           await new Promise((r) => setTimeout(r, 10))
         },
       })
+
+      await vi.advanceTimersByTimeAsync(10)
+      const { result } = await drainPromise
 
       expect(result).not.toBeNull()
       expect(result!.durationMs).toBeGreaterThanOrEqual(10)
@@ -207,9 +219,7 @@ describe("task-queue drain and purge", () => {
 
       const { result } = await drainAgentTasks("agent-1", {
         maxItems: 1,
-        processor: async (task) => {
-          // First task is now running, then completed
-        },
+        processor: async () => {},
       })
       expect(result!.processed).toBe(1)
 
@@ -248,7 +258,7 @@ describe("task-queue drain and purge", () => {
       createTask("agent-1", { type: "a", payload: {} })
       createTask("agent-1", { type: "b", payload: {} })
 
-      await drainAgentTasks("agent-1", { maxItems: 1 })
+      drainAgentTasks("agent-1", { maxItems: 1 })
 
       const purged = purgeAgentTasks("agent-1")
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getOrCreateAgent, listAgentTaskRecords, normalizeTaskInput } from "@/lib/agent-runtime/agent"
+import { checkRateLimit } from "@/lib/agents/rate-limit-middleware"
 import { findAgentByLookup } from "@/lib/og-card-data"
 
 interface RouteContext {
@@ -29,13 +30,27 @@ export async function GET(_req: Request, context: RouteContext) {
     { headers: { "Cache-Control": "no-store" } },
   )
 }
-
 export async function POST(req: Request, context: RouteContext) {
   try {
     const { id } = await context.params
     const agentId = decodeURIComponent(id)
     const body = await req.json().catch(() => ({}))
     const agent = getRuntimeAgent(agentId)
+    const rateLimit = checkRateLimit(agentId)
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { ok: false, error: "rate_limit_exceeded" },
+        {
+          status: 429,
+          headers: {
+            "Cache-Control": "no-store",
+            "Retry-After": String(Math.ceil((rateLimit.retryAfterMs ?? 1000) / 1000)),
+          },
+        },
+      )
+    }
+
     await agent.start()
     const result = await agent.executeTask(normalizeTaskInput(body))
 

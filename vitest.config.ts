@@ -5,6 +5,9 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
+    // The create-app template is a scaffold compiled inside generated apps, not here;
+    // its imports (@/lib/agents/my-first-agent, ...) don't resolve in this repo.
+    exclude: ["**/node_modules/**", "**/dist/**", "packages/create-app/template/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

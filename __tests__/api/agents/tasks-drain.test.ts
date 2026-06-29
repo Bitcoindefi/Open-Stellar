@@ -78,8 +78,9 @@ describe("POST /api/agents/:id/tasks/drain", () => {
     expect(data.processed).toBe(10)
   })
 
-  it("caps maxItems at 100", async () => {
-    for (let i = 0; i < 150; i++) {
+  it("caps maxItems at 200", async () => {
+    // Create 250 tasks (MAX_PENDING_PER_AGENT=100 limits to 100)
+    for (let i = 0; i < 250; i++) {
       await createTask("agent-1", `task-${i}`)
     }
 

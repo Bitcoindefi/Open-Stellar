@@ -1,5 +1,6 @@
 import type { AgentStatus } from "@/lib/types"
 import type { X402Receipt } from "@/lib/protocols/x402"
+import type { BadgeRarity } from "@/lib/gamification/badge-catalog"
 
 export interface AgentTask {
   id: string
@@ -15,7 +16,7 @@ export interface TaskResult {
 export interface Badge {
   id: string
   name: string
-  rarity?: "common" | "rare" | "epic" | "legendary"
+  rarity?: BadgeRarity
 }
 
 interface BaseEvent {

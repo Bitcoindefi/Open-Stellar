@@ -25,7 +25,7 @@ export async function POST(req: Request, context: RouteContext) {
           type: "task.completed",
           agentId: task.agentId,
           taskId: task.id,
-          result: { summary: `Task ${task.type} completed successfully` },
+          result: { summary: `Completed task of type ${task.type}` },
         })
       },
     })

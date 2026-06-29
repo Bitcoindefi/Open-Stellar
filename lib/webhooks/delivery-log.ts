@@ -19,6 +19,34 @@ export interface WebhookDeliveryAttempt {
 
 export type CreateWebhookDeliveryAttempt = Omit<WebhookDeliveryAttempt, "id">
 
+// ── NEW TYPES ──────────────────────────────────────────────────────────
+
+export interface WebhookDeliveryStats {
+  webhookId: string
+  totalDeliveries: number
+  successCount: number
+  failureCount: number
+  successRate: number
+  lastDeliveryAt: string | null
+  lastSuccessAt: string | null
+  avgLatencyMs: number
+}
+
+export interface DeliveryListOptions {
+  status?: "success" | "failure"
+  limit?: number
+}
+
+export interface DeliveryListItem {
+  timestamp: string
+  status: "success" | "failure"
+  httpStatus: number | null
+  latencyMs: number
+  error: string | null
+}
+
+// ── EXISTING CODE (unchanged) ──────────────────────────────────────────
+
 const DEFAULT_DELIVERY_LOG_PATH = join(process.cwd(), ".data", "webhook-delivery-log.jsonl")
 const MAX_DELIVERY_LOG_ENTRIES = 200
 
@@ -60,7 +88,6 @@ function parseDeliveryAttempt(line: string): WebhookDeliveryAttempt | null {
       return isWebhookDeliveryAttempt(withDefaultAttempt) ? withDefaultAttempt : null
     }
     if (parsed && typeof parsed === "object" && !("status" in parsed)) {
-      // Backfill legacy records without status
       const withStatus = {
         ...parsed,
         status: (parsed as Record<string, unknown>).ok === true ? "success" : "failed",
@@ -116,6 +143,104 @@ export function listWebhookDeliveryAttempts(webhookId: string, limit = 20): Webh
     .reverse()
     .slice(0, max)
 }
+
+// ── NEW FUNCTIONS ──────────────────────────────────────────────────────
+
+/**
+ * Compute aggregated delivery statistics for a single webhook.
+ * Returns zeroed stats when the webhook has no delivery attempts.
+ */
+export function getWebhookDeliveryStats(webhookId: string): WebhookDeliveryStats {
+  const cleanWebhookId = webhookId.trim()
+  const attempts = readDeliveryAttempts().filter(
+    (attempt) => attempt.webhookId === cleanWebhookId
+  )
+
+  const totalDeliveries = attempts.length
+
+  if (totalDeliveries === 0) {
+    return {
+      webhookId: cleanWebhookId,
+      totalDeliveries: 0,
+      successCount: 0,
+      failureCount: 0,
+      successRate: 0,
+      lastDeliveryAt: null,
+      lastSuccessAt: null,
+      avgLatencyMs: 0,
+    }
+  }
+
+  const successCount = attempts.filter((a) => a.status === "success").length
+  const failureCount = attempts.filter((a) => a.status === "failed").length
+  const successRate = totalDeliveries > 0 ? successCount / totalDeliveries : 0
+
+  const sorted = [...attempts].sort(
+    (a, b) => new Date(b.deliveredAt).getTime() - new Date(a.deliveredAt).getTime()
+  )
+
+  const lastDelivery = sorted[0]
+  const lastSuccess = sorted.find((a) => a.status === "success")
+
+  const totalLatency = attempts.reduce((sum, a) => sum + a.durationMs, 0)
+  const avgLatencyMs = Math.round(totalLatency / totalDeliveries)
+
+  return {
+    webhookId: cleanWebhookId,
+    totalDeliveries,
+    successCount,
+    failureCount,
+    successRate: Math.round(successRate * 1000) / 1000,
+    lastDeliveryAt: lastDelivery?.deliveredAt ?? null,
+    lastSuccessAt: lastSuccess?.deliveredAt ?? null,
+    avgLatencyMs,
+  }
+}
+
+/**
+ * List recent delivery attempts for a webhook, newest first.
+ * Filterable by status (success or failure only).
+ * Limit caps results (default 20, max 100).
+ */
+export function listWebhookDeliveries(
+  webhookId: string,
+  options: DeliveryListOptions = {}
+): DeliveryListItem[] {
+  const cleanWebhookId = webhookId.trim()
+  const rawLimit = options.limit ?? 20
+  const max = Math.min(Math.max(Math.floor(rawLimit), 1), 100)
+
+  let attempts = readDeliveryAttempts().filter(
+    (attempt) => attempt.webhookId === cleanWebhookId
+  )
+
+  if (options.status) {
+    if (options.status === "success") {
+      attempts = attempts.filter((a) => a.status === "success")
+    } else if (options.status === "failure") {
+      attempts = attempts.filter((a) => a.status === "failed")
+    }
+  }
+
+  attempts.sort(
+    (a, b) => new Date(b.deliveredAt).getTime() - new Date(a.deliveredAt).getTime()
+  )
+
+  return attempts.slice(0, max).map((a) => ({
+    timestamp: a.deliveredAt,
+    status: a.status === "success" ? "success" : "failure",
+    httpStatus: a.responseStatus,
+    latencyMs: a.durationMs,
+    error:
+      a.status === "failed"
+        ? a.responseStatus !== null
+          ? `HTTP ${a.responseStatus}`
+          : "timeout"
+        : null,
+  }))
+}
+
+// ── TEST HELPERS (unchanged) ───────────────────────────────────────────
 
 export function resetWebhookDeliveryLogForTests(): void {
   writeDeliveryAttempts([])
