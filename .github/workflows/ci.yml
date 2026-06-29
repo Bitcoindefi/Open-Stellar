@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # setup-node's built-in `cache: npm` caches ~/.npm (npm's content-addressed
       # download cache), keyed internally on this lockfile. That cache alone does
