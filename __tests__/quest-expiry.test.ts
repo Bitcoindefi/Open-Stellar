@@ -7,6 +7,7 @@ import {
   getStoredQuest,
   listStoredQuests,
 } from "@/lib/gamification/quest-store"
+import { subscribeToSystemEvents, type PublishedSystemEvent } from "@/lib/events/system-events"
 import { resetNotificationStore, listUnseenNotifications } from "@/lib/notifications/notification-store"
 
 describe("quest expiry", () => {
@@ -106,6 +107,10 @@ describe("quest expiry", () => {
       title: "Notify me",
       expiresAt: past,
       assignedAgentIds: ["agent-1", "agent-2"],
+      subTasks: [
+        { id: "task-1", title: "Task 1", assignedAgentId: "agent-1", status: "in_progress" },
+        { id: "task-2", title: "Task 2", assignedAgentId: "agent-2", status: "done" },
+      ],
     })
 
     const result = runQuestExpiryCheck()
@@ -120,6 +125,93 @@ describe("quest expiry", () => {
     const agent2Notes = listUnseenNotifications("agent-2")
     expect(agent2Notes.length).toBeGreaterThan(0)
     expect(agent2Notes[0].type).toBe("quest_expired")
+  })
+
+  it("expires quests without expiresAt after 30 days", () => {
+    seedQuest({
+      id: "stale-no-expiry",
+      title: "Stale without explicit expiry",
+      expiresAt: null,
+      createdAt: new Date(Date.now() - (31 * 24 * 60 * 60 * 1000)).toISOString(),
+    })
+
+    const result = runQuestExpiryCheck()
+
+    expect(result.expired).toBe(1)
+    expect(getStoredQuest("stale-no-expiry")?.status).toBe("expired")
+  })
+
+  it("emits quest.expired events with progress snapshots for agents with subtask progress", () => {
+    const past = new Date(Date.now() - 1).toISOString()
+    const events: PublishedSystemEvent[] = []
+    const unsubscribe = subscribeToSystemEvents((event) => {
+      if (event.type === "quest.expired") events.push(event)
+    })
+
+    seedQuest({
+      id: "progress-event-quest",
+      title: "Progress event quest",
+      expiresAt: past,
+      subTasks: [
+        { id: "task-1", title: "Task 1", assignedAgentId: "agent-1", status: "done" },
+        { id: "task-2", title: "Task 2", assignedAgentId: "agent-1", status: "pending" },
+        { id: "task-3", title: "Task 3", assignedAgentId: "agent-2", status: "in_progress" },
+        { id: "task-4", title: "Task 4", assignedAgentId: "agent-3", status: "pending" },
+      ],
+    })
+
+    try {
+      const result = runQuestExpiryCheck()
+
+      expect(result.expired).toBe(1)
+      expect(result.notified).toBe(2)
+      expect(events).toHaveLength(2)
+      expect(events).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: "quest.expired",
+          agentId: "agent-1",
+          questId: "progress-event-quest",
+          completedSubtasks: 1,
+          totalSubtasks: 4,
+        }),
+        expect.objectContaining({
+          type: "quest.expired",
+          agentId: "agent-2",
+          questId: "progress-event-quest",
+          completedSubtasks: 0,
+          totalSubtasks: 4,
+        }),
+      ]))
+    } finally {
+      unsubscribe()
+    }
+  })
+
+  it("expires quests with zero participant activity without events", () => {
+    const past = new Date(Date.now() - 1).toISOString()
+    const events: PublishedSystemEvent[] = []
+    const unsubscribe = subscribeToSystemEvents((event) => {
+      if (event.type === "quest.expired") events.push(event)
+    })
+
+    seedQuest({
+      id: "silent-expiry-quest",
+      title: "Silent expiry quest",
+      expiresAt: past,
+      subTasks: [
+        { id: "task-1", title: "Task 1", assignedAgentId: "agent-1", status: "pending" },
+      ],
+    })
+
+    try {
+      const result = runQuestExpiryCheck()
+
+      expect(result.expired).toBe(1)
+      expect(result.notified).toBe(0)
+      expect(events).toHaveLength(0)
+    } finally {
+      unsubscribe()
+    }
   })
 
   it("excludes expired quests from default list", () => {
@@ -147,6 +239,9 @@ describe("quest expiry", () => {
       title: "E2E expired quest",
       expiresAt: oneMsAgo,
       assignedAgentIds: ["e2e-agent"],
+      subTasks: [
+        { id: "task-1", title: "Task 1", assignedAgentId: "e2e-agent", status: "in_progress" },
+      ],
     })
 
     // Pre-cron: quest is in_progress

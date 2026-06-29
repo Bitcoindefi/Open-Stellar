@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # setup-node's built-in `cache: npm` caches ~/.npm (npm's content-addressed
       # download cache), keyed internally on this lockfile. That cache alone does
@@ -34,7 +34,7 @@ jobs:
       # linked from the local npm cache instead of re-downloaded from the registry.
       - name: Setup Node
         id: setup-node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -55,7 +55,7 @@ jobs:
       # does -- so a fuzzy hit here would defeat the point of the cache check.
       - name: Cache node_modules
         id: cache-node-modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: node_modules
           key: ${{ runner.os }}-node${{ steps.setup-node.outputs.node-version }}-modules-${{ hashFiles('package-lock.json') }}

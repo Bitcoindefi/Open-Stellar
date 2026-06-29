@@ -38,6 +38,9 @@ describe("GET /api/cron/expire-quests", () => {
       title: "Expired 1",
       expiresAt: past,
       assignedAgentIds: ["agent-x"],
+      subTasks: [
+        { id: "task-1", title: "Task 1", assignedAgentId: "agent-x", status: "in_progress" },
+      ],
     })
     seedQuest({
       id: "cron-active-1",

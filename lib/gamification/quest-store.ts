@@ -2,6 +2,8 @@ import type { Quest, QuestType, QuestReward, SubTask } from "./quests"
 import { addNotification } from "@/lib/notifications/notification-store"
 import { publishSystemEvent } from "@/lib/events/system-events"
 
+const STALE_QUEST_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
+
 export type QuestStatus = "in_progress" | "completed" | "expired"
 
 export interface StoredQuest {
@@ -111,22 +113,74 @@ export function updateQuestStatus(id: string, status: QuestStatus): StoredQuest 
   return quest
 }
 
+function questShouldExpire(quest: StoredQuest, nowMs: number): boolean {
+  if (quest.expiresAt) {
+    return new Date(quest.expiresAt).getTime() <= nowMs
+  }
+
+  if (quest.expiresAt === null) {
+    return nowMs - new Date(quest.createdAt).getTime() > STALE_QUEST_MAX_AGE_MS
+  }
+
+  return false
+}
+
+function getQuestProgressParticipants(quest: StoredQuest): Array<{
+  agentId: string
+  completedSubtasks: number
+  totalSubtasks: number
+}> {
+  const subTasks = quest.subTasks ?? []
+  const progressByAgent = new Map<string, { completedSubtasks: number; hasProgress: boolean }>()
+
+  for (const subTask of subTasks) {
+    const agentId = subTask.assignedAgentId?.trim()
+    if (!agentId) continue
+
+    const current = progressByAgent.get(agentId) ?? { completedSubtasks: 0, hasProgress: false }
+    if (subTask.status === "done") {
+      current.completedSubtasks += 1
+      current.hasProgress = true
+    } else if (subTask.status === "in_progress") {
+      current.hasProgress = true
+    }
+    progressByAgent.set(agentId, current)
+  }
+
+  return Array.from(progressByAgent.entries())
+    .filter(([, progress]) => progress.hasProgress)
+    .map(([agentId, progress]) => ({
+      agentId,
+      completedSubtasks: progress.completedSubtasks,
+      totalSubtasks: subTasks.length,
+    }))
+}
+
 export function setQuestExpired(id: string): { quest: StoredQuest | null; notified: string[] } {
+  const existingQuest = getStoredQuest(id)
+  const participants = existingQuest ? getQuestProgressParticipants(existingQuest) : []
   const quest = updateQuestStatus(id, "expired")
   if (!quest) return { quest: null, notified: [] }
 
   const notified: string[] = []
-  for (const agentId of quest.assignedAgentIds) {
+  for (const participant of participants) {
     addNotification({
-      agentId,
+      agentId: participant.agentId,
       type: "quest_expired",
       title: "Quest expired",
       body: `The quest "${quest.title}" has expired and is no longer available.`,
       resourceHref: `/?quest=${encodeURIComponent(quest.id)}`,
       resourceLabel: quest.title,
-      dedupeKey: `quest_expired:${quest.id}:${agentId}`,
+      dedupeKey: `quest_expired:${quest.id}:${participant.agentId}`,
     })
-    notified.push(agentId)
+    publishSystemEvent({
+      type: "quest.expired",
+      agentId: participant.agentId,
+      questId: quest.id,
+      completedSubtasks: participant.completedSubtasks,
+      totalSubtasks: participant.totalSubtasks,
+    })
+    notified.push(participant.agentId)
   }
 
   return { quest, notified }
@@ -146,10 +200,8 @@ export function runQuestExpiryCheck(nowMs = Date.now()): {
 
   for (const quest of quests) {
     if (quest.status === "completed" || quest.status === "expired") continue
-    if (!quest.expiresAt) continue
 
-    const expiresAtMs = new Date(quest.expiresAt).getTime()
-    if (expiresAtMs <= nowMs) {
+    if (questShouldExpire(quest, nowMs)) {
       const result = setQuestExpired(quest.id)
       if (result.quest) {
         expired += 1

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, beforeEach, afterEach } from "vitest"
 
 import { POST as applyQuestRoute } from "@/app/api/quests/[id]/apply/route"
 import { POST as createSubTaskRoute } from "@/app/api/quests/[id]/subtasks/route"
@@ -26,16 +26,33 @@ function makeUpdateRequest(body: object, questId = "weekly-onboard-marketplace-s
   })
 }
 
+const GATEWAY_TOKEN = "test-gateway-token"
+
 function makeApplyRequest(actorId: string): Request {
   return new Request("http://localhost/api/quests/weekly-onboard-marketplace-service/apply", {
     method: "POST",
     body: JSON.stringify({ actorId }),
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${GATEWAY_TOKEN}`,
+    },
   })
 }
 
 describe("Quest Subtasks API", () => {
   const questId = "weekly-onboard-marketplace-service"
+
+  let originalToken: string | undefined
+
+  beforeEach(() => {
+    originalToken = process.env.MOLTBOT_GATEWAY_TOKEN
+    process.env.MOLTBOT_GATEWAY_TOKEN = GATEWAY_TOKEN
+  })
+
+  afterEach(() => {
+    if (originalToken === undefined) delete process.env.MOLTBOT_GATEWAY_TOKEN
+    else process.env.MOLTBOT_GATEWAY_TOKEN = originalToken
+  })
 
   it("POST /api/quests/[id]/subtasks creates a sub-task with a unique ID", async () => {
     const res = await createSubTaskRoute(
