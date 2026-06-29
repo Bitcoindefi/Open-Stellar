@@ -146,7 +146,7 @@ function nextEventId(): string {
 }
 
 function agentHistoryPath(agentId: string): string {
-  return join(positionsDirectory, `${encodeURIComponent(normalizeAgentId(agentId))}.jsonl`)
+  return join(positionsDirectory, `${encodeURIComponent(clampAgentId(agentId))}.jsonl`)
 }
 
 function ensurePositionsDirectory(): void {
@@ -283,7 +283,7 @@ export function getAgentPosition(agentId: string): AgentPosition | null {
 export function moveAgentPosition(agentId: string, input: AgentMoveInput): AgentPosition {
   ensureInitializedPositions()
 
-  const cleanId = normalizeAgentId(agentId)
+  const cleanId = clampAgentId(agentId)
   const current = state.positions.get(cleanId)
   if (!current) {
     throw new Error("agent position not found")
@@ -324,7 +324,7 @@ export function moveAgentPosition(agentId: string, input: AgentMoveInput): Agent
 }
 
 export function listAgentPositionHistory(agentId: string, limit = DEFAULT_HISTORY_LIMIT): AgentPositionHistoryRecord[] {
-  const cleanId = normalizeAgentId(agentId)
+  const cleanId = clampAgentId(agentId)
   const safeLimit = normalizeAgentPositionHistoryLimit(limit)
   return readHistoryFile(cleanId).slice(-safeLimit).reverse()
 }
@@ -423,7 +423,7 @@ export function setAgentPositionForTests(
   agentId: string,
   position: Omit<AgentPosition, "agentId" | "updatedAt"> & { updatedAt?: string },
 ): AgentPosition {
-  const cleanId = normalizeAgentId(agentId)
+  const cleanId = clampAgentId(agentId)
   const next: AgentPosition = {
     agentId: cleanId,
     pixelX: position.pixelX,
