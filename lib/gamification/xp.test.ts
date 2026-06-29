@@ -1,9 +1,15 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 import { XP_AWARDS } from "@/lib/gamification/constants"
-import { awardSkillXP, checkLevelUp, getXpToNextLevel } from "@/lib/gamification/xp"
+import { setXPMultiplier, resetXPMultiplierForTests } from "@/lib/gamification/xp-multiplier"
+import { awardSkillXP, awardXP, checkLevelUp, getAgentXP, getXpToNextLevel, resetAgentXpDb } from "@/lib/gamification/xp"
 import type { Skill } from "@/lib/types"
 
 describe("XP leveling", () => {
+  beforeEach(() => {
+    resetAgentXpDb()
+    resetXPMultiplierForTests()
+  })
+
   it("uses cumulative 1.5x level thresholds", () => {
     expect(getXpToNextLevel(1)).toBe(100)
     expect(getXpToNextLevel(2)).toBe(250)
@@ -26,5 +32,15 @@ describe("XP leveling", () => {
       { id: "data", name: "Data Mining", level: 1, maxLevel: 5, xp: 10, xpToNext: 50 },
       { id: "ops", name: "Backup Ops", level: 1, maxLevel: 5, xp: 0, xpToNext: 50 },
     ])
+  })
+
+  it("applies the active multiplier to quest completion XP", () => {
+    const baseXp = 50
+
+    setXPMultiplier({ multiplier: 3, validUntil: Date.now() + 60_000, reason: "hackathon" })
+    const award = awardXP("agent-quest-multiplier", baseXp, "quest.completed")
+
+    expect(award.awardedXp).toBe(baseXp * 3)
+    expect(getAgentXP("agent-quest-multiplier").xp).toBe(baseXp * 3)
   })
 })

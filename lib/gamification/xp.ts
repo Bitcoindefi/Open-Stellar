@@ -7,6 +7,7 @@ import {
   LEVEL_XP_MULTIPLIER,
   XP_AWARDS,
 } from "@/lib/gamification/constants"
+import { getActiveMultiplier } from "@/lib/gamification/xp-multiplier"
 import { getSkillUpgradeCost } from "@/lib/gamification/skill-upgrades"
 
 export type XPAwardReason =
@@ -83,7 +84,8 @@ export function getAgentXP(agentId: string): AgentXPRecord {
 
 export function awardXP(agentId: string, amount: number, reason: XPAwardReason): XPAwardResult {
   const previous = getAgentXP(agentId)
-  const awardedXp = Math.max(0, Math.round(amount))
+  const multiplier = reason === "quest.completed" ? getActiveMultiplier() : 1
+  const awardedXp = Math.max(0, Math.round(amount * multiplier))
   const xp = previous.xp + awardedXp
   const levelState = checkLevelUp(xp, previous.level)
   const next: AgentXPRecord = { agentId, xp, level: levelState.level }

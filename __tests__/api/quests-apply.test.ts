@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
 
 import { POST } from "@/app/api/quests/[id]/apply/route"
+import { resetAgentXpDb } from "@/lib/gamification/xp"
+import { setXPMultiplier, resetXPMultiplierForTests } from "@/lib/gamification/xp-multiplier"
 import { upsertReputationMetrics } from "@/lib/reputation/reputation-store"
 
 const context = (id: string) => ({ params: Promise.resolve({ id }) })
@@ -14,6 +16,11 @@ function request(actorId: string): Request {
 }
 
 describe("POST /api/quests/[id]/apply", () => {
+  beforeEach(() => {
+    resetAgentXpDb()
+    resetXPMultiplierForTests()
+  })
+
   it("rejects applicants below the quest minimum reputation", async () => {
     const actorId = "quest-apply-low-reputation"
     upsertReputationMetrics(actorId, { tasksCompleted: 30 })
@@ -52,5 +59,16 @@ describe("POST /api/quests/[id]/apply", () => {
     expect(res.status).toBe(200)
     expect(data.ok).toBe(true)
     expect(data.quest.minReputation).toBeUndefined()
+  })
+
+  it("awards multiplied XP when completing a quest", async () => {
+    const actorId = "quest-apply-xp-multiplier"
+    setXPMultiplier({ multiplier: 3, validUntil: Date.now() + 60_000, reason: "hackathon" })
+
+    const res = await POST(request(actorId), context("daily-complete-5-tasks"))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.xpAwarded).toBe(data.quest.reward.xp * 3)
   })
 })

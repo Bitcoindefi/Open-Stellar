@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { awardXP } from "@/lib/gamification/xp"
 import { getQuestById } from "@/lib/gamification/quests"
 import { getReputationByActorId } from "@/lib/reputation/reputation-store"
 
@@ -53,5 +54,7 @@ export async function POST(req: Request, context: QuestApplyContext) {
     )
   }
 
-  return NextResponse.json({ ok: true, quest, actorId })
+  const xpAward = awardXP(actorId, quest.reward.xp, "quest.completed")
+
+  return NextResponse.json({ ok: true, quest, actorId, xpAwarded: xpAward.awardedXp })
 }
