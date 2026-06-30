@@ -15,6 +15,7 @@ export async function GET(req: Request) {
     district: url.searchParams.get("district") ?? undefined,
     status: url.searchParams.get("status") ?? undefined,
     skill: url.searchParams.get("skill") ?? undefined,
+    capability: url.searchParams.get("capability") ?? undefined,
   })
 
   return NextResponse.json(
