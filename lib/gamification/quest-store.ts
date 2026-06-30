@@ -23,21 +23,21 @@ export interface StoredQuest {
   assignedAgentIds: string[]
 }
 
-interface QuestStore {
-  quests: Map<string, StoredQuest>
-}
+import { readQuestProgress, writeQuestProgress } from './quest-persistence'
 
-const globalState = globalThis as typeof globalThis & {
-  __openStellarQuestStore__?: QuestStore
-}
-
-function getStore(): QuestStore {
-  if (!globalState.__openStellarQuestStore__) {
-    globalState.__openStellarQuestStore__ = {
-      quests: new Map(),
-    }
+function getStoreQuests(): Map<string, StoredQuest> {
+  const store = readQuestProgress()
+  const map = new Map<string, StoredQuest>()
+  for (const q of store.quests) {
+    map.set(q.id, q)
   }
-  return globalState.__openStellarQuestStore__
+  return map
+}
+
+function saveStoreQuests(questsMap: Map<string, StoredQuest>): void {
+  const store = readQuestProgress()
+  store.quests = Array.from(questsMap.values())
+  writeQuestProgress(store)
 }
 
 export function createQuest(input: {
@@ -53,7 +53,7 @@ export function createQuest(input: {
   subTasks?: SubTask[]
   assignedAgentIds?: string[]
 }): StoredQuest {
-  const store = getStore()
+  const quests = getStoreQuests()
   const quest: StoredQuest = {
     id: input.id,
     type: input.type,
@@ -69,16 +69,17 @@ export function createQuest(input: {
     createdAt: new Date().toISOString(),
     assignedAgentIds: input.assignedAgentIds ?? [],
   }
-  store.quests.set(quest.id, quest)
+  quests.set(quest.id, quest)
+  saveStoreQuests(quests)
   return quest
 }
 
 export function getStoredQuest(id: string): StoredQuest | null {
-  return getStore().quests.get(id) ?? null
+  return getStoreQuests().get(id) ?? null
 }
 
 export function listStoredQuests(options?: { includeExpired?: boolean }): StoredQuest[] {
-  const quests = Array.from(getStore().quests.values())
+  const quests = Array.from(getStoreQuests().values())
   if (!options?.includeExpired) {
     return quests.filter((q) => q.status !== "expired")
   }
@@ -86,8 +87,8 @@ export function listStoredQuests(options?: { includeExpired?: boolean }): Stored
 }
 
 export function updateQuestStatus(id: string, status: QuestStatus): StoredQuest | null {
-  const store = getStore()
-  const quest = store.quests.get(id)
+  const quests = getStoreQuests()
+  const quest = quests.get(id)
   if (!quest) return null
   const wasCompleted = quest.status === "completed"
   quest.status = status
@@ -95,7 +96,7 @@ export function updateQuestStatus(id: string, status: QuestStatus): StoredQuest 
     quest.completedAt = new Date().toISOString()
 
     if (!wasCompleted && quest.unlocksQuestId) {
-      const unlockedQuest = store.quests.get(quest.unlocksQuestId)
+      const unlockedQuest = quests.get(quest.unlocksQuestId)
       if (unlockedQuest) {
         for (const agentId of new Set(quest.assignedAgentIds)) {
           if (!unlockedQuest.assignedAgentIds.includes(agentId)) {
@@ -110,6 +111,16 @@ export function updateQuestStatus(id: string, status: QuestStatus): StoredQuest 
       }
     }
   }
+  saveStoreQuests(quests)
+  return quest
+}
+
+export function updateQuestSubtasks(id: string, subTasks: SubTask[]): StoredQuest | null {
+  const quests = getStoreQuests()
+  const quest = quests.get(id)
+  if (!quest) return null
+  quest.subTasks = subTasks
+  saveStoreQuests(quests)
   return quest
 }
 
@@ -192,8 +203,8 @@ export function runQuestExpiryCheck(nowMs = Date.now()): {
   notified: number
   quests: StoredQuest[]
 } {
-  const store = getStore()
-  const quests = Array.from(store.quests.values())
+  const questsMap = getStoreQuests()
+  const quests = Array.from(questsMap.values())
   let expired = 0
   let notified = 0
   const expiredQuests: StoredQuest[] = []
@@ -215,11 +226,11 @@ export function runQuestExpiryCheck(nowMs = Date.now()): {
 }
 
 export function resetQuestStore(): void {
-  getStore().quests.clear()
+  saveStoreQuests(new Map())
 }
 
 export function seedQuest(quest: Partial<StoredQuest> & { id: string }): StoredQuest {
-  const store = getStore()
+  const quests = getStoreQuests()
   const full: StoredQuest = {
     type: "daily",
     title: "Test quest",
@@ -236,6 +247,7 @@ export function seedQuest(quest: Partial<StoredQuest> & { id: string }): StoredQ
   if (!("expiresAt" in quest)) {
     full.expiresAt = null
   }
-  store.quests.set(full.id, full)
+  quests.set(full.id, full)
+  saveStoreQuests(quests)
   return full
 }

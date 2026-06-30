@@ -1,6 +1,6 @@
 import { addNotification } from "@/lib/notifications/notification-store"
 import { invalidateLeaderboardCache } from "./leaderboard-cache"
-import { listStoredQuests } from "./quest-store"
+import { listStoredQuests, getStoredQuest, updateQuestSubtasks } from "./quest-store"
 
 export type QuestType = "daily" | "weekly" | "story"
 
@@ -200,30 +200,10 @@ function toProgress(value: number, goal: number): number {
   return Math.max(0, Math.min(100, Math.round((value / goal) * 100)))
 }
 
-type SubTaskStore = Map<string, SubTask[]>
-
-const globalQuests = globalThis as typeof globalThis & {
-  __openStellarQuestSubTasks__?: SubTaskStore
-}
-
-function hydrateSubTasks(): SubTaskStore {
-  if (globalQuests.__openStellarQuestSubTasks__) return globalQuests.__openStellarQuestSubTasks__
-  const map: SubTaskStore = new Map()
-  
-  for (const q of listStoredQuests({ includeExpired: true })) {
-    if (q.subTasks && q.subTasks.length > 0) {
-      map.set(q.id, q.subTasks)
-    }
-  }
-
-  globalQuests.__openStellarQuestSubTasks__ = map
-  return map
-}
-
-const subtaskDb = hydrateSubTasks()
 
 export function getSubTasks(questId: string): SubTask[] {
-  return subtaskDb.get(questId) ?? []
+  const quest = getStoredQuest(questId)
+  return quest?.subTasks ?? []
 }
 
 function generateId(): string {
@@ -243,7 +223,7 @@ export function addSubTask(questId: string, title: string, assignedAgentId?: str
     status: "pending",
   }
   subtasks.push(newSubTask)
-  subtaskDb.set(questId, subtasks)
+  updateQuestSubtasks(questId, subtasks)
 
   return newSubTask
 }
@@ -270,7 +250,7 @@ export function updateSubTask(
   }
 
   subtasks[index] = updated
-  subtaskDb.set(questId, subtasks)
+  updateQuestSubtasks(questId, subtasks)
 
   return updated
 }
