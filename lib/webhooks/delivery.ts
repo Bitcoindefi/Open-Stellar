@@ -134,6 +134,35 @@ function recordDeliveryAttempt(
   }
 }
 
+async function deliverRetryAttempts(
+  webhook: WebhookRegistration,
+  payload: WebhookPayload,
+  body: string,
+  initialError: string,
+): Promise<void> {
+  let lastError = initialError
+
+  for (let retryIndex = 0; retryIndex < retryDelaysMs.length; retryIndex += 1) {
+    const cancelled = await waitForPendingRetry(webhook.id, retryDelaysMs[retryIndex])
+    if (cancelled) return
+
+    const attempt = retryIndex + 2
+    const result = await postWebhook(webhook.url, body, webhook.secret)
+    recordDeliveryAttempt(
+      webhook,
+      payload.type,
+      result,
+      true,
+      attempt,
+      result.ok ? "success" : "failed",
+    )
+    if (result.ok) return
+    lastError = result.lastError ?? lastError
+  }
+
+  enqueueWebhookRetry(webhook.id, payload, lastError)
+}
+
 async function deliverToWebhook(webhook: WebhookRegistration, payload: WebhookPayload): Promise<void> {
   // ─── FILTER GATE ──────────────────────────────────────────────────
   const passes = evaluateFilters(webhook.filters, payload.payload)
@@ -151,30 +180,24 @@ async function deliverToWebhook(webhook: WebhookRegistration, payload: WebhookPa
   }
   // ────────────────────────────────────────────────────────────────────
 
-  const maxAttempts = retryDelaysMs.length + 1
   const body = JSON.stringify(payload)
-  let lastError = "Webhook delivery failed"
+  const result = await postWebhook(webhook.url, body, webhook.secret)
+  recordDeliveryAttempt(
+    webhook,
+    payload.type,
+    result,
+    false,
+    1,
+    result.ok ? "success" : "failed",
+  )
+  if (result.ok) return
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    if (attempt > 1) {
-      const cancelled = await waitForPendingRetry(webhook.id, retryDelaysMs[attempt - 2])
-      if (cancelled) return
-    }
-
-    const result = await postWebhook(webhook.url, body, webhook.secret)
-    recordDeliveryAttempt(
-      webhook,
-      payload.type,
-      result,
-      attempt > 1,
-      attempt,
-      result.ok ? "success" : "failed",
-    )
-    if (result.ok) return
-    lastError = result.lastError ?? lastError
-  }
-
-  enqueueWebhookRetry(webhook.id, payload, lastError)
+  void deliverRetryAttempts(
+    webhook,
+    payload,
+    body,
+    result.lastError ?? "Webhook delivery failed",
+  ).catch(() => undefined)
 }
 
 export async function deliverWebhookEvent(event: PublishedSystemEvent): Promise<void> {

@@ -235,7 +235,7 @@ describe("persistent webhook retries", () => {
 
     await deliverWebhookEvent(payload.payload)
 
-    expect(fetchMock).toHaveBeenCalledTimes(4)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
     expect(listWebhookRetryEntries()).toEqual([
       {
         id: expect.stringMatching(/^whr_/),
