@@ -18,12 +18,12 @@ const vt323 = VT323({
   variable: "--font-vt323",
 });
 
-export const metadata: Metadata = {
-  title: "Open Stellar - Agent City",
-  description:
-    "Open Stellar - multi-chain platform with AI agents and Web3 protocols",
-  generator: "v0.app",
-};
+// export const metadata: Metadata = {
+//   title: "Open Stellar - Agent City",
+//   description:
+//     "Open Stellar - multi-chain platform with AI agents and Web3 protocols",
+//   generator: "v0.app",
+// };
 
 export const viewport: Viewport = {
   width: "device-width",
