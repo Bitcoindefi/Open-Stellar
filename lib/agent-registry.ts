@@ -30,6 +30,12 @@ export interface AgentRegistryFilters {
   district?: string
   status?: string
   skill?: string
+  capability?: string
+}
+
+export interface CapabilityCount {
+  capability: string
+  count: number
 }
 
 export type AgentRegistryChangeAction = "registered" | "updated" | "deregistered"
@@ -174,8 +180,24 @@ export function listRegisteredAgents(filters: AgentRegistryFilters = {}): AgentC
     if (filters.district && agent.district !== filters.district) return false
     if (filters.status && agent.status !== filters.status) return false
     if (filters.skill && !agent.capabilities.includes(filters.skill)) return false
+    if (filters.capability) {
+      const needle = filters.capability.toLowerCase()
+      if (!agent.capabilities.some((c) => c.toLowerCase() === needle)) return false
+    }
     return true
   })
+}
+
+export function listCapabilities(): CapabilityCount[] {
+  const counts = new Map<string, number>()
+  for (const agent of registry.agents.values()) {
+    for (const cap of agent.capabilities) {
+      counts.set(cap, (counts.get(cap) ?? 0) + 1)
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([capability, count]) => ({ capability, count }))
+    .sort((a, b) => b.count - a.count || a.capability.localeCompare(b.capability))
 }
 
 export function getRegisteredAgent(agentId: string): AgentCapabilityManifest | null {

@@ -81,4 +81,26 @@ describe("agent registry API", () => {
 
     expect(post.status).toBe(400)
   })
+
+  it("filters by capability (case-insensitive)", async () => {
+    await POST(new Request("http://localhost/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(manifest),
+    }))
+    await POST(new Request("http://localhost/api/agents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...manifest, agentId: "nexus-8", capabilities: ["payment", "translation"] }),
+    }))
+
+    const res = await GET(new Request("http://localhost/api/agents?capability=DATA-INDEXING"))
+    const body = await res.json()
+    expect(body.agents).toHaveLength(1)
+    expect(body.agents[0].agentId).toBe("nexus-7")
+
+    const noneRes = await GET(new Request("http://localhost/api/agents?capability=unknown"))
+    const noneBody = await noneRes.json()
+    expect(noneBody.agents).toHaveLength(0)
+  })
 })
