@@ -57,6 +57,7 @@ type EventListener = (event: PublishedSystemEvent) => void
 interface EventBusState {
   listeners: Set<EventListener>
   sequence: number
+  events: PublishedSystemEvent[]
 }
 
 const globalState = globalThis as typeof globalThis & {
@@ -66,6 +67,7 @@ const globalState = globalThis as typeof globalThis & {
 const eventBus: EventBusState = globalState.__openStellarEventBus__ ?? {
   listeners: new Set<EventListener>(),
   sequence: 0,
+  events: [],
 }
 
 if (!globalState.__openStellarEventBus__) {
@@ -94,10 +96,20 @@ export function eventMatchesAgent(event: PublishedSystemEvent, agentId?: string)
 
 export function publishSystemEvent(event: SystemEvent): PublishedSystemEvent {
   const published = ensurePublishedEvent(event)
+  eventBus.events.push(published)
   for (const listener of eventBus.listeners) {
     listener(published)
   }
   return published
+}
+
+export function listPublishedEvents(): PublishedSystemEvent[] {
+  return [...eventBus.events]
+}
+
+export function resetPublishedEventsForTests(): void {
+  eventBus.events.length = 0
+  eventBus.sequence = 0
 }
 
 export function subscribeToSystemEvents(listener: EventListener) {
