@@ -81,7 +81,7 @@ export class Agent implements AgentRuntimeContext {
   async start(): Promise<void> {
     this.startedAtMs = this.startedAtMs ?? Date.now()
     this.stoppedAtMs = null
-    this.status = "active"
+    this.status = "running"
     this.recordHeartbeat()
     this.heartbeatTimer ??= setInterval(() => this.recordHeartbeat(), this.config.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS)
     publishSystemEvent({ type: "agent.status", agentId: this.id, status: this.status })
@@ -91,7 +91,7 @@ export class Agent implements AgentRuntimeContext {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
     this.heartbeatTimer = null
     this.stoppedAtMs = Date.now()
-    this.status = "offline"
+    this.status = "stopped"
     this.recordHeartbeat()
     publishSystemEvent({ type: "agent.status", agentId: this.id, status: this.status })
   }
@@ -110,7 +110,7 @@ export class Agent implements AgentRuntimeContext {
   }
 
   async executeTask(taskInput: Task): Promise<TaskResult> {
-    if (this.status === "offline") await this.start()
+    if (this.status === "stopped" || this.status === "offline") throw new Error("Cannot execute task on a stopped agent")
     const task = normalizeTask(taskInput)
     const startedAt = isoNow()
     const startedMs = Date.now()
@@ -136,7 +136,7 @@ export class Agent implements AgentRuntimeContext {
       }
       this.metrics.tasksCompleted += 1
       this.taskDurations.push(durationMs)
-      this.status = "idle"
+      this.status = "running"
       this.recordHeartbeat()
       writeTaskRecord(this.id, { task, result, status: "completed", updatedAt: completedAt })
       publishSystemEvent({ type: "task.completed", agentId: this.id, taskId: task.id, result: { summary: result.summary, durationMs } })
