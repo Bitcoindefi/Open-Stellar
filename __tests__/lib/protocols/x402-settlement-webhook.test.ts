@@ -88,7 +88,7 @@ describe("x402 settlement webhook delivery", () => {
       .toEqual(["retried", "retried", "success"])
   })
 
-  it("logs a terminal failure after three attempts", async () => {
+  it("logs a terminal failure after three retries", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 500 }))
 
     const result = await deliverSettlementWebhook(payload, {
@@ -96,9 +96,9 @@ describe("x402 settlement webhook delivery", () => {
       fetcher,
     })
 
-    expect(fetcher).toHaveBeenCalledTimes(3)
-    expect(result).toMatchObject({ status: "failed", attempts: 3, retried: true })
+    expect(fetcher).toHaveBeenCalledTimes(4)
+    expect(result).toMatchObject({ status: "failed", attempts: 4, retried: true })
     expect(listSettlementWebhookLogs().map((entry) => entry.status))
-      .toEqual(["retried", "retried", "fail"])
+      .toEqual(["retried", "retried", "retried", "fail"])
   })
 })

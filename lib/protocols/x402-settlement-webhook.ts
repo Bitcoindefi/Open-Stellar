@@ -6,7 +6,7 @@ import type { SettlementChain, X402Receipt } from "@/lib/protocols/x402"
 
 const DEFAULT_LOG_PATH = join(process.cwd(), ".data", "webhook-log.json")
 const DEFAULT_RETRY_DELAYS_MS = [1_000, 3_000, 9_000]
-const MAX_ATTEMPTS = 3
+const MAX_RETRIES = DEFAULT_RETRY_DELAYS_MS.length
 const WEBHOOK_TIMEOUT_MS = 5_000
 const MAX_LOG_ENTRIES = 500
 
@@ -167,9 +167,9 @@ export async function deliverSettlementWebhook(
 
   const fetcher = options.fetcher ?? fetch
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+  for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt += 1) {
     const result = await postPayload(webhookUrl, payload, fetcher)
-    const willRetry = !result.ok && attempt < MAX_ATTEMPTS
+    const willRetry = !result.ok && attempt <= MAX_RETRIES
 
     appendLogEntry({
       receiptId: payload.receiptId,
@@ -187,7 +187,7 @@ export async function deliverSettlementWebhook(
     if (willRetry) await sleep(retryDelaysMs[attempt - 1])
   }
 
-  return { status: "failed", attempts: MAX_ATTEMPTS, retried: true, payload }
+  return { status: "failed", attempts: MAX_RETRIES + 1, retried: true, payload }
 }
 
 export function setSettlementWebhookLogPathForTests(path: string): void {

@@ -214,7 +214,7 @@ Set `NEXT_PUBLIC_MOCK_MODE=true` in `.env.local` to run the local demo without l
 
 ### Observabilidad de API
 
-Cuando `WEBHOOK_URL` esta configurado, cada liquidacion x402 exitosa envia un `POST` con el recibo normalizado. Los intentos se guardan en `.data/webhook-log.json`; cada entrega se intenta hasta tres veces con backoff exponencial. El endpoint protegido `GET /api/webhooks/test` permite verificar la integracion usando el mismo token Bearer que las rutas administrativas.
+Cuando `WEBHOOK_URL` esta configurado, cada liquidacion x402 exitosa envia un `POST` con el recibo normalizado. Los intentos se guardan en `.data/webhook-log.json`; cada entrega fallida se reintenta tres veces con backoff de 1, 3 y 9 segundos. El endpoint protegido `GET /api/webhooks/test` permite verificar la integracion usando el mismo token Bearer que las rutas administrativas.
 
 Las rutas bajo `/api/protocol/*` y `/api/stellar/*` emiten logs estructurados mediante Better Stack / Logtail cuando `LOGTAIL_SOURCE_TOKEN` está configurado. La app tambien envuelve `next.config.mjs` con `withLogtail` para habilitar la integracion de Next.js. Si la variable no existe, el logger queda en modo no-op para desarrollo local.
 
