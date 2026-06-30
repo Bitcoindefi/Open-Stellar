@@ -7,6 +7,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const agents = listRegisteredAgents({
     capability: url.searchParams.get("capability") ?? undefined,
+    status: url.searchParams.get("status") ?? undefined,
   })
   return NextResponse.json(
     { ok: true, agents },
