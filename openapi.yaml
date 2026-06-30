@@ -1,0 +1,1492 @@
+openapi: 3.0.3
+info:
+  title: Open Stellar API
+  version: 1.0.0
+  description: |
+    Machine-readable contracts for the Open Stellar agent registry, task queues,
+    quests, leaderboards, webhooks, and x402 payment protocol.
+servers:
+  - url: /
+    description: Current deployment
+security: []
+tags:
+  - name: x402
+    description: Payment quotes, settlement, and receipts for the x402 protocol.
+  - name: Agents
+    description: Agent registration, runtime tasks, status, and health.
+  - name: Registry
+    description: Capability discovery across registered agents.
+  - name: Tasks
+    description: Global and per-agent task queue operations.
+  - name: Quests
+    description: Quest creation, claims, subtasks, and dependency graphs.
+  - name: Leaderboard
+    description: Agent and quest rankings.
+  - name: Webhooks
+    description: Webhook registration, secret rotation, and delivery monitoring.
+paths:
+  /api/protocol/x402/quote:
+    post:
+      tags: [x402]
+      operationId: createX402Quote
+      summary: Create an x402 payment quote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/X402QuoteRequest'
+            example:
+              serviceId: weather.v1
+              chain: stellar
+              payer: agent-nexus
+              units: 2
+              unitPriceUsd: 0.1
+              ttlSeconds: 300
+      responses:
+        '200':
+          description: Quote created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/X402QuoteResponse'
+              example:
+                ok: true
+                quote:
+                  paymentRef: x402_quote_123
+                  serviceId: weather.v1
+                  chain: stellar
+                  payer: agent-nexus
+                  amountUsd: 0.2
+                  expiresAt: '2026-06-29T12:05:00.000Z'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/protocol/x402/settle:
+    post:
+      tags: [x402]
+      operationId: settleX402Payment
+      summary: Settle an x402 payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/X402SettlementRequest'
+            example:
+              paymentRef: x402_quote_123
+              chain: stellar
+              txHash: 7d9f3a1b2c
+              paidBy: GABCD1234
+              agentId: agent-nexus
+      responses:
+        '200':
+          description: Payment settled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/X402SettlementResponse'
+              example:
+                ok: true
+                receipt:
+                  id: receipt_123
+                  paymentRef: x402_quote_123
+                  chain: stellar
+                  txHash: 7d9f3a1b2c
+                  paidBy: GABCD1234
+                  settledAt: '2026-06-29T12:01:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '402':
+          description: Passport authorization rejected the payment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { ok: false, error: 'Passport gate: spend cap exceeded' }
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/protocol/x402/receipts:
+    get:
+      tags: [x402]
+      operationId: listX402Receipts
+      summary: List x402 settlement receipts
+      parameters:
+        - $ref: '#/components/parameters/ChainQuery'
+        - name: agent
+          in: query
+          schema: { type: string }
+          example: agent-nexus
+        - name: service
+          in: query
+          schema: { type: string }
+          example: weather.v1
+        - name: q
+          in: query
+          schema: { type: string }
+          example: receipt_123
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PageSizeQuery'
+      responses:
+        '200':
+          description: Paginated receipts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, receipts, page, pageSize, total]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  receipts:
+                    type: array
+                    items: { $ref: '#/components/schemas/X402Receipt' }
+                  page: { type: integer, minimum: 1 }
+                  pageSize: { type: integer, minimum: 1 }
+                  total: { type: integer, minimum: 0 }
+              example: { ok: true, receipts: [], page: 1, pageSize: 50, total: 0 }
+  /api/protocol/x402/receipts/{receiptId}:
+    get:
+      tags: [x402]
+      operationId: getX402Receipt
+      summary: Get one x402 settlement receipt
+      parameters:
+        - $ref: '#/components/parameters/ReceiptIdPath'
+      responses:
+        '200':
+          description: Receipt found
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, receipt]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  receipt: { $ref: '#/components/schemas/X402Receipt' }
+              example:
+                ok: true
+                receipt: { id: receipt_123, paymentRef: x402_quote_123, chain: stellar, txHash: 7d9f3a1b2c, paidBy: GABCD1234, settledAt: '2026-06-29T12:01:00.000Z' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents:
+    get:
+      tags: [Agents, Registry]
+      operationId: listAgents
+      summary: List registered agents
+      parameters:
+        - name: district
+          in: query
+          schema: { $ref: '#/components/schemas/District' }
+          example: research
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/AgentStatus' }
+          example: active
+        - name: skill
+          in: query
+          schema: { type: string }
+          example: data-analysis
+        - name: stream
+          in: query
+          description: Set to 1 to receive a server-sent event stream.
+          schema: { type: string, enum: ['1'] }
+          example: '1'
+      responses:
+        '200':
+          description: Registered agents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentListResponse'
+              example: { ok: true, agents: [] }
+            text/event-stream:
+              schema: { type: string }
+              example: "event: agent.registry\ndata: {}\n\n"
+    post:
+      tags: [Agents, Registry]
+      operationId: registerAgent
+      summary: Register an agent capability manifest
+      description: Validated by the shared Zod schema referenced by AgentRegistrationRequest.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRegistrationRequest'
+            example:
+              agentId: agent-nexus
+              model: claude/sonnet
+              district: research
+              capabilities: [data-analysis, summarization]
+              x402: { accepts: true, pricePerTask: '0.10' }
+              status: active
+              endpoint: https://agents.example/nexus
+      responses:
+        '201':
+          description: Agent registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+              example:
+                ok: true
+                agent:
+                  agentId: agent-nexus
+                  model: claude/sonnet
+                  district: research
+                  capabilities: [data-analysis, summarization]
+                  x402: { accepts: true, pricePerTask: '0.10' }
+                  status: active
+                  endpoint: https://agents.example/nexus
+                  registeredAt: '2026-06-29T12:00:00.000Z'
+                  updatedAt: '2026-06-29T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/agents/{id}:
+    get:
+      tags: [Agents, Registry]
+      operationId: getAgent
+      summary: Get a registered agent
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+      responses:
+        '200':
+          description: Agent found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentResponse' }
+              example: { ok: true, agent: { agentId: agent-nexus, model: claude/sonnet, district: research, capabilities: [data-analysis], x402: { accepts: true }, status: active, endpoint: 'https://agents.example/nexus', registeredAt: '2026-06-29T12:00:00.000Z', updatedAt: '2026-06-29T12:00:00.000Z' } }
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Agents, Registry]
+      operationId: deregisterAgent
+      summary: Remove an agent from the registry
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+      responses:
+        '200':
+          description: Agent removed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentResponse' }
+              example: { ok: true, agent: { agentId: agent-nexus, model: claude/sonnet, district: research, capabilities: [data-analysis], x402: { accepts: true }, status: offline, endpoint: 'https://agents.example/nexus', registeredAt: '2026-06-29T12:00:00.000Z', updatedAt: '2026-06-29T12:05:00.000Z' } }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/{id}/task:
+    get:
+      tags: [Agents, Tasks]
+      operationId: listAgentTaskRecords
+      summary: List execution records for an agent
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+      responses:
+        '200':
+          description: Agent task records
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, tasks]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  tasks: { type: array, items: { $ref: '#/components/schemas/Task' } }
+              example: { ok: true, tasks: [] }
+    post:
+      tags: [Agents, Tasks]
+      operationId: executeAgentTask
+      summary: Execute a task immediately through an agent runtime
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type: { type: string, minLength: 1 }
+                payload: { type: object, additionalProperties: true }
+            example: { type: summarize, payload: { text: 'Open Stellar connects autonomous agents.' } }
+      responses:
+        '201':
+          description: Task executed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, result]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  result: { type: object, additionalProperties: true }
+              example: { ok: true, result: { summary: 'Autonomous agents are connected.' } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/agents/{id}/status:
+    get:
+      tags: [Agents]
+      operationId: getAgentRuntimeStatus
+      summary: Get runtime status, metrics, and health
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+      responses:
+        '200':
+          description: Runtime status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, agentId, status, metrics]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  agentId: { type: string }
+                  status: { type: string }
+                  metrics: { type: object, additionalProperties: true }
+                  health: { $ref: '#/components/schemas/AgentHealth' }
+              example: { ok: true, agentId: agent-nexus, status: running, metrics: { tasksCompleted: 24 }, health: { agentId: agent-nexus, status: active, lastHeartbeat: '2026-06-29T12:00:00.000Z' } }
+  /api/agents/{id}/health:
+    get:
+      tags: [Agents, Registry]
+      operationId: getAgentHealth
+      summary: Get the latest agent heartbeat health
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+      responses:
+        '200':
+          description: Agent health
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, health]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  health: { $ref: '#/components/schemas/AgentHealth' }
+              example: { ok: true, health: { agentId: agent-nexus, status: active, cpu: 42, memory: 61, lastHeartbeat: '2026-06-29T12:00:00.000Z' } }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/{id}/heartbeat:
+    post:
+      tags: [Agents, Registry]
+      operationId: recordAgentHeartbeat
+      summary: Record agent health metrics
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HeartbeatRequest'
+            example: { status: active, cpu: 42, memory: 61, currentTask: task_123, autoRestart: true }
+      responses:
+        '200':
+          description: Heartbeat recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, health]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  health: { $ref: '#/components/schemas/AgentHealth' }
+              example: { ok: true, health: { agentId: agent-nexus, status: active, cpu: 42, memory: 61, currentTask: task_123, autoRestart: true, lastHeartbeat: '2026-06-29T12:00:00.000Z' } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/registry:
+    get:
+      tags: [Registry]
+      operationId: searchRegistry
+      summary: Search registered agents by capability
+      parameters:
+        - name: capability
+          in: query
+          schema: { type: string }
+          example: data-analysis
+      responses:
+        '200':
+          description: Matching agents
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AgentListResponse' }
+              example: { ok: true, agents: [] }
+  /api/registry/capabilities:
+    get:
+      tags: [Registry]
+      operationId: listRegistryCapabilities
+      summary: List capabilities and registered agent counts
+      responses:
+        '200':
+          description: Capability counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, capabilities]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  capabilities:
+                    type: array
+                    items:
+                      type: object
+                      required: [capability, count]
+                      properties:
+                        capability: { type: string }
+                        count: { type: integer, minimum: 0 }
+              example: { ok: true, capabilities: [{ capability: data-analysis, count: 3 }] }
+  /api/tasks:
+    get:
+      tags: [Tasks]
+      operationId: listQueuedTasks
+      summary: List queued and optionally dead-letter tasks
+      parameters:
+        - name: agent
+          in: query
+          schema: { type: string }
+          example: agent-nexus
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TaskStatus' }
+          example: pending
+        - name: includeDeadLetter
+          in: query
+          schema: { type: string, enum: ['1'] }
+          example: '1'
+      responses:
+        '200':
+          description: Queued tasks
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskListResponse' }
+              example: { ok: true, tasks: [] }
+    post:
+      tags: [Tasks]
+      operationId: enqueueTask
+      summary: Enqueue a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EnqueueTaskRequest' }
+            example: { type: summarize, payload: { documentId: doc_123 }, priority: 5, targetAgentId: agent-nexus, maxRetries: 3 }
+      responses:
+        '201':
+          description: Task enqueued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+              example: { ok: true, task: { id: task_123, type: summarize, payload: { documentId: doc_123 }, status: pending, priority: 5, retryCount: 0, maxRetries: 3, createdAt: '2026-06-29T12:00:00.000Z' } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/tasks/{id}:
+    get:
+      tags: [Tasks]
+      operationId: getQueuedTask
+      summary: Get a queued or dead-letter task
+      parameters:
+        - $ref: '#/components/parameters/TaskIdPath'
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+              example: { ok: true, task: { id: task_123, type: summarize, payload: {}, status: pending, priority: 0, retryCount: 0, maxRetries: 3, createdAt: '2026-06-29T12:00:00.000Z' } }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/tasks/{id}/fail:
+    post:
+      tags: [Tasks]
+      operationId: failQueuedTask
+      summary: Mark a task failed and move exhausted tasks to dead letter
+      parameters:
+        - $ref: '#/components/parameters/TaskIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                error: { type: string }
+            example: { error: 'Agent timed out' }
+      responses:
+        '200':
+          description: Task marked failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+              example: { ok: true, task: { id: task_123, type: summarize, payload: {}, status: failed, priority: 0, retryCount: 3, maxRetries: 3, error: 'Agent timed out', createdAt: '2026-06-29T12:00:00.000Z' } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/tasks/{id}/retry:
+    post:
+      tags: [Tasks]
+      operationId: retryDeadLetterTask
+      summary: Return a dead-letter task to the queue
+      parameters:
+        - $ref: '#/components/parameters/TaskIdPath'
+      responses:
+        '200':
+          description: Task returned to queue
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+              example: { ok: true, task: { id: task_123, type: summarize, payload: {}, status: pending, priority: 0, retryCount: 0, maxRetries: 3, createdAt: '2026-06-29T12:00:00.000Z' } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/tasks/{id}/cancel:
+    post:
+      tags: [Tasks]
+      operationId: cancelQueuedTask
+      summary: Cancel a queued task
+      parameters:
+        - $ref: '#/components/parameters/TaskIdPath'
+      responses:
+        '200':
+          description: Task cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+              example: { ok: true, task: { id: task_123, type: summarize, payload: {}, status: cancelled, priority: 0, retryCount: 0, maxRetries: 3, createdAt: '2026-06-29T12:00:00.000Z' } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/agents/{id}/tasks:
+    post:
+      tags: [Agents, Tasks]
+      operationId: enqueueAgentTask
+      summary: Enqueue a task in an agent-specific queue
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                type: { type: string, minLength: 1 }
+                payload: { type: object, additionalProperties: true }
+            example: { type: index-dataset, payload: { datasetId: stars_2026 } }
+      responses:
+        '201':
+          description: Task enqueued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, taskId]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  taskId: { type: string }
+              example: { ok: true, taskId: task_123 }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    delete:
+      tags: [Agents, Tasks]
+      operationId: purgeAgentTasks
+      summary: Purge all tasks for an agent
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+      responses:
+        '200':
+          description: Tasks purged
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, purged]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  purged: { type: integer, minimum: 0 }
+              example: { ok: true, purged: 4 }
+  /api/agents/{id}/tasks/drain:
+    post:
+      tags: [Agents, Tasks]
+      operationId: drainAgentTasks
+      summary: Dequeue and process pending tasks for an agent
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxItems: { type: integer, minimum: 1 }
+            example: { maxItems: 10 }
+      responses:
+        '200':
+          description: Queue drained
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, processed, skipped, errors, durationMs]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  processed: { type: integer, minimum: 0 }
+                  skipped: { type: integer, minimum: 0 }
+                  errors: { type: array, items: { type: string } }
+                  durationMs: { type: number, minimum: 0 }
+              example: { ok: true, processed: 3, skipped: 0, errors: [], durationMs: 24 }
+        '409':
+          description: A drain is already running
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { ok: false, error: 'Drain already in progress for this agent' }
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/agents/{id}/tasks/{taskId}:
+    get:
+      tags: [Agents, Tasks]
+      operationId: getAgentQueueTask
+      summary: Get one agent queue task
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+        - $ref: '#/components/parameters/AgentTaskIdPath'
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+              example: { ok: true, task: { id: task_123, agentId: agent-nexus, type: index-dataset, payload: {}, status: pending, createdAt: '2026-06-29T12:00:00.000Z' } }
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Agents, Tasks]
+      operationId: completeAgentQueueTask
+      summary: Complete or fail a running agent queue task
+      parameters:
+        - $ref: '#/components/parameters/AgentIdPath'
+        - $ref: '#/components/parameters/AgentTaskIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [completed, failed] }
+                result: { type: object, additionalProperties: true }
+            example: { status: completed, result: { indexed: 1200 } }
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskResponse' }
+              example: { ok: true, task: { id: task_123, agentId: agent-nexus, type: index-dataset, payload: {}, status: completed, result: { indexed: 1200 }, createdAt: '2026-06-29T12:00:00.000Z' } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/quests:
+    get:
+      tags: [Quests]
+      operationId: listQuests
+      summary: List available quests
+      parameters:
+        - name: include_expired
+          in: query
+          schema: { type: boolean, default: false }
+          example: false
+      responses:
+        '200':
+          description: Quests
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuestListResponse' }
+              example: { ok: true, quests: [] }
+    post:
+      tags: [Quests]
+      operationId: createQuest
+      summary: Create a custom quest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateQuestRequest' }
+            example: { id: quest_first_contact, type: story, title: First Contact, description: Register your first agent, reward: { xp: 100 }, minReputation: 10, assignedAgentIds: [agent-nexus] }
+      responses:
+        '200':
+          description: Quest created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuestResponse' }
+              example: { ok: true, quest: { id: quest_first_contact, type: story, title: First Contact, description: Register your first agent, reward: { xp: 100 }, progress: 0, status: active } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/quests/{id}/apply:
+    post:
+      tags: [Quests]
+      operationId: applyQuest
+      summary: Claim a completed quest for an actor
+      security:
+        - AdminApiKey: []
+      parameters:
+        - $ref: '#/components/parameters/QuestIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actorId]
+              properties:
+                actorId: { type: string, minLength: 1 }
+            example: { actorId: agent-nexus }
+      responses:
+        '200':
+          description: Quest claimed or already claimed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/QuestResponse'
+                  - type: object
+                    properties:
+                      actorId: { type: string }
+                      alreadyClaimed: { type: boolean }
+              example: { ok: true, actorId: agent-nexus, alreadyClaimed: false, quest: { id: quest_first_contact, type: story, title: First Contact, description: Register your first agent, reward: { xp: 100 }, progress: 1, status: completed } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/quests/{id}/subtasks:
+    post:
+      tags: [Quests]
+      operationId: createQuestSubtask
+      summary: Add a subtask to a quest
+      parameters:
+        - $ref: '#/components/parameters/QuestIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSubtaskRequest' }
+            example: { title: Verify dataset, assignedAgentId: agent-nexus, dependsOn: [subtask_download] }
+      responses:
+        '201':
+          description: Subtask created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, subTask]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  subTask: { $ref: '#/components/schemas/Subtask' }
+              example: { ok: true, subTask: { id: subtask_verify, title: Verify dataset, assignedAgentId: agent-nexus, dependsOn: [subtask_download], status: pending } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/quests/{id}/subtasks/{subtaskId}:
+    patch:
+      tags: [Quests]
+      operationId: updateQuestSubtask
+      summary: Update a quest subtask
+      parameters:
+        - $ref: '#/components/parameters/QuestIdPath'
+        - $ref: '#/components/parameters/SubtaskIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateSubtaskRequest' }
+            example: { status: done, assignedAgentId: agent-nexus }
+      responses:
+        '200':
+          description: Subtask updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, subTask]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  subTask: { $ref: '#/components/schemas/Subtask' }
+              example: { ok: true, subTask: { id: subtask_verify, title: Verify dataset, assignedAgentId: agent-nexus, status: done, completedAt: '2026-06-29T12:15:00.000Z' } }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: A prerequisite is incomplete
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { ok: false, error: prerequisite_incomplete }
+        '422':
+          description: Dependencies create a cycle
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { ok: false, error: circular_dependency }
+  /api/quests/{id}/chain:
+    get:
+      tags: [Quests]
+      operationId: getQuestChain
+      summary: Follow the chain of quests unlocked by a quest
+      parameters:
+        - $ref: '#/components/parameters/QuestIdPath'
+      responses:
+        '200':
+          description: Quest chain
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [chain, length]
+                properties:
+                  chain: { type: array, items: { type: string } }
+                  length: { type: integer, minimum: 1 }
+              example: { chain: [quest_first_contact, quest_deep_space], length: 2 }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/quests/{id}/subtasks/graph:
+    get:
+      tags: [Quests]
+      operationId: getQuestSubtaskGraph
+      summary: Get the dependency graph for quest subtasks
+      parameters:
+        - $ref: '#/components/parameters/QuestIdPath'
+      responses:
+        '200':
+          description: Subtask graph
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [questId, nodes, edges, hasCycle]
+                properties:
+                  questId: { type: string }
+                  nodes: { type: array, items: { $ref: '#/components/schemas/SubtaskNode' } }
+                  edges: { type: array, items: { $ref: '#/components/schemas/SubtaskEdge' } }
+                  hasCycle: { type: boolean }
+              example: { questId: quest_first_contact, nodes: [{ id: subtask_download, title: Download dataset, status: done }], edges: [], hasCycle: false }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/quests/leaderboard:
+    get:
+      tags: [Quests, Leaderboard]
+      operationId: getQuestLeaderboard
+      summary: Get daily or weekly quest rankings
+      parameters:
+        - name: period
+          in: query
+          schema: { type: string, enum: [daily, weekly], default: weekly }
+          example: weekly
+      responses:
+        '200':
+          description: Quest leaderboard
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, period, entries, count]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  period: { type: string, enum: [daily, weekly] }
+                  entries: { type: array, items: { $ref: '#/components/schemas/LeaderboardEntry' } }
+                  count: { type: integer, minimum: 0 }
+              example: { ok: true, period: weekly, entries: [], count: 0 }
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/leaderboard:
+    get:
+      tags: [Leaderboard]
+      operationId: getLeaderboard
+      summary: Get global, district, or weekly agent rankings
+      parameters:
+        - name: view
+          in: query
+          schema: { type: string, enum: [global, district, week], default: global }
+          example: global
+        - name: district
+          in: query
+          schema: { $ref: '#/components/schemas/District' }
+          example: research
+      responses:
+        '200':
+          description: Agent leaderboard
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [agents, refreshedAt, nextResetAt]
+                properties:
+                  agents: { type: array, items: { $ref: '#/components/schemas/LeaderboardEntry' } }
+                  refreshedAt: { type: string, format: date-time }
+                  nextResetAt: { type: string }
+              example: { agents: [], refreshedAt: '2026-06-29T12:00:00.000Z', nextResetAt: 'Sunday 00:00 UTC' }
+  /api/webhooks:
+    get:
+      tags: [Webhooks]
+      operationId: listWebhooks
+      summary: List webhook registrations
+      responses:
+        '200':
+          description: Webhooks
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [webhooks]
+                properties:
+                  webhooks: { type: array, items: { $ref: '#/components/schemas/Webhook' } }
+              example: { webhooks: [] }
+    post:
+      tags: [Webhooks]
+      operationId: createWebhook
+      summary: Register a signed webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateWebhookRequest' }
+            example: { url: 'https://partner.example/webhooks/open-stellar', events: [agent.status, task.completed] }
+      responses:
+        '201':
+          description: Webhook registered; the secret is shown only in this response
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, secret]
+                properties:
+                  id: { type: string }
+                  secret: { type: string }
+              example: { id: webhook_123, secret: whsec_abc123 }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/webhooks/{id}:
+    delete:
+      tags: [Webhooks]
+      operationId: deleteWebhook
+      summary: Delete a webhook registration
+      parameters:
+        - $ref: '#/components/parameters/WebhookIdPath'
+      responses:
+        '200':
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, deleted]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  deleted: { type: boolean }
+              example: { ok: true, deleted: true }
+  /api/webhooks/{id}/rotate:
+    post:
+      tags: [Webhooks]
+      operationId: rotateWebhookSecret
+      summary: Rotate a webhook signing secret
+      parameters:
+        - $ref: '#/components/parameters/WebhookIdPath'
+      responses:
+        '200':
+          description: New signing secret
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, secret, cancelledRetries]
+                properties:
+                  id: { type: string }
+                  secret: { type: string }
+                  cancelledRetries: { type: integer, minimum: 0 }
+              example: { id: webhook_123, secret: whsec_new456, cancelledRetries: 2 }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/webhooks/{id}/deliveries:
+    get:
+      tags: [Webhooks]
+      operationId: listWebhookDeliveries
+      summary: List recent delivery attempts
+      parameters:
+        - $ref: '#/components/parameters/WebhookIdPath'
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+          example: 20
+      responses:
+        '200':
+          description: Delivery attempts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deliveries]
+                properties:
+                  deliveries: { type: array, items: { $ref: '#/components/schemas/WebhookDelivery' } }
+              example: { deliveries: [] }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/webhooks/{id}/stats:
+    get:
+      tags: [Webhooks]
+      operationId: getWebhookStats
+      summary: Get webhook delivery statistics
+      parameters:
+        - $ref: '#/components/parameters/WebhookIdPath'
+      responses:
+        '200':
+          description: Delivery statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total, succeeded, failed, successRate]
+                properties:
+                  total: { type: integer, minimum: 0 }
+                  succeeded: { type: integer, minimum: 0 }
+                  failed: { type: integer, minimum: 0 }
+                  successRate: { type: number, minimum: 0, maximum: 1 }
+              example: { total: 24, succeeded: 22, failed: 2, successRate: 0.9167 }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/webhooks/event-types:
+    get:
+      tags: [Webhooks]
+      operationId: listWebhookEventTypes
+      summary: List supported webhook event types
+      responses:
+        '200':
+          description: Event types
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [eventTypes]
+                properties:
+                  eventTypes: { type: array, items: { type: string } }
+              example: { eventTypes: [agent.status, task.completed, payment.received] }
+components:
+  securitySchemes:
+    AdminApiKey:
+      type: apiKey
+      in: header
+      name: x-admin-api-key
+  parameters:
+    AgentIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      example: agent-nexus
+    TaskIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      example: task_123
+    AgentTaskIdPath:
+      name: taskId
+      in: path
+      required: true
+      schema: { type: string }
+      example: task_123
+    QuestIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      example: quest_first_contact
+    SubtaskIdPath:
+      name: subtaskId
+      in: path
+      required: true
+      schema: { type: string }
+      example: subtask_verify
+    WebhookIdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      example: webhook_123
+    ReceiptIdPath:
+      name: receiptId
+      in: path
+      required: true
+      schema: { type: string }
+      example: receipt_123
+    ChainQuery:
+      name: chain
+      in: query
+      schema: { type: string, enum: [all, stellar, bnb], default: all }
+      example: stellar
+    PageQuery:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+      example: 1
+    PageSizeQuery:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      example: 50
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { ok: false, error: Invalid request body }
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { ok: false, error: Unauthorized }
+    Forbidden:
+      description: Request is not allowed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { ok: false, error: Insufficient reputation }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { ok: false, error: Resource not found }
+    RateLimited:
+      description: Too many requests or queue is full
+      headers:
+        Retry-After:
+          description: Seconds before retrying, when available.
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { ok: false, error: Queue full }
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { ok: false, error: Internal server error }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [ok, error]
+      properties:
+        ok: { type: boolean, enum: [false] }
+        error: { type: string }
+        details: { type: object, additionalProperties: true }
+    District:
+      type: string
+      enum: [data-center, comm-hub, processing, defense, research]
+    AgentStatus:
+      type: string
+      enum: [active, idle, working, error, offline]
+    AgentX402Manifest:
+      type: object
+      required: [accepts]
+      properties:
+        accepts: { type: boolean }
+        pricePerTask: { type: string }
+    SkillRegistration:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string, minLength: 1 }
+        version: { type: string }
+        minCallerVersion: { type: string }
+    AgentRegistrationRequest:
+      type: object
+      x-zod-schema: lib/openapi/schemas.ts#agentRegistrationSchema
+      required: [agentId, model, district, capabilities, x402, status, endpoint]
+      properties:
+        agentId: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        district: { $ref: '#/components/schemas/District' }
+        capabilities: { type: array, items: { type: string, minLength: 1 } }
+        skillVersions: { type: array, items: { $ref: '#/components/schemas/SkillRegistration' } }
+        dependencies: { type: array, items: { type: string, minLength: 1 } }
+        x402: { $ref: '#/components/schemas/AgentX402Manifest' }
+        status: { $ref: '#/components/schemas/AgentStatus' }
+        endpoint: { type: string, format: uri }
+    Agent:
+      allOf:
+        - $ref: '#/components/schemas/AgentRegistrationRequest'
+        - type: object
+          required: [registeredAt, updatedAt]
+          properties:
+            registeredAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+    AgentResponse:
+      type: object
+      required: [ok, agent]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        agent: { $ref: '#/components/schemas/Agent' }
+    AgentListResponse:
+      type: object
+      required: [ok, agents]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        agents: { type: array, items: { $ref: '#/components/schemas/Agent' } }
+    AgentHealth:
+      type: object
+      required: [agentId, status, lastHeartbeat]
+      additionalProperties: true
+      properties:
+        agentId: { type: string }
+        status: { $ref: '#/components/schemas/AgentStatus' }
+        cpu: { type: number, minimum: 0, maximum: 100 }
+        memory: { type: number, minimum: 0, maximum: 100 }
+        currentTask: { type: string }
+        autoRestart: { type: boolean }
+        lastHeartbeat: { type: string, format: date-time }
+    HeartbeatRequest:
+      type: object
+      properties:
+        status: { $ref: '#/components/schemas/AgentStatus' }
+        cpu: { type: number, minimum: 0, maximum: 100 }
+        memory: { type: number, minimum: 0, maximum: 100 }
+        currentTask: { type: string }
+        autoRestart: { type: boolean }
+    X402QuoteRequest:
+      type: object
+      required: [serviceId, payer]
+      properties:
+        serviceId: { type: string }
+        chain: { type: string, enum: [stellar, bnb, base], default: bnb }
+        payer: { type: string }
+        units: { type: number, minimum: 0, exclusiveMinimum: true, default: 1 }
+        unitPriceUsd: { type: number, minimum: 0, default: 0.1 }
+        ttlSeconds: { type: integer, minimum: 1, default: 300 }
+        minReputation: { type: number }
+        tier: { type: string }
+        attestation: { type: object, additionalProperties: true }
+    X402Quote:
+      type: object
+      required: [paymentRef, serviceId, chain, payer, amountUsd, expiresAt]
+      additionalProperties: true
+      properties:
+        paymentRef: { type: string }
+        serviceId: { type: string }
+        chain: { type: string, enum: [stellar, bnb, base] }
+        payer: { type: string }
+        amountUsd: { type: number }
+        expiresAt: { type: string, format: date-time }
+    X402QuoteResponse:
+      type: object
+      required: [ok, quote]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        quote: { $ref: '#/components/schemas/X402Quote' }
+    X402SettlementRequest:
+      type: object
+      required: [paymentRef, txHash, paidBy]
+      properties:
+        paymentRef: { type: string }
+        quoteId: { type: string, description: Deprecated alias for paymentRef. }
+        chain: { type: string, enum: [stellar, bnb, base], default: stellar }
+        txHash: { type: string }
+        paidBy: { type: string }
+        agentId: { type: string }
+        subscriptionId: { type: string }
+        ledger: { oneOf: [{ type: integer }, { type: string }] }
+    X402Receipt:
+      type: object
+      required: [id, paymentRef, chain, txHash, paidBy, settledAt]
+      additionalProperties: true
+      properties:
+        id: { type: string }
+        paymentRef: { type: string }
+        chain: { type: string, enum: [stellar, bnb, base] }
+        txHash: { type: string }
+        paidBy: { type: string }
+        agentId: { type: string }
+        settledAt: { type: string, format: date-time }
+    X402SettlementResponse:
+      type: object
+      required: [ok, receipt]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        receipt: { $ref: '#/components/schemas/X402Receipt' }
+        subscriptionProof: { type: object, additionalProperties: true }
+    TaskStatus:
+      type: string
+      enum: [pending, queued, running, completed, failed, cancelled, dead-letter]
+    Task:
+      type: object
+      required: [id, type, payload, status, createdAt]
+      additionalProperties: true
+      properties:
+        id: { type: string }
+        agentId: { type: string }
+        type: { type: string }
+        payload: { type: object, additionalProperties: true }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        priority: { type: number }
+        retryCount: { type: integer, minimum: 0 }
+        maxRetries: { type: integer, minimum: 0 }
+        result: { type: object, additionalProperties: true }
+        error: { type: string }
+        createdAt: { type: string, format: date-time }
+    EnqueueTaskRequest:
+      type: object
+      required: [type]
+      properties:
+        id: { type: string }
+        type: { type: string, minLength: 1 }
+        payload: { type: object, additionalProperties: true }
+        priority: { type: number }
+        targetAgentId: { type: string }
+        targetDistrict: { $ref: '#/components/schemas/District' }
+        targetCapability: { type: string }
+        maxRetries: { type: integer, minimum: 0 }
+        scheduledFor: { type: string, format: date-time }
+    TaskResponse:
+      type: object
+      required: [ok, task]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        task: { $ref: '#/components/schemas/Task' }
+    TaskListResponse:
+      type: object
+      required: [ok, tasks]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        tasks: { type: array, items: { $ref: '#/components/schemas/Task' } }
+    QuestReward:
+      type: object
+      additionalProperties: true
+      properties:
+        xp: { type: integer, minimum: 0 }
+    Subtask:
+      type: object
+      required: [id, title, status]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        assignedAgentId: { type: string }
+        dependsOn: { type: array, items: { type: string } }
+        status: { type: string, enum: [pending, in_progress, done] }
+        completedAt: { type: string, format: date-time }
+    Quest:
+      type: object
+      required: [id, type, title, description, reward, progress, status]
+      additionalProperties: true
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [daily, weekly, story] }
+        title: { type: string }
+        description: { type: string }
+        reward: { $ref: '#/components/schemas/QuestReward' }
+        progress: { type: number, minimum: 0 }
+        unlocksQuestId: { type: string }
+        minReputation: { type: number }
+        completedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        subTasks: { type: array, items: { $ref: '#/components/schemas/Subtask' } }
+        status: { type: string, enum: [active, completed, expired] }
+    CreateQuestRequest:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: string, minLength: 1 }
+        type: { type: string, enum: [daily, weekly, story], default: daily }
+        title: { type: string, minLength: 1 }
+        description: { type: string }
+        reward: { $ref: '#/components/schemas/QuestReward' }
+        expiresAt: { type: string, format: date-time }
+        unlocksQuestId: { type: string }
+        minReputation: { type: number }
+        assignedAgentIds: { type: array, items: { type: string } }
+    QuestResponse:
+      type: object
+      required: [ok, quest]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        quest: { $ref: '#/components/schemas/Quest' }
+    QuestListResponse:
+      type: object
+      required: [ok, quests]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        quests: { type: array, items: { $ref: '#/components/schemas/Quest' } }
+    CreateSubtaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1 }
+        assignedAgentId: { type: string }
+        dependsOn: { type: array, items: { type: string } }
+    UpdateSubtaskRequest:
+      type: object
+      properties:
+        status: { type: string, enum: [pending, in_progress, done] }
+        assignedAgentId: { type: string }
+        dependsOn: { type: array, items: { type: string } }
+    SubtaskNode:
+      type: object
+      required: [id, title, status]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [pending, in_progress, done] }
+    SubtaskEdge:
+      type: object
+      required: [from, to]
+      properties:
+        from: { type: string }
+        to: { type: string }
+    LeaderboardEntry:
+      type: object
+      additionalProperties: true
+      properties:
+        agentId: { type: string }
+        id: { type: string }
+        name: { type: string }
+        rank: { type: integer, minimum: 1 }
+        xp: { type: integer, minimum: 0 }
+        questsCompleted: { type: integer, minimum: 0 }
+    CreateWebhookRequest:
+      type: object
+      required: [url, events]
+      properties:
+        url: { type: string, format: uri }
+        events: { type: array, minItems: 1, items: { type: string } }
+    Webhook:
+      type: object
+      required: [id, url, events, createdAt]
+      additionalProperties: true
+      properties:
+        id: { type: string }
+        url: { type: string, format: uri }
+        events: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+    WebhookDelivery:
+      type: object
+      required: [id, webhookId, event, status, createdAt]
+      additionalProperties: true
+      properties:
+        id: { type: string }
+        webhookId: { type: string }
+        event: { type: string }
+        status: { type: string, enum: [pending, succeeded, failed] }
+        statusCode: { type: integer }
+        attempt: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }

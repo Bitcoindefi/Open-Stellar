@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createSystemEventResponse } from "@/lib/events/event-stream"
 import { listRegisteredAgents, registerAgent } from "@/lib/agent-registry"
+import { agentRegistrationSchema } from "@/lib/openapi/schemas"
 
 export const dynamic = "force-dynamic"
 
@@ -26,7 +27,21 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const agent = registerAgent(await req.json())
+    const parsed = agentRegistrationSchema.safeParse(await req.json())
+    if (!parsed.success) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Invalid agent registration",
+          ...(process.env.NODE_ENV === "development"
+            ? { details: parsed.error.flatten() }
+            : {}),
+        },
+        { status: 400 },
+      )
+    }
+
+    const agent = registerAgent(parsed.data)
     return NextResponse.json(
       { ok: true, agent },
       { status: 201, headers: { "Cache-Control": "no-store" } },
