@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import type { ActiveDistrictEvent, DistrictStanding } from "@/lib/gamification/events"
 
 interface DistrictEventOverlayProps {
@@ -49,7 +50,7 @@ export function DistrictEventOverlay({ event, standings }: DistrictEventOverlayP
       </div>
       <div style={{ display: "grid", gap: 6 }}>
         {standings.slice(0, 5).map((standing) => (
-          <div key={standing.districtId} style={{ display: "grid", gridTemplateColumns: "22px 1fr auto", alignItems: "center", gap: 6 }}>
+          <Link key={standing.districtId} href={`/districts/${standing.districtId}/leaderboard`} style={{ display: "grid", gridTemplateColumns: "22px 1fr auto", alignItems: "center", gap: 6, textDecoration: "none" }} aria-label={`${standing.districtName} leaderboard`}>
             <div style={{ color: standing.color, fontSize: 11, fontWeight: 800 }}>#{standing.rank}</div>
             <div style={{ minWidth: 0 }}>
               <div style={{ color: "#cbd5e1", fontSize: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -68,7 +69,7 @@ export function DistrictEventOverlay({ event, standings }: DistrictEventOverlayP
             <div style={{ color: standing.rank <= 2 ? "#fbbf24" : "#64748b", fontSize: 10, fontWeight: 700 }}>
               {standing.formattedScore} {standing.multiplier > 1 ? `${standing.multiplier}×` : ""}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </section>
