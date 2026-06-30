@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import type { DistrictId } from "@/lib/types"
 import type { LeaderboardAgent, LeaderboardView } from "@/lib/leaderboard"
+import { AgentBadgeIcons } from "@/components/leaderboard/agent-badge-icons"
 
 type LeaderboardTableProps = {
   initialAgents: LeaderboardAgent[]
@@ -50,25 +51,62 @@ export function LeaderboardTable({ initialAgents, view, district }: LeaderboardT
             <Link
               key={agent.id}
               href={`/leaderboard/${agent.id}`}
-              className="grid grid-cols-[48px_1fr] gap-3 px-4 py-4 transition hover:bg-slate-900/80 md:grid-cols-[60px_72px_1.4fr_1fr_1fr_96px_110px] md:items-center"
+              className="grid grid-cols-[48px_1fr] gap-3 px-4 py-4 transition hover:bg-slate-900/80 md:grid-cols-[60px_72px_1.4fr_1fr_1fr_96px_1fr] md:items-center"
             >
+              {/* Rank */}
               <div className="font-pixel text-xl text-cyan-200">#{agent.rank}</div>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-2xl shadow-inner" style={{ boxShadow: `0 0 24px ${agent.districtColor}33` }}>
+
+              {/* Avatar */}
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-2xl shadow-inner"
+                style={{ boxShadow: `0 0 24px ${agent.districtColor}33` }}
+              >
                 🤖
               </div>
+
+              {/* Name + sprite */}
               <div>
-                <div className="flex items-center gap-2 font-pixel text-lg uppercase text-slate-100">
+                <div className="flex flex-wrap items-center gap-2 font-pixel text-lg uppercase text-slate-100">
                   {agent.name}
                   {agent.globalRank <= 3 && <span aria-label="top-three crown">🏆</span>}
                 </div>
                 <div className="mt-1 font-mono text-xs text-slate-500">Sprite #{agent.spriteId + 1}</div>
               </div>
-              <div className="font-mono text-sm" style={{ color: agent.districtColor }}>{agent.districtName}</div>
-              <div className="font-mono text-sm text-slate-200">{(view === "week" ? agent.weeklyTasks : agent.tasksCompleted).toLocaleString()} {title.toLowerCase()}</div>
+
+              {/* District */}
+              <div className="font-mono text-sm" style={{ color: agent.districtColor }}>
+                {agent.districtName}
+              </div>
+
+              {/* Tasks */}
+              <div className="font-mono text-sm text-slate-200">
+                {(view === "week" ? agent.weeklyTasks : agent.tasksCompleted).toLocaleString()}{" "}
+                {title.toLowerCase()}
+              </div>
+
+              {/* Level */}
               <div className="font-mono text-sm text-slate-300">Level {agent.level}</div>
-              <div className="flex items-center justify-between gap-2 font-mono text-sm text-slate-300">
-                <span>{agent.badges.join(" ")}</span>
-                <span className={delta > 0 ? "text-emerald-300" : delta < 0 ? "text-rose-300" : "text-slate-500"}>{delta > 0 ? "▲" : delta < 0 ? "▼" : "—"}</span>
+
+              {/* Badges + rank delta */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {/* Badge icons (up to 3 visible, +N overflow) */}
+                <AgentBadgeIcons badges={agent.badgeIcons ?? []} />
+
+                {/* Rank delta arrow */}
+                <span
+                  className={`font-mono text-sm ${
+                    delta > 0 ? "text-emerald-300" : delta < 0 ? "text-rose-300" : "text-slate-500"
+                  }`}
+                  aria-label={
+                    delta > 0
+                      ? `Moved up ${delta} place${delta !== 1 ? "s" : ""}`
+                      : delta < 0
+                        ? `Moved down ${Math.abs(delta)} place${Math.abs(delta) !== 1 ? "s" : ""}`
+                        : "No rank change"
+                  }
+                >
+                  {delta > 0 ? "▲" : delta < 0 ? "▼" : "—"}
+                </span>
               </div>
             </Link>
           )
