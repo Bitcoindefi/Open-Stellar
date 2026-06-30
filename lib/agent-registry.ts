@@ -175,6 +175,10 @@ function emitRegistryChange(action: AgentRegistryChangeAction, agent: AgentCapab
   })
 }
 
+export function getAgentRegistry(): AgentCapabilityManifest[] {
+  return Array.from(registry.agents.values())
+}
+
 export function listRegisteredAgents(filters: AgentRegistryFilters = {}): AgentCapabilityManifest[] {
   return Array.from(registry.agents.values()).filter((agent) => {
     if (filters.district && agent.district !== filters.district) return false
