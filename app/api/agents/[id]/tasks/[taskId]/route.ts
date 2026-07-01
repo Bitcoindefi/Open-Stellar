@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { updateTask, getTask } from "@/lib/agents/task-queue"
+import { awardTaskXP } from "@/lib/gamification/xp"
 
 interface RouteContext {
   params: Promise<{ id: string; taskId: string }>
@@ -29,6 +30,15 @@ export async function PATCH(req: Request, context: RouteContext) {
         { ok: false, error: "Task not found or not in running state" },
         { status: 404 },
       )
+    }
+
+    if (task.status === "completed") {
+      awardTaskXP({
+        agentId,
+        durationMs: task.startedAt && task.completedAt
+          ? task.completedAt - task.startedAt
+          : undefined,
+      })
     }
 
     return NextResponse.json(
