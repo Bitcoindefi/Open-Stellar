@@ -29,10 +29,10 @@ export type SystemEvent =
   | (BaseEvent & { type: "task.started"; agentId: string; task: AgentTask })
   | (BaseEvent & { type: "task.completed"; agentId: string; taskId: string; result: TaskResult; skillId?: string })
   | (BaseEvent & { type: "payment.received"; agentId: string; receipt: X402Receipt })
-  | (BaseEvent & { type: "quest.completed"; agentId: string; questId?: string; quest?: unknown; reward?: unknown })
+  | (BaseEvent & { type: "quest.completed"; agentId: string; questId?: string; questTitle?: string; quest?: unknown; reward?: { xp?: number } })
   | (BaseEvent & { type: "quest.expired"; agentId: string; questId: string; completedSubtasks: number; totalSubtasks: number })
   | (BaseEvent & { type: "quest.unlocked"; agentId: string; questId: string })
-  | (BaseEvent & { type: "agent.xp"; agentId: string; xp: number; totalXp?: number; level: number; xpToNext?: number; reason?: string })
+  | (BaseEvent & { type: "agent.xp"; agentId: string; xp: number; totalXp?: number; level: number; previousLevel?: number; xpToNext?: number; reason?: string; leveledUp?: boolean })
   | (BaseEvent & { type: "badge.unlocked"; agentId: string; badge: Badge })
   | (BaseEvent & { type: "district.unlocked"; districtId?: import("@/lib/types").DistrictId; district?: import("@/lib/types").District })
   | (BaseEvent & {
