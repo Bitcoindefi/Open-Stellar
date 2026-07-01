@@ -19,6 +19,18 @@ export interface Badge {
   rarity?: BadgeRarity
 }
 
+export interface QuestCompletionSummary {
+  id: string
+  title: string
+}
+
+export interface QuestCompletionReward {
+  xp: number
+  xlm?: string
+  badge?: string
+  title?: string
+}
+
 interface BaseEvent {
   id?: string
   occurredAt?: string
@@ -29,7 +41,13 @@ export type SystemEvent =
   | (BaseEvent & { type: "task.started"; agentId: string; task: AgentTask })
   | (BaseEvent & { type: "task.completed"; agentId: string; taskId: string; result: TaskResult; skillId?: string })
   | (BaseEvent & { type: "payment.received"; agentId: string; receipt: X402Receipt })
-  | (BaseEvent & { type: "quest.completed"; agentId: string; questId?: string; quest?: unknown; reward?: unknown })
+  | (BaseEvent & {
+    type: "quest.completed"
+    agentId: string
+    questId?: string
+    quest?: QuestCompletionSummary
+    reward?: QuestCompletionReward
+  })
   | (BaseEvent & { type: "quest.expired"; agentId: string; questId: string; completedSubtasks: number; totalSubtasks: number })
   | (BaseEvent & { type: "quest.unlocked"; agentId: string; questId: string })
   | (BaseEvent & { type: "agent.xp"; agentId: string; xp: number; totalXp?: number; level: number; xpToNext?: number; reason?: string })

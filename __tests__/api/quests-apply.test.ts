@@ -3,6 +3,10 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest"
 import { POST } from "@/app/api/quests/[id]/apply/route"
 import { upsertReputationMetrics } from "@/lib/reputation/reputation-store"
 import { resetQuestCompletions } from "@/lib/gamification/quest-completions"
+import {
+  subscribeToSystemEvents,
+  type PublishedSystemEvent,
+} from "@/lib/events/system-events"
 
 const TOKEN = "test-gateway-token"
 const context = (id: string) => ({ params: Promise.resolve({ id }) })
@@ -83,6 +87,8 @@ describe("POST /api/quests/[id]/apply", () => {
   it("is idempotent on replay — a second claim does not re-trigger the reward", async () => {
     const actorId = "quest-apply-replayer"
     upsertReputationMetrics(actorId, { tasksCompleted: 0 })
+    const events: PublishedSystemEvent[] = []
+    const unsubscribe = subscribeToSystemEvents((event) => events.push(event))
 
     const first = await POST(request(actorId), context("daily-complete-5-tasks"))
     const firstData = await first.json()
@@ -95,6 +101,23 @@ describe("POST /api/quests/[id]/apply", () => {
     expect(second.status).toBe(200)
     expect(secondData.ok).toBe(true)
     expect(secondData.alreadyClaimed).toBe(true)
+    unsubscribe()
+
+    expect(events.filter((event) => event.type === "quest.completed")).toEqual([
+      expect.objectContaining({
+        type: "quest.completed",
+        agentId: actorId,
+        questId: "daily-complete-5-tasks",
+        quest: expect.objectContaining({
+          id: "daily-complete-5-tasks",
+          title: "Complete 5 tasks",
+        }),
+        reward: {
+          xp: 50,
+          xlm: "0.05",
+        },
+      }),
+    ])
   })
 
   it("rejects an empty actorId", async () => {

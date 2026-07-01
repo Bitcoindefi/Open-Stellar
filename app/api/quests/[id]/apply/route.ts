@@ -4,6 +4,7 @@ import { getQuestById } from "@/lib/gamification/quests"
 import { getReputationByActorId } from "@/lib/reputation/reputation-store"
 import { isAuthorized } from "@/lib/auth"
 import { hasClaimedQuest, markQuestClaimed } from "@/lib/gamification/quest-completions"
+import { publishSystemEvent } from "@/lib/events/system-events"
 
 type QuestApplyContext = {
   params: Promise<{ id: string }>
@@ -76,6 +77,16 @@ export async function POST(req: Request, context: QuestApplyContext) {
   }
 
   markQuestClaimed(quest.id, actorId)
+  publishSystemEvent({
+    type: "quest.completed",
+    agentId: actorId,
+    questId: quest.id,
+    quest: {
+      id: quest.id,
+      title: quest.title,
+    },
+    reward: quest.reward,
+  })
 
   return NextResponse.json({ ok: true, quest, actorId })
 }

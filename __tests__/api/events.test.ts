@@ -58,6 +58,32 @@ describe("GET /api/events", () => {
     expect(text).toContain('"agentId":"bot-1"')
     expect(text).toContain('"taskId":"task-123"')
   })
+
+  it("exposes quest completion payloads as SSE frames", async () => {
+    const res = await getEvents()
+    const text = await readStreamText(res, () => {
+      publishSystemEvent({
+        type: "quest.completed",
+        agentId: "quest-agent",
+        questId: "daily-complete-5-tasks",
+        quest: {
+          id: "daily-complete-5-tasks",
+          title: "Complete 5 tasks",
+        },
+        reward: {
+          xp: 50,
+          xlm: "0.05",
+        },
+      })
+    })
+
+    expect(text).toContain("event: quest.completed")
+    expect(text).toContain('"agentId":"quest-agent"')
+    expect(text).toContain('"questId":"daily-complete-5-tasks"')
+    expect(text).toContain('"title":"Complete 5 tasks"')
+    expect(text).toContain('"xp":50')
+    expect(text).toContain('"xlm":"0.05"')
+  })
 })
 
 describe("GET /api/events/[agentId]", () => {
