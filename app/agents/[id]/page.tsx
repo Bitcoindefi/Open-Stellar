@@ -84,11 +84,12 @@ export default async function AgentPage({ params }: AgentPageProps) {
   const { id } = await params
   
   // Data loading as required by acceptance criteria
-  const [metaRes, healthRes, repRes, questRes] = await Promise.all([
+  const [metaRes, healthRes, repRes, questRes, badgesRes] = await Promise.all([
     fetch(absoluteUrl(`/api/agents/${id}`), { cache: 'no-store' }),
     fetch(absoluteUrl(`/api/agents/${id}/health`), { cache: 'no-store' }),
     fetch(absoluteUrl(`/api/protocol/reputation?actorId=${id}`), { cache: 'no-store' }),
-    fetch(absoluteUrl(`/api/agents/${id}/quest-recommendations`), { cache: 'no-store' })
+    fetch(absoluteUrl(`/api/agents/${id}/quest-recommendations`), { cache: 'no-store' }),
+    fetch(absoluteUrl(`/api/agents/${id}/badges`), { cache: 'no-store' }),
   ])
 
   const localAgent = findAgentByLookup(id)
@@ -122,13 +123,27 @@ export default async function AgentPage({ params }: AgentPageProps) {
 
   // Parse Reputation
   let repScore = 0
-  let badges: any[] = []
+  let reputationBadges: any[] = []
   let infractions = 0
   if (repRes.ok) {
     const data = await repRes.json()
     repScore = data.reputation?.score || 0
-    badges = data.reputation?.badges || []
+    reputationBadges = data.reputation?.badges || []
     infractions = data.reputation?.history?.filter((h: any) => h.delta < 0).length || 0
+  }
+
+  let badges: Array<{ type: string; name: string; description: string; icon: string; awardedAt: string }> = []
+  if (badgesRes.ok) {
+    const data = await badgesRes.json()
+    badges = data.badges || []
+  } else if (reputationBadges.length > 0) {
+    badges = reputationBadges.map((badge: any) => ({
+      type: badge.id,
+      name: badge.id,
+      description: "",
+      icon: "badge",
+      awardedAt: badge.awardedAt,
+    }))
   }
 
   // Parse Quests
@@ -245,7 +260,14 @@ export default async function AgentPage({ params }: AgentPageProps) {
               <CardContent>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {badges.length > 0 ? badges.map((badge, i) => (
-                    <div key={i} className={`flex flex-col items-center justify-center p-3 rounded-lg border ${badge.rarity === 'legendary' ? 'border-purple-500/50 bg-purple-500/10 text-purple-300' : badge.rarity === 'rare' ? 'border-blue-500/50 bg-blue-500/10 text-blue-300' : 'border-slate-700 bg-slate-800/50 text-slate-300'}`}>
+                    <div
+                      key={i}
+                      title={badge.description}
+                      className="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-slate-300"
+                    >
+                      <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-cyan-200">
+                        {badge.icon}
+                      </span>
                       <span className="font-pixel text-xs text-center leading-tight">{badge.name}</span>
                     </div>
                   )) : (
@@ -290,4 +312,3 @@ export default async function AgentPage({ params }: AgentPageProps) {
     </main>
   )
 }
-

@@ -1,7 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest"
+import { beforeEach, describe, expect, it } from "vitest"
+
 import { GET } from "@/app/api/agents/[id]/badges/route"
-import { registerAgent, resetAgentRegistryForTests } from "@/lib/agent-registry"
+import { awardXP, resetAgentXpDb } from "@/lib/gamification/xp"
+import { registerAgent, resetAgentRegistryForTests, getRegisteredAgent } from "@/lib/agent-registry"
 import { upsertReputationMetrics, resetReputationStoreForTests } from "@/lib/reputation/reputation-store"
+import { markQuestClaimed, resetQuestCompletions } from "@/lib/gamification/quest-completions"
+import { resetBadgeStoreForTests } from "@/lib/agents/badges"
 
 const minAgent = (agentId: string) => ({
   agentId,
@@ -16,117 +20,79 @@ const minAgent = (agentId: string) => ({
 beforeEach(() => {
   resetAgentRegistryForTests()
   resetReputationStoreForTests()
+  resetQuestCompletions()
+  resetAgentXpDb()
+  resetBadgeStoreForTests()
 })
 
 describe("GET /api/agents/:id/badges", () => {
   it("returns 404 for unknown agent", async () => {
-    const res = await GET(
-      new Request("http://localhost/api/agents/ghost/badges"),
-      { params: Promise.resolve({ id: "ghost" }) },
-    )
+    const res = await GET(new Request("http://localhost/api/agents/ghost/badges"), {
+      params: Promise.resolve({ id: "ghost" }),
+    })
+
     expect(res.status).toBe(404)
-    const json = await res.json()
-    expect(json.ok).toBe(false)
-    expect(json.error).toBe("agent not found")
+    expect(await res.json()).toEqual({ ok: false, error: "agent not found" })
   })
 
-  it("returns empty badge list for agent with no badges", async () => {
+  it("returns the new badge API shape", async () => {
     registerAgent(minAgent("bot-empty"))
-    const res = await GET(
-      new Request("http://localhost/api/agents/bot-empty/badges"),
-      { params: Promise.resolve({ id: "bot-empty" }) },
-    )
+
+    const res = await GET(new Request("http://localhost/api/agents/bot-empty/badges"), {
+      params: Promise.resolve({ id: "bot-empty" }),
+    })
+
     expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json).toEqual({ agentId: "bot-empty", badges: [], total: 0 })
+    expect(await res.json()).toEqual({ badges: [], count: 0 })
   })
 
-  it("returns badges sorted by earnedAt descending", async () => {
-    registerAgent(minAgent("bot-sorted"))
-    upsertReputationMetrics("bot-sorted", {
-      badges: [
-        { id: "first-quest", rarity: "common", awardedAt: "2026-05-01T00:00:00.000Z" },
-        { id: "rare-taskmaster", rarity: "rare", awardedAt: "2026-06-01T00:00:00.000Z" },
-      ],
+  it("awards and returns badges automatically when conditions are met", async () => {
+    registerAgent(minAgent("bot-leveler"))
+    upsertReputationMetrics("bot-leveler", { tasksCompleted: 1 })
+    awardXP("bot-leveler", 4_000, "task.completed")
+
+    const res = await GET(new Request("http://localhost/api/agents/bot-leveler/badges"), {
+      params: Promise.resolve({ id: "bot-leveler" }),
     })
-    const res = await GET(
-      new Request("http://localhost/api/agents/bot-sorted/badges"),
-      { params: Promise.resolve({ id: "bot-sorted" }) },
-    )
-    expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.total).toBe(2)
-    expect(json.badges[0].badgeId).toBe("rare-taskmaster")
-    expect(json.badges[0].earnedAt).toBe("2026-06-01T00:00:00.000Z")
-    expect(json.badges[0].rarity).toBe("rare")
-    expect(json.badges[0].xpValue).toBeGreaterThan(0)
-    expect(json.badges[0].name).toBe("Rare Taskmaster")
-    expect(json.badges[1].badgeId).toBe("first-quest")
+
+    expect(json.count).toBeGreaterThanOrEqual(2)
+    expect(json.badges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "first_task", name: "First Task" }),
+        expect.objectContaining({ type: "level_10", name: "Level 10" }),
+      ]),
+    )
   })
 
-  it("returns catalog metadata for known badge ids", async () => {
-    registerAgent(minAgent("bot-meta"))
-    upsertReputationMetrics("bot-meta", {
-      badges: [{ id: "zk-certified", rarity: "epic", awardedAt: "2026-06-01T00:00:00.000Z" }],
+  it("awards veteran on read once the registration date is old enough", async () => {
+    registerAgent(minAgent("bot-veteran"))
+    const agent = getRegisteredAgent("bot-veteran")
+    agent!.registeredAt = "2026-01-01T00:00:00.000Z"
+
+    const res = await GET(new Request("http://localhost/api/agents/bot-veteran/badges"), {
+      params: Promise.resolve({ id: "bot-veteran" }),
     })
-    const res = await GET(
-      new Request("http://localhost/api/agents/bot-meta/badges"),
-      { params: Promise.resolve({ id: "bot-meta" }) },
-    )
     const json = await res.json()
-    expect(json.badges[0]).toMatchObject({
-      badgeId: "zk-certified",
-      name: "ZK Certified",
-      description: "Minted first ZK passport for permanent identity.",
-      rarity: "epic",
-      xpValue: 100,
-    })
+
+    expect(json.badges).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "veteran" })]),
+    )
   })
 
-  it("returns fallback metadata for unknown badge ids", async () => {
-    registerAgent(minAgent("bot-unknown-badge"))
-    upsertReputationMetrics("bot-unknown-badge", {
-      badges: [{ id: "mystery-award-12345", rarity: "common", awardedAt: "2026-06-01T00:00:00.000Z" }],
-    })
-    const res = await GET(
-      new Request("http://localhost/api/agents/bot-unknown-badge/badges"),
-      { params: Promise.resolve({ id: "bot-unknown-badge" }) },
-    )
-    const json = await res.json()
-    expect(json.total).toBe(1)
-    expect(json.badges[0].badgeId).toBe("mystery-award-12345")
-    expect(json.badges[0].name).toBe("mystery-award-12345")
-    expect(json.badges[0].xpValue).toBe(0)
-  })
+  it("awards quest master after five quest completions", async () => {
+    registerAgent(minAgent("bot-quester"))
+    for (let i = 0; i < 5; i += 1) {
+      markQuestClaimed(`quest-${i}`, "bot-quester")
+    }
 
-  it("filters badges by rarity", async () => {
-    registerAgent(minAgent("bot-rarity"))
-    upsertReputationMetrics("bot-rarity", {
-      badges: [
-        { id: "first-quest", rarity: "common", awardedAt: "2026-05-01T00:00:00.000Z" },
-        { id: "rare-taskmaster", rarity: "rare", awardedAt: "2026-06-01T00:00:00.000Z" },
-      ],
+    const res = await GET(new Request("http://localhost/api/agents/bot-quester/badges"), {
+      params: Promise.resolve({ id: "bot-quester" }),
     })
-    const res = await GET(
-      new Request("http://localhost/api/agents/bot-rarity/badges?rarity=common"),
-      { params: Promise.resolve({ id: "bot-rarity" }) },
-    )
-    expect(res.status).toBe(200)
     const json = await res.json()
-    expect(json.total).toBe(1)
-    expect(json.badges[0].rarity).toBe("common")
-  })
 
-  it("returns 400 for invalid rarity", async () => {
-    registerAgent(minAgent("bot-bad-rarity"))
-    const res = await GET(
-      new Request("http://localhost/api/agents/bot-bad-rarity/badges?rarity=mythic"),
-      { params: Promise.resolve({ id: "bot-bad-rarity" }) },
+    expect(json.badges).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "quest_master" })]),
     )
-    expect(res.status).toBe(400)
-    const json = await res.json()
-    expect(json.ok).toBe(false)
-    expect(json.error).toContain("rarity")
-    expect(json.error).toContain("mythic")
   })
 })

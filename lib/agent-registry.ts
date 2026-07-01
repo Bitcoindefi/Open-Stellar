@@ -14,6 +14,7 @@ export interface SkillRegistration {
 
 export interface AgentCapabilityManifest {
   agentId: string
+  name?: string
   model: string
   district: DistrictId
   capabilities: string[]
@@ -226,6 +227,7 @@ export function registerAgent(input: unknown): AgentCapabilityManifest {
 
   const agent: AgentCapabilityManifest = {
     agentId,
+    ...(typeof input.name === "string" && input.name.trim().length > 0 ? { name: input.name.trim() } : {}),
     model: normalizeString(input.model, "model"),
     district: normalizeDistrict(input.district),
     capabilities: normalizeCapabilities(input.capabilities),
@@ -241,6 +243,23 @@ export function registerAgent(input: unknown): AgentCapabilityManifest {
   registry.agents.set(agent.agentId, agent)
   emitRegistryChange("registered", agent)
   return agent
+}
+
+export function updateAgentStatus(agentId: string, status: AgentStatus): AgentCapabilityManifest {
+  const existing = registry.agents.get(agentId)
+  if (!existing) {
+    throw new Error("agent not found")
+  }
+
+  const updated: AgentCapabilityManifest = {
+    ...existing,
+    status,
+    updatedAt: new Date().toISOString(),
+  }
+
+  registry.agents.set(agentId, updated)
+  emitRegistryChange("updated", updated)
+  return updated
 }
 
 export function updateAgentCapabilities(agentId: string, input: unknown): AgentCapabilityManifest {
