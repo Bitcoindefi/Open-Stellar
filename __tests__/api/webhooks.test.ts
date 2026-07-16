@@ -451,6 +451,8 @@ describe("webhook API", () => {
       reward: { xp: 50 },
     })
 
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+
     const attempts = listWebhookDeliveryAttempts(registered.id)
     const chronologicalAttempts = [...attempts].reverse()
 
@@ -501,6 +503,31 @@ describe("webhook API", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
+  it("returns before scheduled retry attempts run", async () => {
+    vi.useFakeTimers()
+    setWebhookRetryDelaysForTests([5_000, 30_000, 120_000])
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    await registerWebhook()
+
+    await deliverWebhookEvent({
+      id: "evt_agent_status_nonblocking_retry",
+      occurredAt: "2026-06-26T00:00:00.000Z",
+      type: "agent.status",
+      agentId: "nexus-7",
+      status: "working",
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it("records null status when fetch fails before a response and retries", async () => {
     const fetchMock = vi
       .fn()
@@ -516,6 +543,8 @@ describe("webhook API", () => {
       agentId: "nexus-7",
       status: "working",
     })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
 
     const attempts = listWebhookDeliveryAttempts(registered.id)
 
@@ -541,6 +570,8 @@ describe("webhook API", () => {
       agentId: "nexus-7",
       status: "working",
     })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
 
     const attempts = listWebhookDeliveryAttempts(registered.id)
     const chronologicalAttempts = [...attempts].reverse()
@@ -592,6 +623,8 @@ describe("webhook API", () => {
       agentId: "nexus-7",
       status: "working",
     })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
 
     const attempts = listWebhookDeliveryAttempts(registered.id)
     const retryAttempts = attempts.filter((attempt) => attempt.retried)
