@@ -1,7 +1,8 @@
 import { createApiRouteLogger } from '@/lib/api-logging'
 import { applyReputationAction, getReputation, listReputations } from '@/lib/reputation/reputation-store'
+import { withApiKeyAuth } from '@/lib/auth/api-key-middleware'
 
-export async function GET(req: Request) {
+export const GET = withApiKeyAuth(async (req: Request) => {
   const api = createApiRouteLogger(req, '/api/protocol/reputation')
   const { searchParams } = new URL(req.url)
   const actorId = searchParams.get('actorId')
@@ -18,9 +19,9 @@ export async function GET(req: Request) {
     event: 'reputation.list',
     count: reputations.length,
   })
-}
+}, { keyType: 'protocol' })
 
-export async function POST(req: Request) {
+export const POST = withApiKeyAuth(async (req: Request) => {
   const api = createApiRouteLogger(req, '/api/protocol/reputation')
 
   try {
@@ -48,4 +49,4 @@ export async function POST(req: Request) {
       { event: 'reputation.update.failed' },
     )
   }
-}
+}, { keyType: 'protocol' })

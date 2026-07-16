@@ -1,7 +1,8 @@
 import { createApiRouteLogger } from "@/lib/api-logging"
 import { getAgentClaudeAnalytics, listClaudeCostRecords } from "@/lib/agent-runtime/costs"
+import { withApiKeyAuth } from "@/lib/auth/api-key-middleware"
 
-export async function GET(req: Request) {
+export const GET = withApiKeyAuth(async (req: Request) => {
   const api = createApiRouteLogger(req, "/api/admin/claude-costs")
   const url = new URL(req.url)
   const agentId = url.searchParams.get("agentId") ?? undefined
@@ -21,4 +22,4 @@ export async function GET(req: Request) {
     undefined,
     { event: "claude.costs.list", agentId },
   )
-}
+}, { keyType: 'admin' })

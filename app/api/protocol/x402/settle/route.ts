@@ -7,6 +7,7 @@ import { settleMockX402 } from '@/lib/mock/x402-mock'
 import { publishSystemEvent } from '@/lib/events/system-events'
 import { XP_AWARDS } from '@/lib/gamification/constants'
 import { awardXP } from '@/lib/gamification/xp'
+import { withApiKeyAuth } from '@/lib/auth/api-key-middleware'
 
 function ledgerFromBody(body: Record<string, unknown>): unknown {
   return body.lastPaymentLedger ?? body.ledger ?? body.ledgerSequence
@@ -20,7 +21,7 @@ function subscriptionMatchesQuote(
   return subscription.agentId === quote.payer && subscription.serviceId === quote.serviceId
 }
 
-export async function POST(req: Request) {
+export const POST = withApiKeyAuth(async (req: Request) => {
   const api = createApiRouteLogger(req, '/api/protocol/x402/settle')
 
   try {
@@ -154,4 +155,4 @@ export async function POST(req: Request) {
       { event: 'x402.settle.failed' },
     )
   }
-}
+}, { keyType: 'protocol' })
