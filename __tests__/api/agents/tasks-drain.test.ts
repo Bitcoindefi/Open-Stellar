@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import { POST as drainPost } from "@/app/api/agents/[id]/tasks/drain/route"
 import { POST as createPost, DELETE as purgeDel } from "@/app/api/agents/[id]/tasks/route"
+import { registerAgent, resetAgentRegistryForTests } from "@/lib/agent-registry"
 import { resetTaskQueue } from "@/lib/agents/task-queue"
 
 async function mockContext(params: Record<string, string>) {
@@ -17,6 +18,21 @@ async function createTask(agentId: string, type: string) {
   const response = await createPost(req, context)
   return response.json()
 }
+
+beforeEach(() => {
+  resetAgentRegistryForTests()
+  for (const agentId of ["agent-1", "agent-2"]) {
+    registerAgent({
+      agentId,
+      model: "test/drain",
+      district: "data-center",
+      capabilities: ["task-execution"],
+      x402: { accepts: false },
+      status: "active",
+      endpoint: `https://example.test/agents/${agentId}`,
+    })
+  }
+})
 
 describe("POST /api/agents/:id/tasks/drain", () => {
   beforeEach(() => {
