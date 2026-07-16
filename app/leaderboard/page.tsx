@@ -27,8 +27,8 @@ export default async function LeaderboardPage({ searchParams }: LeaderboardPageP
   const params = await searchParams
   const view = isView(params.view) ? params.view : "global"
   const activeDistrict = DISTRICTS.some((district) => district.id === params.district) ? params.district : DISTRICTS[0].id
-  const agents = listLeaderboardAgents(view, view === "district" ? activeDistrict : undefined)
-  const leaders = listLeaderboardAgents("global").slice(0, 3)
+  const agents = listLeaderboardAgents(view, view === "district" ? activeDistrict : undefined, true)
+  const leaders = listLeaderboardAgents("global", undefined, true).slice(0, 3)
 
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
