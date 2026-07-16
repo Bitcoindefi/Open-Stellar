@@ -9,14 +9,22 @@ interface RouteContext {
 
 function getRuntimeAgent(id: string) {
   const displayAgent = findAgentByLookup(id)
+  if (!displayAgent) {
+    if (!/^bot-\d+$/.test(id)) return null
+    return getOrCreateAgent({
+      id,
+      name: id,
+      model: "claude/runtime-delegated",
+    })
+  }
   return getOrCreateAgent({
-    id: displayAgent?.id ?? id,
-    name: displayAgent?.name ?? id,
-    model: displayAgent?.model ?? "claude/runtime-delegated",
-    district: displayAgent?.district,
-    cpu: displayAgent?.cpu,
-    memory: displayAgent?.memory,
-    autoRestart: displayAgent?.autoRestart,
+    id: displayAgent.id,
+    name: displayAgent.name,
+    model: displayAgent.model,
+    district: displayAgent.district,
+    cpu: displayAgent.cpu,
+    memory: displayAgent.memory,
+    autoRestart: displayAgent.autoRestart,
   })
 }
 
@@ -24,6 +32,12 @@ export async function GET(_req: Request, context: RouteContext) {
   const { id } = await context.params
   const agentId = decodeURIComponent(id)
   const agent = getRuntimeAgent(agentId)
+  if (!agent) {
+    return NextResponse.json(
+      { ok: false, error: "agent_not_found" },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
+    )
+  }
 
   return NextResponse.json(
     { ok: true, tasks: listAgentTaskRecords(agent.id) },
@@ -36,6 +50,12 @@ export async function POST(req: Request, context: RouteContext) {
     const agentId = decodeURIComponent(id)
     const body = await req.json().catch(() => ({}))
     const agent = getRuntimeAgent(agentId)
+    if (!agent) {
+      return NextResponse.json(
+        { ok: false, error: "agent_not_found" },
+        { status: 404, headers: { "Cache-Control": "no-store" } },
+      )
+    }
     const rateLimit = checkRateLimit(agentId)
 
     if (!rateLimit.allowed) {

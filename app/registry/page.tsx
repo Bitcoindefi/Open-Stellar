@@ -138,13 +138,23 @@ export default function RegistryPage() {
                           agent.status === "active" ? "bg-emerald-400" :
                           agent.status === "working" ? "bg-cyan-400" :
                           agent.status === "idle" ? "bg-amber-400" :
+                          agent.status === "degraded" ? "bg-rose-400" :
                           "bg-slate-600"
                         }`} />
                         <span className="font-mono text-xs text-slate-400">{agent.status}</span>
+                        {agent.degraded && (
+                          <Badge variant="outline" className="border-rose-500/60 bg-rose-950/40 px-1.5 py-0 text-[10px] uppercase text-rose-300">
+                            Degraded
+                          </Badge>
+                        )}
                         <span className="ml-auto font-mono text-xs text-slate-500">{agent.district}</span>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
+                      <div className="mb-3 rounded-md border border-slate-800 bg-slate-900/60 px-2 py-1 font-mono text-xs text-slate-400">
+                        Errors 24h: <span className={agent.degraded ? "text-rose-300" : "text-slate-200"}>{agent.errorCount24h ?? 0}</span>
+                        {agent.degraded && <span className="ml-2 text-rose-300">Callable with warning</span>}
+                      </div>
                       <div className="flex flex-wrap gap-1">
                         {agent.capabilities.slice(0, 5).map((cap) => {
                           const isMatch = filter && cap.toLowerCase().includes(filter.trim().toLowerCase())

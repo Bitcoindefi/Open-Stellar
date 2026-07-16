@@ -547,6 +547,23 @@ export function OpenStellarHub() {
       return
     }
 
+    if (event.type === "quest.completed") {
+      const questTitle = event.quest?.title ?? event.questId ?? "Quest"
+      const rewards = [
+        typeof event.reward?.xp === "number" ? `+${event.reward.xp} XP` : null,
+        event.reward?.xlm ? `${event.reward.xlm} XLM` : null,
+        event.reward?.badge ?? null,
+        event.reward?.title ?? null,
+      ].filter((reward): reward is string => Boolean(reward))
+      const rewardDescription = rewards.length > 0 ? ` — ${rewards.join(" · ")}` : ""
+
+      pushLog(`quest completed: ${questTitle}${rewardDescription}`, "success", event.agentId)
+      toast.success("Quest completed", {
+        description: `${questTitle}${rewardDescription}`,
+      })
+      return
+    }
+
     if (event.type === "badge.unlocked") {
       audioEngine.playEvent("badge_unlock")
       pushLog(`badge unlocked: ${event.badge.name}`, "success", event.agentId)
@@ -602,6 +619,7 @@ export function OpenStellarHub() {
       "task.completed",
       "payment.received",
       "agent.xp",
+      "quest.completed",
       "badge.unlocked",
       "district.unlocked",
       "agent.registry",
