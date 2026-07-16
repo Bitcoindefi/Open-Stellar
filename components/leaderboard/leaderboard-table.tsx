@@ -21,7 +21,7 @@ export function LeaderboardTable({ initialAgents, view, district }: LeaderboardT
     let cancelled = false
 
     async function refresh() {
-      const response = await fetch(`/api/leaderboard?${params.toString()}`, { cache: "no-store" })
+      const response = await fetch(`/api/leaderboard?${params.toString()}`)
       if (!response.ok || cancelled) return
       const payload = await response.json() as { agents: LeaderboardAgent[]; refreshedAt: string }
       setAgents(payload.agents)
@@ -44,6 +44,11 @@ export function LeaderboardTable({ initialAgents, view, district }: LeaderboardT
         <span>{refreshedAt ? `Updated ${new Date(refreshedAt).toLocaleTimeString()}` : "Live polling ready"}</span>
       </div>
       <div className="divide-y divide-slate-800/80">
+        {agents.length === 0 && (
+          <div className="px-4 py-12 text-center font-mono text-sm text-slate-400">
+            No agents are registered yet. Registered agents will appear here within 30 seconds.
+          </div>
+        )}
         {agents.map((agent) => {
           const delta = agent.previousRank - agent.rank
           return (
