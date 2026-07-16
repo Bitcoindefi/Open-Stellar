@@ -7,7 +7,7 @@ export const HEARTBEAT_INTERVAL_MS = 15_000
 export const OFFLINE_AFTER_MS = 30_000
 export const ALERT_AFTER_MS = 5 * 60_000
 
-const VALID_AGENT_STATUSES: AgentStatus[] = ["active", "idle", "working", "error", "offline"]
+const VALID_AGENT_STATUSES: AgentStatus[] = ["active", "idle", "working", "error", "offline", "degraded"]
 
 export interface AgentHeartbeatInput {
   status?: unknown
