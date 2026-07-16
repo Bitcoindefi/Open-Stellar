@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { getLeaderboardAgent } from "@/lib/leaderboard"
+import { AgentBadgeIcons } from "@/components/leaderboard/agent-badge-icons"
 
 type AgentLeaderboardPageProps = {
   params: Promise<{ agentId: string }>
@@ -23,6 +24,8 @@ export default async function AgentLeaderboardPage({ params }: AgentLeaderboardP
   const rankHistory = [agent.globalRank + 4, agent.globalRank + 3, agent.globalRank + 2, agent.globalRank + 2, agent.globalRank + 1, agent.globalRank, agent.globalRank]
   const tasks = ["Settled x402 receipt", "Completed district dispatch", "Verified badge proof", "Routed agent payment"]
 
+  const badgeCount = agent.badgeIcons.length > 0 ? agent.badgeIcons.length : agent.badges.length
+
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -42,7 +45,7 @@ export default async function AgentLeaderboardPage({ params }: AgentLeaderboardP
           <Stat label="XP" value={agent.xp.toLocaleString()} />
           <Stat label="x402 revenue" value={`$${agent.x402Revenue.toFixed(2)}`} />
           <Stat label="Weekly tasks" value={agent.weeklyTasks.toLocaleString()} />
-          <Stat label="Badges" value={agent.badges.join(" ")} />
+          <Stat label="Badges" value={String(badgeCount)} />
         </section>
 
         <section className="grid gap-4 md:grid-cols-2">
@@ -63,7 +66,19 @@ export default async function AgentLeaderboardPage({ params }: AgentLeaderboardP
         </section>
 
         <Panel title="Badge collection">
-          <div className="flex flex-wrap gap-3 text-3xl">{agent.badges.map((badge) => <span key={badge} className="rounded-xl border border-slate-700 bg-slate-900 p-3">{badge}</span>)}</div>
+          {agent.badgeIcons.length > 0 ? (
+            <div className="flex flex-wrap gap-3">
+              {/* Show ALL badges in the detail panel – no 3-cap needed here */}
+              <AgentBadgeIcons badges={agent.badgeIcons} showAll />
+            </div>
+          ) : (
+            /* Fallback to legacy emoji badges when no structured data is available */
+            <div className="flex flex-wrap gap-3 text-3xl">
+              {agent.badges.map((badge) => (
+                <span key={badge} className="rounded-xl border border-slate-700 bg-slate-900 p-3">{badge}</span>
+              ))}
+            </div>
+          )}
         </Panel>
 
         <Panel title="Recent task history">

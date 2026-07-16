@@ -1,10 +1,13 @@
 # TODO
 
-## Construction animation: new district unlock (0–15s)
-- [ ] Inspect existing render loop + how to overlay construction animation on specific district.
-- [ ] Create `lib/renderer/construction.ts` implementing Phase1-4 rendering (grid, crane, scaffolding + sparks, background fade, window flicker, animated border stroke, typewriter label, fireworks, and agent-facing overlay).
-- [x] Update `lib/renderer.ts` to add `drawScaffolding(ctx, district, progress)` export used by `construction.ts`.
-- [ ] Update `components/pixel-city.tsx` to listen for SSE `district.unlocked`, start animation for matching district, and implement skip-on-click to jump to Phase4.
-- [ ] Update `components/open-stellar/open-stellar-hub.tsx` so the SSE listener includes `district.unlocked` and pauses agent simulation + sets agent directions toward the constructed district during animation.
-- [ ] Run TypeScript typecheck / lint (as available) to ensure changes compile.
+- [ ] Implement per-agent high-priority token bucket (5/min default) with non-sliding reset and admin-configurable limit.
+- [ ] Implement enqueue-time downgrade: 6th+ high-priority task from same agent in 60s becomes `normal` priority; log warning.
+- [ ] Add admin endpoint: PATCH /api/admin/agents/[id]/rate-limit (body: { highPriorityPerMinute: N }).
+- [ ] Add GET endpoint: /api/agents/[id]/rate-limit returning current limit and current usage.
+- [ ] Add tests: burst of 10 high-priority tasks from same agent => 5 high + 5 downgraded.
+- [ ] Wire downgrade logic into task enqueue path.
+- [ ] Implement downgrade logging warning.
+
+
+- [ ] Run vitest to ensure all tests pass.
 

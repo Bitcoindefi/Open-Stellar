@@ -1,5 +1,7 @@
 import { DISTRICTS } from "@/lib/data"
 import type { DistrictId } from "@/lib/types"
+import { consumeHighPrioritySlotOrDowngrade } from "@/lib/agents/high-priority-rate-limit-store"
+
 
 export type QueuedTaskPriority = "critical" | "high" | "normal" | "low"
 export type QueuedTaskStatus = "pending" | "leased" | "completed" | "failed" | "cancelled" | "dead-letter"
@@ -106,9 +108,27 @@ function normalizeScheduledFor(value: string | undefined): string | undefined {
 
 export function enqueueTask(input: EnqueueTaskInput): QueuedTask {
   const now = new Date().toISOString()
-  const priority = input.priority ?? "normal"
-  if (!isQueuedTaskPriority(priority)) throw new Error("Unsupported task priority")
+  const requestedPriority = input.priority ?? "normal"
+  if (!isQueuedTaskPriority(requestedPriority)) throw new Error("Unsupported task priority")
   if (input.targetDistrict && !isValidTaskDistrict(input.targetDistrict)) throw new Error("Unsupported target district")
+
+  let priority: QueuedTaskPriority = requestedPriority
+
+  // Per-agent high-priority token bucket limiting to prevent a single agent from starving others.
+  // When a client attempts to enqueue more high-priority tasks than allowed in the current 60s window,
+  // the task is automatically downgraded.
+  if (requestedPriority === "high" && input.targetAgentId) {
+    const { priorityAllowed, usedInWindow, limit, resetsAt } = consumeHighPrioritySlotOrDowngrade(input.targetAgentId)
+    if (!priorityAllowed) {
+      // Downgrade high -> normal ("medium" in spec maps to the existing "normal" level).
+      priority = "normal"
+      console.warn(
+        `[Open Stellar] Downgraded high-priority task enqueue from agent=${input.targetAgentId}; ` +
+          `high-priority limit=${limit}/min exceeded (used=${usedInWindow}, resetsAt=${resetsAt}).`,
+      )
+    }
+  }
+
 
   const task: QueuedTask = {
     id: input.id?.trim() || nextTaskId(),
