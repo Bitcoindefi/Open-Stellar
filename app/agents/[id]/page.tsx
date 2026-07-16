@@ -285,8 +285,8 @@ export default async function AgentPage({ params }: AgentPageProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {capabilities.length > 0 ? capabilities.map((cap, i) => (
-                    <Badge key={i} variant="outline" className="bg-blue-900/20 text-blue-300 border-blue-800/50 hover:bg-blue-900/40 px-3 py-1 text-xs">
+                  {capabilities.length > 0 ? capabilities.map((cap) => (
+                    <Badge key={cap} variant="outline" className="bg-blue-900/20 text-blue-300 border-blue-800/50 hover:bg-blue-900/40 px-3 py-1 text-xs">
                       {cap}
                     </Badge>
                   )) : (
@@ -303,9 +303,9 @@ export default async function AgentPage({ params }: AgentPageProps) {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {badges.length > 0 ? badges.map((badge, i) => (
+                  {badges.length > 0 ? badges.map((badge) => (
                     <div
-                      key={i}
+                      key={badge.id}
                       title={badge.description}
                       className="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-slate-300"
                     >
@@ -327,8 +327,8 @@ export default async function AgentPage({ params }: AgentPageProps) {
           {/* Active Quests (Sidebar) */}
           <div className="flex flex-col gap-4">
             <h3 className="font-mono uppercase tracking-wider text-sm text-slate-300 mb-1 md:ml-1">Active Quests</h3>
-            {quests.length > 0 ? quests.slice(0, 3).map((quest, i) => (
-              <Card key={i} className="bg-slate-950/80 border-slate-800 overflow-hidden relative">
+            {quests.length > 0 ? quests.slice(0, 3).map((quest) => (
+              <Card key={quest.id} className="bg-slate-950/80 border-slate-800 overflow-hidden relative">
                 <div className="absolute top-0 left-0 w-full h-1 bg-slate-800">
                   <div className="h-full bg-cyan-400" style={{ width: `${quest.progress || 0}%` }}></div>
                 </div>
