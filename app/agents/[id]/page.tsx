@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { CheckCircle2, ScrollText, Shield, Sparkles, Trophy } from "lucide-react"
@@ -183,6 +182,17 @@ export default async function AgentPage({ params }: AgentPageProps) {
   const initials = agentName.substring(0, 2).toUpperCase()
   const agentIdStr = agentMetadata.agentId || agentMetadata.id || id
   const tasksCompleted = agentMetadata.tasksCompleted ?? localAgent?.tasksCompleted ?? 0
+  const totalXp = agentMetadata.xp ?? localAgent?.xp ?? 0
+  const level = agentMetadata.level ?? localAgent?.level ?? 1
+  const xpToNext = agentMetadata.xpToNext ?? getXpToNextLevel(level)
+
+  let xpHistoryEvents: XpHistoryEventLike[] = []
+  if (xpHistoryRes.ok) {
+    const data = await xpHistoryRes.json()
+    xpHistoryEvents = Array.isArray(data.events) ? data.events : []
+  }
+  const xpSnapshots = buildSevenDayXpSnapshots(xpHistoryEvents)
+  const xpProgress = getLevelProgress(totalXp, level)
   
   let districtName = "Unknown"
   if (agentMetadata.district) {
@@ -259,6 +269,38 @@ export default async function AgentPage({ params }: AgentPageProps) {
                 </CardContent>
               </Card>
             </div>
+
+
+            {/* XP Progress */}
+            <Card className="bg-slate-950/80 border-slate-800">
+              <CardHeader className="pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="font-mono uppercase tracking-wider text-sm text-slate-300">XP Growth</CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">7-day earned XP snapshot</CardDescription>
+                  </div>
+                  <Badge className="border-cyan-400/50 bg-cyan-400/10 px-3 py-1 font-mono text-cyan-200">Level {level}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">Total XP</div>
+                    <div className="mt-1 font-pixel text-xl text-cyan-300">{totalXp.toLocaleString("en-US")}</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 sm:col-span-2">
+                    <div className="mb-2 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                      <span>Next level</span>
+                      <span>{xpToNext > 0 ? `${Math.max(0, xpToNext - totalXp).toLocaleString("en-US")} XP needed` : "Max level"}</span>
+                    </div>
+                    <div className="h-3 overflow-hidden rounded-full bg-slate-800" aria-label={`Level ${level} progress`}>
+                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-300" style={{ width: `${xpProgress.progressPercent}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <XpSparkline snapshots={xpSnapshots} />
+              </CardContent>
+            </Card>
 
             {/* Capabilities */}
             <Card className="bg-slate-950/80 border-slate-800">

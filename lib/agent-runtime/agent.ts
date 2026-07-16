@@ -1,4 +1,5 @@
 import { recordAgentHeartbeat } from "@/lib/agents/agent-health-store"
+import { getAgentHealthSummary, recordAgentExecutionError, recordAgentExecutionSuccess, recordAgentInvocation } from "@/lib/agents/agent-error-store"
 import { sendAgentMessage } from "@/lib/agent-runtime/messaging"
 import type { AgentConfig, AgentMetrics, AgentRuntimeContext, AgentMessage, MessageHandler, Task, TaskHandler, TaskResult } from "@/lib/agent-runtime/types"
 import { publishSystemEvent } from "@/lib/events/system-events"
@@ -82,7 +83,7 @@ export class Agent implements AgentRuntimeContext {
   async start(): Promise<void> {
     this.startedAtMs = this.startedAtMs ?? Date.now()
     this.stoppedAtMs = null
-    this.status = "active"
+    this.status = "running"
     this.recordHeartbeat()
     this.heartbeatTimer ??= setInterval(() => this.recordHeartbeat(), this.config.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS)
     publishSystemEvent({ type: "agent.status", agentId: this.id, status: this.status })
@@ -92,7 +93,7 @@ export class Agent implements AgentRuntimeContext {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer)
     this.heartbeatTimer = null
     this.stoppedAtMs = Date.now()
-    this.status = "offline"
+    this.status = "stopped"
     this.recordHeartbeat()
     publishSystemEvent({ type: "agent.status", agentId: this.id, status: this.status })
   }
@@ -111,11 +112,14 @@ export class Agent implements AgentRuntimeContext {
   }
 
   async executeTask(taskInput: Task): Promise<TaskResult> {
-    if (this.status === "offline") await this.start()
+    if (this.status === "stopped" || this.status === "offline") throw new Error("Cannot execute task on a stopped agent")
     const task = normalizeTask(taskInput)
     const startedAt = isoNow()
     const startedMs = Date.now()
-    this.status = "working"
+    const health = getAgentHealthSummary(this.id)
+    if (health.degraded) console.warn(`[agent-health] Executing task for degraded agent ${this.id}`)
+    this.status = health.degraded ? "degraded" : "working"
+    recordAgentInvocation(this.id)
     this.recordHeartbeat(task.title)
     writeTaskRecord(this.id, { task, result: null, status: "running", updatedAt: startedAt })
     publishSystemEvent({ type: "task.started", agentId: this.id, task: { id: task.id, title: task.title, district: task.district } })
@@ -136,8 +140,9 @@ export class Agent implements AgentRuntimeContext {
         durationMs,
       }
       this.metrics.tasksCompleted += 1
+      recordAgentExecutionSuccess(this.id)
       this.taskDurations.push(durationMs)
-      this.status = "idle"
+      this.status = "running"
       this.recordHeartbeat()
       writeTaskRecord(this.id, { task, result, status: "completed", updatedAt: completedAt })
       recordTaskCompletion(this.id)
@@ -157,7 +162,8 @@ export class Agent implements AgentRuntimeContext {
         durationMs,
       }
       this.metrics.tasksFailed += 1
-      this.status = "error"
+      const health = recordAgentExecutionError({ agentId: this.id, error, taskExcerpt: task.title })
+      this.status = health.degraded ? "degraded" : "error"
       this.recordHeartbeat(task.title)
       writeTaskRecord(this.id, { task, result, status: "failed", updatedAt: completedAt })
       publishSystemEvent({ type: "task.completed", agentId: this.id, taskId: task.id, result: { summary: result.error ?? result.summary, durationMs } })
