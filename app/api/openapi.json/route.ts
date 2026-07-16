@@ -299,6 +299,16 @@ const spec = {
     "/api/webhooks": { get: op("Webhooks", "List webhook registrations"), post: op("Webhooks", "Create a webhook registration", [], { url: "https://partner.example/hooks", events: ["agent.status"] }) },
     "/api/webhooks/{id}": { delete: op("Webhooks", "Delete a webhook registration", ["id"]) },
     "/api/webhooks/{id}/rotate": { post: op("Webhooks", "Rotate a webhook signing secret", ["id"]) },
+    "/api/webhooks/{id}/replay": { post: op("Webhooks", "Replay webhook events by time range", ["id"], { from: "2026-06-26T00:00:00.000Z", to: "2026-06-26T01:00:00.000Z" }, {
+      responseSchema: {
+        type: "object",
+        properties: {
+          ok: { type: "boolean", enum: [true] },
+          queued: { type: "integer" },
+        },
+        required: ["ok", "queued"],
+      },
+    }) },
     "/api/webhooks/event-types": { get: op("Webhooks", "List supported webhook event types") },
     "/api/cron/webhook-retry": {
       post: op("Webhooks", "Retry due webhook deliveries", [], undefined, {
