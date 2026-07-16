@@ -1,11 +1,12 @@
 import type { Metadata } from "next"
-import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { buildSevenDayXpSnapshots, getLevelProgress, type XpHistoryEventLike } from "@/lib/agents/xp-history-chart"
+import { getXpToNextLevel } from "@/lib/gamification/xp"
 
 import {
   AGENT_OG_SIZE,
@@ -84,11 +85,12 @@ export default async function AgentPage({ params }: AgentPageProps) {
   const { id } = await params
   
   // Data loading as required by acceptance criteria
-  const [metaRes, healthRes, repRes, questRes] = await Promise.all([
+  const [metaRes, healthRes, repRes, questRes, xpHistoryRes] = await Promise.all([
     fetch(absoluteUrl(`/api/agents/${id}`), { cache: 'no-store' }),
     fetch(absoluteUrl(`/api/agents/${id}/health`), { cache: 'no-store' }),
     fetch(absoluteUrl(`/api/protocol/reputation?actorId=${id}`), { cache: 'no-store' }),
-    fetch(absoluteUrl(`/api/agents/${id}/quest-recommendations`), { cache: 'no-store' })
+    fetch(absoluteUrl(`/api/agents/${id}/quest-recommendations`), { cache: 'no-store' }),
+    fetch(absoluteUrl(`/api/agents/${id}/xp/history?pageSize=100`), { cache: 'no-store' }),
   ])
 
   const localAgent = findAgentByLookup(id)
@@ -142,6 +144,17 @@ export default async function AgentPage({ params }: AgentPageProps) {
   const initials = agentName.substring(0, 2).toUpperCase()
   const agentIdStr = agentMetadata.agentId || agentMetadata.id || id
   const tasksCompleted = agentMetadata.tasksCompleted ?? localAgent?.tasksCompleted ?? 0
+  const totalXp = agentMetadata.xp ?? localAgent?.xp ?? 0
+  const level = agentMetadata.level ?? localAgent?.level ?? 1
+  const xpToNext = agentMetadata.xpToNext ?? getXpToNextLevel(level)
+
+  let xpHistoryEvents: XpHistoryEventLike[] = []
+  if (xpHistoryRes.ok) {
+    const data = await xpHistoryRes.json()
+    xpHistoryEvents = Array.isArray(data.events) ? data.events : []
+  }
+  const xpSnapshots = buildSevenDayXpSnapshots(xpHistoryEvents)
+  const xpProgress = getLevelProgress(totalXp, level)
   
   let districtName = "Unknown"
   if (agentMetadata.district) {
@@ -219,6 +232,38 @@ export default async function AgentPage({ params }: AgentPageProps) {
               </Card>
             </div>
 
+
+            {/* XP Progress */}
+            <Card className="bg-slate-950/80 border-slate-800">
+              <CardHeader className="pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="font-mono uppercase tracking-wider text-sm text-slate-300">XP Growth</CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">7-day earned XP snapshot</CardDescription>
+                  </div>
+                  <Badge className="border-cyan-400/50 bg-cyan-400/10 px-3 py-1 font-mono text-cyan-200">Level {level}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">Total XP</div>
+                    <div className="mt-1 font-pixel text-xl text-cyan-300">{totalXp.toLocaleString("en-US")}</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3 sm:col-span-2">
+                    <div className="mb-2 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                      <span>Next level</span>
+                      <span>{xpToNext > 0 ? `${Math.max(0, xpToNext - totalXp).toLocaleString("en-US")} XP needed` : "Max level"}</span>
+                    </div>
+                    <div className="h-3 overflow-hidden rounded-full bg-slate-800" aria-label={`Level ${level} progress`}>
+                      <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-300" style={{ width: `${xpProgress.progressPercent}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <XpSparkline snapshots={xpSnapshots} />
+              </CardContent>
+            </Card>
+
             {/* Capabilities */}
             <Card className="bg-slate-950/80 border-slate-800">
               <CardHeader className="pb-3">
@@ -291,3 +336,43 @@ export default async function AgentPage({ params }: AgentPageProps) {
   )
 }
 
+
+
+function XpSparkline({ snapshots }: { snapshots: ReturnType<typeof buildSevenDayXpSnapshots> }) {
+  const width = 560
+  const height = 120
+  const padding = 12
+  const maxXp = Math.max(1, ...snapshots.map((point) => point.xp))
+  const step = snapshots.length > 1 ? (width - padding * 2) / (snapshots.length - 1) : 0
+  const points = snapshots.map((point, index) => {
+    const x = padding + index * step
+    const y = height - padding - (point.xp / maxXp) * (height - padding * 2)
+    return { ...point, x, y }
+  })
+  const path = points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x},${point.y}`).join(" ")
+  const areaPath = `${path} L${width - padding},${height - padding} L${padding},${height - padding} Z`
+
+  return (
+    <div className="h-40 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+      <svg className="h-28 w-full overflow-visible" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Seven-day XP earned sparkline" preserveAspectRatio="none">
+        <path d={areaPath} fill="rgba(34, 211, 238, 0.12)" />
+        <path d={path} fill="none" stroke="#22d3ee" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" vectorEffect="non-scaling-stroke" />
+        {points.map((point) => (
+          <g key={point.date}>
+            <circle cx={point.x} cy={point.y} r="4" fill="#030712" stroke="#67e8f9" strokeWidth="2" vectorEffect="non-scaling-stroke">
+              <title>{`${point.label}: ${point.xp} XP`}</title>
+            </circle>
+          </g>
+        ))}
+      </svg>
+      <div className="grid grid-cols-7 gap-1 font-mono text-[10px] text-slate-500">
+        {snapshots.map((point) => (
+          <div key={point.date} className="min-w-0 text-center" title={`${point.label}: ${point.xp} XP`}>
+            <div className="truncate">{point.label}</div>
+            <div className="text-cyan-300">{point.xp}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

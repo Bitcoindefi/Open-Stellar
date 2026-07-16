@@ -2,6 +2,7 @@ import type { DistrictId, MoltbotAgent } from "@/lib/types"
 import { DISTRICTS, SPRITE_COUNT } from "@/lib/data"
 import { publishSystemEvent } from "@/lib/events/system-events"
 import { recordAgentHeartbeat } from "@/lib/agents/agent-health-store"
+import { getAgentHealthSummary, recordAgentExecutionSuccess } from "@/lib/agents/agent-error-store"
 
 export type CloudAgentConfig = {
   id: string
@@ -69,6 +70,7 @@ export function getCloudAgentConfig(id: string): CloudAgentConfig | null {
 export function updateCloudAgentResult(id: string, summary: string): CloudAgentConfig | null {
   const config = configs.get(id)
   if (!config) return null
+  recordAgentExecutionSuccess(id)
   const updated = { ...config, lastTaskAt: new Date().toISOString(), lastResult: summary.slice(0, 240) }
   configs.set(id, updated)
   return updated
@@ -78,17 +80,18 @@ export function cloudConfigToAgent(config: CloudAgentConfig, index = 0): Moltbot
   const district = DISTRICTS.find((d) => d.id === config.district) ?? DISTRICTS[0]
   const x = district.x + 42 + (index * 34) % Math.max(80, district.w - 80)
   const y = district.y + 58 + (index * 29) % Math.max(80, district.h - 80)
+  const health = getAgentHealthSummary(config.id)
   return {
     id: config.id,
     name: config.name,
     model: config.model,
     deployment: "cloud",
-    status: "active",
+    status: health.degraded ? "degraded" : "active",
     district: config.district,
     cpu: 5,
     memory: 18,
     tasksCompleted: config.lastTaskAt ? 1 : 0,
-    currentTask: config.lastResult ?? "Waiting for cloud tasks",
+    currentTask: health.degraded ? `Degraded: ${health.errorCount24h} errors in 24h` : config.lastResult ?? "Waiting for cloud tasks",
     taskProgress: 0,
     color: "#38bdf8",
     pixelX: x,
@@ -100,7 +103,8 @@ export function cloudConfigToAgent(config: CloudAgentConfig, index = 0): Moltbot
     spriteId: (index + 5) % SPRITE_COUNT,
     skills: [{ id: `${config.id}-edge`, name: "Edge Runtime", level: 1, maxLevel: 5, xp: 0, xpToNext: 100 }],
     autoRestart: true,
-    lastHeartbeat: config.createdAt,
+    lastHeartbeat: health.lastSeen ?? config.createdAt,
+    offlineForSeconds: health.errorCount24h,
     appearance: { skin: "neon", accessories: [], customColor: null },
   }
 }
