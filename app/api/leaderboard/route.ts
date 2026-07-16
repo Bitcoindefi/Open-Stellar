@@ -21,6 +21,6 @@ export function GET(req: Request) {
       refreshedAt: new Date().toISOString(),
       nextResetAt: "Sunday 00:00 UTC",
     },
-    { headers: { "Cache-Control": "no-store" } },
+    { headers: { "Cache-Control": "public, max-age=30" } },
   )
 }

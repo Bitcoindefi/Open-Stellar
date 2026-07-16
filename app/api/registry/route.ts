@@ -15,6 +15,14 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const agents = listRegisteredAgents({
     capability: url.searchParams.get("capability") ?? undefined,
+  }).map((agent) => {
+    const health = getAgentHealthSummary(agent.agentId)
+    return {
+      ...agent,
+      status: health.degraded ? "degraded" as const : agent.status,
+      errorCount24h: health.errorCount24h,
+      degraded: health.degraded,
+    }
   })
   const items = agents.map((agent) => {
     const health = getAgentHealth(agent.agentId)

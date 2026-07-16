@@ -4,6 +4,7 @@ import { completeQuest, getQuestById } from "@/lib/gamification/quests"
 import { getReputationByActorId } from "@/lib/reputation/reputation-store"
 import { isAuthorized } from "@/lib/auth"
 import { hasClaimedQuest, markQuestClaimed } from "@/lib/gamification/quest-completions"
+import { publishSystemEvent } from "@/lib/events/system-events"
 
 type QuestApplyContext = {
   params: Promise<{ id: string }>
