@@ -125,7 +125,7 @@ const mockTxHash = '0x' + 'a'.repeat(64)
 console.log(`📤 Payment sent: ${mockTxHash}`)
 
 // Settle the payment
-const settlement = settleX402({
+const settlement = await settleX402({
   paymentRef: quote.paymentRef,
   chain: 'stellar',
   txHash: mockTxHash,

@@ -191,11 +191,11 @@ export async function verifyX402Settlement(input: X402Settlement, quote?: X402Qu
   }
 }
 
-export function listX402ExplorerReceipts(filters: X402ReceiptQuery = {}) {
-  return listX402Receipts(filters)
+export async function listX402ExplorerReceipts(filters: X402ReceiptQuery = {}) {
+  return await listX402Receipts(filters)
 }
 
-export function settleX402(input: X402Settlement): X402SettlementResult {
+export async function settleX402(input: X402Settlement): Promise<X402SettlementResult> {
   const paymentRef = input.paymentRef || input.quoteId || ''
   const quote = quoteRegistry.get(paymentRef)
   if (!quote) return { ok: false, error: 'Quote not found for paymentRef' }
@@ -226,7 +226,7 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
   receipt.amountUsd = quote.amountUsd
   receipt.amountUnits = option.amountUnits
 
-  const storedReceipt = saveX402Receipt({
+  const storedReceipt = await saveX402Receipt({
     ...receipt,
     id: `rcpt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
     agentId: quote.payer,
