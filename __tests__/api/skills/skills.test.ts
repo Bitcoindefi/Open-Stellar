@@ -291,7 +291,7 @@ describe('Skills API', () => {
       })
 
       // Settle payment
-      const settlement = settleX402({
+      const settlement = await settleX402({
         paymentRef: quote.paymentRef,
         chain: 'stellar',
         txHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
