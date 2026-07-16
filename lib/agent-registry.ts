@@ -43,7 +43,7 @@ export interface CapabilityCount {
 export type AgentRegistryChangeAction = "registered" | "updated" | "deregistered"
 
 const DISTRICTS: DistrictId[] = ["data-center", "comm-hub", "processing", "defense", "research"]
-const STATUSES: AgentStatus[] = ["active", "idle", "working", "error", "offline", "degraded"]
+const STATUSES: AgentStatus[] = ["active", "idle", "running", "working", "error", "offline", "stopped", "degraded"]
 
 interface AgentRegistryState {
   agents: Map<string, AgentCapabilityManifest>
