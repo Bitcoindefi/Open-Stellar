@@ -5,10 +5,11 @@ import { tmpdir } from "node:os"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { GET as EVENT_TYPES_GET } from "@/app/api/webhooks/event-types/route"
 import { DELETE } from "@/app/api/webhooks/[id]/route"
+import { POST as REPLAY_POST } from "@/app/api/webhooks/[id]/replay/route"
 import { GET as DELIVERIES_GET } from "@/app/api/webhooks/[id]/deliveries/route"
 import { POST as ROTATE_POST } from "@/app/api/webhooks/[id]/rotate/route"
 import { GET, POST } from "@/app/api/webhooks/route"
-import { publishSystemEvent } from "@/lib/events/system-events"
+import { listPublishedSystemEvents, publishSystemEvent, resetPublishedSystemEventLogForTests } from "@/lib/events/system-events"
 import { deliverWebhookEvent } from "@/lib/webhooks/delivery"
 import {
   resetWebhookRetryCancellationForTests,
@@ -65,6 +66,7 @@ describe("webhook API", () => {
     setWebhookRetryStorePathForTests(join(testDir, "webhook-retry-queue.json"))
     resetWebhookStoreForTests()
     resetWebhookDeliveryLogForTests()
+    resetPublishedSystemEventLogForTests()
     setWebhookRetryDelayForTests(0)
   })
 
@@ -76,6 +78,7 @@ describe("webhook API", () => {
     resetWebhookStorePathForTests()
     resetWebhookDeliveryLogPathForTests()
     resetWebhookRetryStorePathForTests()
+    resetPublishedSystemEventLogForTests()
     rmSync(testDir, { recursive: true, force: true })
   })
 
@@ -334,6 +337,160 @@ describe("webhook API", () => {
     })
     expect(payload.payload.id).toEqual(expect.any(String))
     expect(payload.payload.occurredAt).toEqual(expect.any(String))
+  })
+
+  it("replays zero webhook events for an empty time window", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const { data: registered } = await registerWebhook()
+
+    const res = await REPLAY_POST(
+      new Request(`http://localhost/api/webhooks/${registered.id}/replay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "2026-06-26T00:00:00.000Z",
+          to: "2026-06-26T01:00:00.000Z",
+        }),
+      }),
+      context(registered.id),
+    )
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data).toEqual({ ok: true, queued: 0 })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("replays only events matching the webhook event registrations", async () => {
+    publishSystemEvent({
+      id: "evt_status_replay",
+      occurredAt: "2026-06-26T00:15:00.000Z",
+      type: "agent.status",
+      agentId: "nexus-7",
+      status: "working",
+    })
+    publishSystemEvent({
+      id: "evt_quest_replay",
+      occurredAt: "2026-06-26T00:20:00.000Z",
+      type: "quest.completed",
+      agentId: "nexus-7",
+      questId: "daily-complete-5-tasks",
+    })
+
+    const registeredResponse = await POST(webhookRequest({
+      url: "https://partner.example/webhooks/open-stellar",
+      events: ["agent.status"],
+    }))
+    const registered = await registeredResponse.json() as { id: string; secret: string }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const res = await REPLAY_POST(
+      new Request(`http://localhost/api/webhooks/${registered.id}/replay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "2026-06-26T00:00:00.000Z",
+          to: "2026-06-26T01:00:00.000Z",
+        }),
+      }),
+      context(registered.id),
+    )
+    const data = await res.json()
+    const replayedPayload = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
+
+    expect(res.status).toBe(200)
+    expect(data).toEqual({ ok: true, queued: 1 })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(replayedPayload.payload.id).toBe("evt_status_replay")
+    expect(replayedPayload.payload.type).toBe("agent.status")
+  })
+
+  it("replays all matching webhook events in the requested window", async () => {
+    publishSystemEvent({
+      id: "evt_before_window",
+      occurredAt: "2026-06-25T23:59:59.999Z",
+      type: "agent.status",
+      agentId: "nexus-7",
+      status: "idle",
+    })
+    publishSystemEvent({
+      id: "evt_status_window",
+      occurredAt: "2026-06-26T00:15:00.000Z",
+      type: "agent.status",
+      agentId: "nexus-7",
+      status: "working",
+    })
+    publishSystemEvent({
+      id: "evt_quest_window",
+      occurredAt: "2026-06-26T00:20:00.000Z",
+      type: "quest.completed",
+      agentId: "nexus-7",
+      questId: "daily-complete-5-tasks",
+    })
+    publishSystemEvent({
+      id: "evt_after_window",
+      occurredAt: "2026-06-26T01:00:00.001Z",
+      type: "agent.status",
+      agentId: "nexus-7",
+      status: "idle",
+    })
+
+    const { data: registered } = await registerWebhook()
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const res = await REPLAY_POST(
+      new Request(`http://localhost/api/webhooks/${registered.id}/replay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "2026-06-26T00:00:00.000Z",
+          to: "2026-06-26T01:00:00.000Z",
+        }),
+      }),
+      context(registered.id),
+    )
+    const data = await res.json()
+    const replayedIds = fetchMock.mock.calls.map((call) => JSON.parse(call[1]?.body as string).payload.id)
+
+    expect(res.status).toBe(200)
+    expect(data).toEqual({ ok: true, queued: 2 })
+    expect(replayedIds).toEqual(["evt_status_window", "evt_quest_window"])
+  })
+
+  it("returns 404 when replaying an unknown webhook", async () => {
+    const res = await REPLAY_POST(
+      new Request("http://localhost/api/webhooks/wh_missing/replay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "2026-06-26T00:00:00.000Z" }),
+      }),
+      context("wh_missing"),
+    )
+    const data = await res.json()
+
+    expect(res.status).toBe(404)
+    expect(data).toEqual({ ok: false, error: "Webhook not found" })
+  })
+
+  it("keeps the published event log bounded to 500 entries", () => {
+    for (let index = 0; index < 501; index += 1) {
+      publishSystemEvent({
+        id: `evt_${index}`,
+        occurredAt: new Date(Date.UTC(2026, 5, 26, 0, 0, index)).toISOString(),
+        type: "agent.status",
+        agentId: "nexus-7",
+        status: "working",
+      })
+    }
+
+    const events = listPublishedSystemEvents()
+
+    expect(events).toHaveLength(500)
+    expect(events[0].id).toBe("evt_1")
+    expect(events[499].id).toBe("evt_500")
   })
 
   it("retries once when delivery receives an error response", async () => {

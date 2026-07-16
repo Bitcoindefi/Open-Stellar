@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto"
-import { subscribeToSystemEvents, type PublishedSystemEvent } from "@/lib/events/system-events"
+import { listPublishedSystemEvents, subscribeToSystemEvents, type PublishedSystemEvent } from "@/lib/events/system-events"
 import { appendWebhookDeliveryAttempt } from "@/lib/webhooks/delivery-log"
 import {
   enqueueWebhookRetry,
@@ -209,6 +209,27 @@ export async function deliverWebhookEvent(event: PublishedSystemEvent): Promise<
     payload: event,
   }
   await Promise.all(matchingWebhooks.map((webhook) => deliverToWebhook(webhook, payload)))
+}
+
+export async function replayEventsToWebhook(webhookId: string, from: Date, to: Date = new Date()): Promise<number | null> {
+  const cleanWebhookId = webhookId.trim()
+  const webhook = listWebhooksWithSecrets().find((candidate) => candidate.id === cleanWebhookId)
+  if (!webhook) return null
+
+  const fromMs = from.getTime()
+  const toMs = to.getTime()
+  const events = listPublishedSystemEvents().filter((event) => {
+    const occurredAtMs = Date.parse(event.occurredAt)
+    return (
+      Number.isFinite(occurredAtMs) &&
+      occurredAtMs >= fromMs &&
+      occurredAtMs <= toMs &&
+      webhook.events.includes(event.type)
+    )
+  })
+
+  await Promise.all(events.map((event) => deliverToWebhook(webhook, { type: event.type, payload: event })))
+  return events.length
 }
 
 export interface WebhookRetrySummary {
