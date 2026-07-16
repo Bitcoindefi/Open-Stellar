@@ -5,6 +5,7 @@ import { publishSystemEvent } from "@/lib/events/system-events"
 import { listRegisteredAgents, getRegisteredAgent } from "@/lib/agent-registry"
 import { getAgentXP } from "@/lib/gamification/xp"
 import { countClaimedQuests } from "@/lib/gamification/quest-completions"
+import { getReputation } from "@/lib/reputation/reputation-store"
 
 export type BadgeType = "first_task" | "quest_master" | "level_10" | "veteran" | "top_earner"
 
@@ -110,7 +111,7 @@ function isTopEarner(agentId: string): boolean {
 
 function shouldAward(type: BadgeType, agentId: string, nowMs: number): boolean {
   if (type === "first_task") {
-    return getAgentXP(agentId).xp > 0
+    return getReputation(agentId).metrics.tasksCompleted >= 1
   }
   if (type === "quest_master") {
     return countClaimedQuests(agentId) >= 5

@@ -2,10 +2,12 @@ import type { Metadata } from "next"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { CheckCircle2, ScrollText, Shield, Sparkles, Trophy } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 import {
   AGENT_OG_SIZE,
@@ -18,6 +20,30 @@ import {
 
 type AgentPageProps = {
   params: Promise<{ id: string }>
+}
+
+type AgentBadge = {
+  type: string
+  name: string
+  description: string
+  icon: string
+  awardedAt: string
+}
+
+function badgeVisual(type: string) {
+  if (type === "first_task") {
+    return { icon: CheckCircle2, className: "text-emerald-300" }
+  }
+  if (type === "quest_master") {
+    return { icon: ScrollText, className: "text-cyan-300" }
+  }
+  if (type === "level_10") {
+    return { icon: Sparkles, className: "text-amber-300" }
+  }
+  if (type === "veteran") {
+    return { icon: Shield, className: "text-violet-300" }
+  }
+  return { icon: Trophy, className: "text-rose-300" }
 }
 
 function getBaseUrl(): string {
@@ -132,7 +158,7 @@ export default async function AgentPage({ params }: AgentPageProps) {
     infractions = data.reputation?.history?.filter((h: any) => h.delta < 0).length || 0
   }
 
-  let badges: Array<{ type: string; name: string; description: string; icon: string; awardedAt: string }> = []
+  let badges: AgentBadge[] = []
   if (badgesRes.ok) {
     const data = await badgesRes.json()
     badges = data.badges || []
@@ -241,8 +267,8 @@ export default async function AgentPage({ params }: AgentPageProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {capabilities.length > 0 ? capabilities.map((cap, i) => (
-                    <Badge key={i} variant="outline" className="bg-blue-900/20 text-blue-300 border-blue-800/50 hover:bg-blue-900/40 px-3 py-1 text-xs">
+                  {capabilities.length > 0 ? capabilities.map((cap) => (
+                    <Badge key={cap} variant="outline" className="bg-blue-900/20 text-blue-300 border-blue-800/50 hover:bg-blue-900/40 px-3 py-1 text-xs">
                       {cap}
                     </Badge>
                   )) : (
@@ -259,18 +285,36 @@ export default async function AgentPage({ params }: AgentPageProps) {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {badges.length > 0 ? badges.map((badge, i) => (
-                    <div
-                      key={i}
-                      title={badge.description}
-                      className="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-slate-300"
-                    >
-                      <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-cyan-200">
-                        {badge.icon}
-                      </span>
-                      <span className="font-pixel text-xs text-center leading-tight">{badge.name}</span>
-                    </div>
-                  )) : (
+                  {badges.length > 0 ? badges.map((badge) => {
+                    const visual = badgeVisual(badge.type)
+                    const Icon = visual.icon
+
+                    return (
+                      <Tooltip key={`${badge.type}:${badge.awardedAt}`}>
+                        <TooltipTrigger asChild>
+                          <div className="flex cursor-help flex-col items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-slate-300 transition hover:border-cyan-400/40 hover:bg-slate-800/80">
+                            <span className={`rounded-full border border-cyan-400/30 bg-cyan-400/10 p-3 ${visual.className}`}>
+                              <Icon className="h-5 w-5" />
+                            </span>
+                            <span className="font-pixel text-xs text-center leading-tight">{badge.name}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent sideOffset={8} className="max-w-56 border border-slate-700 bg-slate-950 text-slate-100">
+                          <div className="space-y-1">
+                            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-cyan-300">{badge.name}</p>
+                            <p className="font-mono text-xs leading-5 text-slate-300">{badge.description}</p>
+                            <p className="font-mono text-[11px] text-slate-500">
+                              Awarded {new Date(badge.awardedAt).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
+                            </p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    )
+                  }) : (
                     <div className="col-span-2 sm:col-span-3 text-center p-4">
                       <span className="text-sm text-slate-500 font-mono">No badges earned yet</span>
                     </div>
@@ -283,8 +327,8 @@ export default async function AgentPage({ params }: AgentPageProps) {
           {/* Active Quests (Sidebar) */}
           <div className="flex flex-col gap-4">
             <h3 className="font-mono uppercase tracking-wider text-sm text-slate-300 mb-1 md:ml-1">Active Quests</h3>
-            {quests.length > 0 ? quests.slice(0, 3).map((quest, i) => (
-              <Card key={i} className="bg-slate-950/80 border-slate-800 overflow-hidden relative">
+            {quests.length > 0 ? quests.slice(0, 3).map((quest) => (
+              <Card key={quest.id} className="bg-slate-950/80 border-slate-800 overflow-hidden relative">
                 <div className="absolute top-0 left-0 w-full h-1 bg-slate-800">
                   <div className="h-full bg-cyan-400" style={{ width: `${quest.progress || 0}%` }}></div>
                 </div>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getCloudAgentConfig, provisionCloudAgent, updateCloudAgentResult } from "@/lib/agent-runtime/cloud-agents"
 import { recordAgentHeartbeat, HEARTBEAT_INTERVAL_MS } from "@/lib/agents/agent-health-store"
 import { publishSystemEvent } from "@/lib/events/system-events"
+import { recordTaskCompletion } from "@/lib/reputation/reputation-store"
 import { isAuthorized } from "@/lib/auth"
 
 export const runtime = "edge"
@@ -55,6 +56,7 @@ export async function POST(req: Request, context: RouteContext) {
   const summary = await reasonAboutTask(task, config.model)
   updateCloudAgentResult(config.id, summary)
   recordAgentHeartbeat(config.id, { status: "active", cpu: 8, memory: 24, currentTask: summary, autoRestart: true })
+  recordTaskCompletion(config.id)
   publishSystemEvent({ type: "task.completed", agentId: config.id, taskId, result: { summary, durationMs: Date.now() - started } })
 
   return NextResponse.json({ ok: true, agentId: config.id, taskId, result: { summary } }, { headers: { "Cache-Control": "no-store" } })

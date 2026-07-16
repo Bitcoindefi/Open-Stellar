@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { drainAgentTasks } from "@/lib/agents/task-queue"
 import { publishSystemEvent } from "@/lib/events/system-events"
 import { createApiRouteLogger } from "@/lib/api-logging"
+import { recordTaskCompletion } from "@/lib/reputation/reputation-store"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -21,6 +22,7 @@ export async function POST(req: Request, context: RouteContext) {
       maxItems,
       processor: async (task) => {
         // Emit task.completed event for each successfully processed task
+        recordTaskCompletion(task.agentId)
         publishSystemEvent({
           type: "task.completed",
           agentId: task.agentId,

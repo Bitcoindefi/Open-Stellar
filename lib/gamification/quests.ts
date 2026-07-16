@@ -1,4 +1,5 @@
 import { addNotification } from "@/lib/notifications/notification-store"
+import { checkAndAwardBadges } from "@/lib/agents/badges"
 import { publishSystemEvent } from "@/lib/events/system-events"
 import { XP_AWARDS } from "@/lib/gamification/constants"
 import { awardXP, type XPAwardResult } from "@/lib/gamification/xp"
@@ -374,6 +375,7 @@ export function getQuestById(id: string, now: Date = new Date()): Quest | null {
 export function completeQuest(agentId: string, quest: Quest): QuestCompletionResult {
   const xpAmount = Math.max(0, quest.reward.xp || XP_AWARDS.QUEST_COMPLETED)
   const xpAward = awardXP(agentId, xpAmount, "quest.completed")
+  checkAndAwardBadges(agentId)
 
   publishSystemEvent({
     type: "quest.completed",

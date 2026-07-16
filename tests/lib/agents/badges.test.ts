@@ -4,7 +4,8 @@ import { checkAndAwardBadges, getAgentBadges, resetBadgeStoreForTests } from "@/
 import { registerAgent, resetAgentRegistryForTests, getRegisteredAgent } from "@/lib/agent-registry"
 import { awardXP, resetAgentXpDb } from "@/lib/gamification/xp"
 import { markQuestClaimed, resetQuestCompletions } from "@/lib/gamification/quest-completions"
-import { resetReputationStoreForTests, upsertReputationMetrics } from "@/lib/reputation/reputation-store"
+import { completeQuest, getQuestById } from "@/lib/gamification/quests"
+import { recordTaskCompletion, resetReputationStoreForTests, upsertReputationMetrics } from "@/lib/reputation/reputation-store"
 
 const makeAgent = (agentId: string) => ({
   agentId,
@@ -37,6 +38,24 @@ describe("checkAndAwardBadges", () => {
     )
   })
 
+  it("awards first_task automatically when a task completion is recorded", () => {
+    registerAgent(makeAgent("agent-auto-first-task"))
+
+    recordTaskCompletion("agent-auto-first-task")
+
+    expect(getAgentBadges("agent-auto-first-task")).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "first_task" })]),
+    )
+  })
+
+  it("does not award first_task from quest XP alone", () => {
+    registerAgent(makeAgent("agent-quest-xp"))
+    awardXP("agent-quest-xp", 50, "quest.completed")
+
+    expect(checkAndAwardBadges("agent-quest-xp")).toEqual([])
+    expect(getAgentBadges("agent-quest-xp")).toEqual([])
+  })
+
   it("awards quest_master after five quests", () => {
     registerAgent(makeAgent("agent-quest-master"))
     for (let i = 0; i < 5; i += 1) {
@@ -45,6 +64,23 @@ describe("checkAndAwardBadges", () => {
 
     const awarded = checkAndAwardBadges("agent-quest-master")
     expect(awarded).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "quest_master" })]),
+    )
+  })
+
+  it("awards quest_master automatically when the fifth quest is completed", () => {
+    registerAgent(makeAgent("agent-auto-quest-master"))
+    const quest = getQuestById("daily-complete-5-tasks", new Date("2026-07-16T00:00:00.000Z"))
+    expect(quest).not.toBeNull()
+
+    for (let i = 0; i < 4; i += 1) {
+      markQuestClaimed(`quest-${i}`, "agent-auto-quest-master")
+    }
+
+    markQuestClaimed("quest-4", "agent-auto-quest-master")
+    completeQuest("agent-auto-quest-master", quest!)
+
+    expect(getAgentBadges("agent-auto-quest-master")).toEqual(
       expect.arrayContaining([expect.objectContaining({ type: "quest_master" })]),
     )
   })

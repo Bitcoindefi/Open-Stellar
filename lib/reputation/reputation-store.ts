@@ -48,7 +48,7 @@ const globalDb = globalThis as typeof globalThis & {
 
 function defaultMetrics(): ReputationMetrics {
   return {
-    tasksCompleted: 500,
+    tasksCompleted: 0,
     x402RevenueXlm: 0,
     uptimeDaysWithoutErrors: 0,
     badges: [],
@@ -146,6 +146,15 @@ export function upsertReputationMetrics(actorId: string, metrics: Partial<Reputa
   persist(db)
   checkAndAwardBadges(cleanId)
   return updated
+}
+
+export function recordTaskCompletion(actorId: string): ReputationSnapshot {
+  const cleanId = normalizeActorId(actorId)
+  const current = getReputation(cleanId)
+  return upsertReputationMetrics(cleanId, {
+    ...current.metrics,
+    tasksCompleted: current.metrics.tasksCompleted + 1,
+  })
 }
 
 export function applyReputationAction(action: ReputationAction): ReputationSnapshot {
