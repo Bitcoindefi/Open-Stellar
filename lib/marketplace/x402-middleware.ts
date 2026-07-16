@@ -303,14 +303,20 @@ export async function invokeSkillWithPayment(
   })
 
   // Award XP for successful payment
-  awardXP(request.agentId, XP_AWARDS.X402_PAYMENT_RECEIVED, 'skill.payment')
-  publishSystemEvent({
-    type: 'skill.invoked',
-    agentId: request.agentId,
-    skillId: skill.id,
+  awardXP(request.agentId, XP_AWARDS.X402_PAYMENT_RECEIVED, 'payment.received')  // ✅ valid XPAwardReason
+publishSystemEvent({
+  type: 'payment.received',  // ✅ valid SystemEvent type
+  agentId: request.agentId,
+  receipt: receipt ?? {     // ✅ requires X402Receipt shape
+    accepted: true,
+    paymentRef: quote.paymentRef,
+    settledAt: new Date().toISOString(),
     txHash: paymentResult.txHash,
-    amountXLM: skill.priceXLM,
-  })
+    chain: 'stellar',
+    amountUsd: quote.amountUsd,
+    amountUnits: quote.amountUnits,
+  },
+})
 
   return {
     ok: retryAttempt.status >= 200 && retryAttempt.status < 300,
