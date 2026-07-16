@@ -24,6 +24,7 @@ export interface AgentCapabilityManifest {
   endpoint: string
   registeredAt: string
   updatedAt: string
+  lastSeen: string
 }
 
 export interface AgentRegistryFilters {
@@ -41,10 +42,13 @@ export interface CapabilityCount {
 export type AgentRegistryChangeAction = "registered" | "updated" | "deregistered"
 
 const DISTRICTS: DistrictId[] = ["data-center", "comm-hub", "processing", "defense", "research"]
-const STATUSES: AgentStatus[] = ["active", "idle", "working", "error", "offline"]
+const STATUSES: AgentStatus[] = ["active", "idle", "working", "error", "offline", "online"]
+export const AGENT_OFFLINE_AFTER_MS = 120_000
+export const AGENT_STALE_AFTER_MS = 600_000
 
 interface AgentRegistryState {
   agents: Map<string, AgentCapabilityManifest>
+  staleRemovedLastRun: number
 }
 
 const globalState = globalThis as typeof globalThis & {
@@ -53,6 +57,7 @@ const globalState = globalThis as typeof globalThis & {
 
 const registry: AgentRegistryState = globalState.__openStellarAgentRegistry__ ?? {
   agents: new Map(),
+  staleRemovedLastRun: 0,
 }
 
 if (!globalState.__openStellarAgentRegistry__) {
@@ -175,7 +180,38 @@ function emitRegistryChange(action: AgentRegistryChangeAction, agent: AgentCapab
   })
 }
 
+export function sweepAgentRegistry(nowMs: number = Date.now()): number {
+  let staleRemoved = 0
+
+  for (const [agentId, agent] of registry.agents.entries()) {
+    const lastSeenMs = Date.parse(agent.lastSeen)
+    const unseenMs = Number.isNaN(lastSeenMs) ? Number.POSITIVE_INFINITY : nowMs - lastSeenMs
+
+    if (unseenMs > AGENT_STALE_AFTER_MS) {
+      registry.agents.delete(agentId)
+      staleRemoved += 1
+      emitRegistryChange("deregistered", agent)
+      continue
+    }
+
+    if (unseenMs > AGENT_OFFLINE_AFTER_MS && agent.status !== "offline") {
+      const offlineAgent: AgentCapabilityManifest = {
+        ...agent,
+        status: "offline",
+        updatedAt: new Date(nowMs).toISOString(),
+      }
+      registry.agents.set(agentId, offlineAgent)
+      emitRegistryChange("updated", offlineAgent)
+    }
+  }
+
+  registry.staleRemovedLastRun = staleRemoved
+  return staleRemoved
+}
+
 export function listRegisteredAgents(filters: AgentRegistryFilters = {}): AgentCapabilityManifest[] {
+  sweepAgentRegistry()
+
   return Array.from(registry.agents.values()).filter((agent) => {
     if (filters.district && agent.district !== filters.district) return false
     if (filters.status && agent.status !== filters.status) return false
@@ -189,6 +225,8 @@ export function listRegisteredAgents(filters: AgentRegistryFilters = {}): AgentC
 }
 
 export function listCapabilities(): CapabilityCount[] {
+  sweepAgentRegistry()
+
   const counts = new Map<string, number>()
   for (const agent of registry.agents.values()) {
     for (const cap of agent.capabilities) {
@@ -201,6 +239,7 @@ export function listCapabilities(): CapabilityCount[] {
 }
 
 export function getRegisteredAgent(agentId: string): AgentCapabilityManifest | null {
+  sweepAgentRegistry()
   return registry.agents.get(agentId) ?? null
 }
 
@@ -236,6 +275,7 @@ export function registerAgent(input: unknown): AgentCapabilityManifest {
     endpoint: normalizeString(input.endpoint, "endpoint"),
     registeredAt: now,
     updatedAt: now,
+    lastSeen: now,
   }
 
   registry.agents.set(agent.agentId, agent)
@@ -265,6 +305,41 @@ export function updateAgentCapabilities(agentId: string, input: unknown): AgentC
   return updated
 }
 
+export function recordAgentHeartbeat(agentId: string): AgentCapabilityManifest | null {
+  sweepAgentRegistry()
+
+  const existing = registry.agents.get(agentId)
+  if (!existing) return null
+
+  const now = new Date().toISOString()
+  const updated: AgentCapabilityManifest = {
+    ...existing,
+    status: "online",
+    lastSeen: now,
+    updatedAt: now,
+  }
+  registry.agents.set(agentId, updated)
+  emitRegistryChange("updated", updated)
+  return updated
+}
+
+export function getAgentRegistryHealth(): { online: number; offline: number; stale_removed_last_run: number } {
+  sweepAgentRegistry()
+
+  let online = 0
+  let offline = 0
+  for (const agent of registry.agents.values()) {
+    if (agent.status === "online") online += 1
+    if (agent.status === "offline") offline += 1
+  }
+
+  return {
+    online,
+    offline,
+    stale_removed_last_run: registry.staleRemovedLastRun,
+  }
+}
+
 export function deregisterAgent(agentId: string): AgentCapabilityManifest | null {
   const existing = registry.agents.get(agentId)
   if (!existing) return null
@@ -276,4 +351,5 @@ export function deregisterAgent(agentId: string): AgentCapabilityManifest | null
 
 export function resetAgentRegistryForTests(): void {
   registry.agents.clear()
+  registry.staleRemovedLastRun = 0
 }
