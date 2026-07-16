@@ -60,12 +60,16 @@ export function recordInvocation(
   ledger.set(record.id, record)
   
   publishSystemEvent({
-    type: 'skill.invocation.recorded',
-    agentId,
-    skillId,
-    txHash,
-    amountXLM,
-  })
+  type: 'payment.received',  // ✅ valid SystemEvent type
+  agentId,
+  receipt: {                // ✅ requires X402Receipt shape
+    accepted: true,
+    paymentRef: `skill:${skillId}:${Date.now()}`,
+    settledAt: record.invokedAt,
+    txHash: txHash || 'pending',
+    chain,
+  },
+})
 
   return record
 }
