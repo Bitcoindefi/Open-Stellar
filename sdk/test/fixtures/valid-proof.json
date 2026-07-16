@@ -1,0 +1,34 @@
+{
+  "proof": {
+    "pi_a": [
+      "0x06b93f96ed20999901cc48454c3c679c7dba1cce9d8705938400f1b7268b75e6",
+      "0x2e826fa485e93ba4d9b087df52b68f551116c8224bc212144a2ec513d4768829",
+      "0x1"
+    ],
+    "pi_b": [
+      [
+        "0x2e7015079ae46f073a41d6bf9a1c7df6b282a74397d973d685a0b38ca6102cdf",
+        "0x0506e0126ea65f0682a5518398abc386396b5760d35a7348dac5450c91160eb9"
+      ],
+      [
+        "0x1a66849b4354139a76be8d621516c2702a9f8b329caa583a03278dd7201bfa27",
+        "0x1bb7eacb941ed9efe0a2b3e784953b3726acb9f322f8da095e0e2b8857ce9319"
+      ],
+      [
+        "0x1",
+        "0x0"
+      ]
+    ],
+    "pi_c": [
+      "0x1efddd1616f866a6ca2d9564042072fe552160f544665c12f5c6a952ec934dbb",
+      "0x0e3908022f9ad683338d0f2f3589441e7bc594e2a5b23e63d75741795fadf430",
+      "0x1"
+    ]
+  },
+  "publicInputs": [
+    "0x6c8e54da15f2c1dd4862d76e1cf2d1408df5d9001c172a0600e8ceaaf227fca",
+    "0x2adfb605cf2fb6779aa04e1e900c841436903d781eb9166fcdbf1c55b5140b14",
+    "0x2a",
+    "0x1dcd6500"
+  ]
+}
