@@ -1,7 +1,8 @@
 import { createApiRouteLogger } from '@/lib/api-logging'
 import { createX402Quote } from '@/lib/protocols/x402'
+import { withApiKeyAuth } from '@/lib/auth/api-key-middleware'
 
-export async function POST(req: Request) {
+export const POST = withApiKeyAuth(async (req: Request) => {
   const api = createApiRouteLogger(req, '/api/protocol/x402/quote')
 
   try {
@@ -40,4 +41,4 @@ export async function POST(req: Request) {
       { event: 'x402.quote.failed' },
     )
   }
-}
+}, { keyType: 'protocol' })

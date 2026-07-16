@@ -1,9 +1,10 @@
 import { createApiRouteLogger } from '@/lib/api-logging'
 import { authorizePayment } from '@/lib/passport/passport'
+import { withApiKeyAuth } from '@/lib/auth/api-key-middleware'
 
 // POST { agentId, amount } -> on-chain spend-cap gate for the agent's passport.
 // `amount` is in the smallest on-chain unit (must already be scaled by caller).
-export async function POST(req: Request) {
+export const POST = withApiKeyAuth(async (req: Request) => {
   const api = createApiRouteLogger(req, '/api/protocol/passport/authorize')
 
   try {
@@ -37,4 +38,4 @@ export async function POST(req: Request) {
       { event: 'passport.authorize.failed' },
     )
   }
-}
+}, { keyType: 'protocol' })
