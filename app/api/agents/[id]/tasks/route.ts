@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { getRegisteredAgent } from "@/lib/agent-registry"
 import { createTask, purgeAgentTasks } from "@/lib/agents/task-queue"
 
 interface RouteContext {
@@ -10,6 +11,13 @@ export async function POST(req: Request, context: RouteContext) {
     const { id } = await context.params
     const agentId = decodeURIComponent(id)
     const body = await req.json().catch(() => ({}))
+
+    if (!getRegisteredAgent(agentId)) {
+      return NextResponse.json(
+        { ok: false, error: "agent not found" },
+        { status: 404 },
+      )
+    }
 
     if (!body.type || typeof body.type !== "string") {
       return NextResponse.json(
