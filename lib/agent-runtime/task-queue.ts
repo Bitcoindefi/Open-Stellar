@@ -211,3 +211,25 @@ export function retryDeadLetterTask(id: string): QueuedTask {
   queueState.tasks.set(id, retry)
   return retry
 }
+
+export function peekNext(): QueuedTask | null {
+  const now = Date.now()
+  const pending = [...queueState.tasks.values()]
+    .filter(t => t.status === "pending" && (!t.scheduledFor || Date.parse(t.scheduledFor) <= now))
+    .sort(sortTasks)
+  return pending[0] || null
+}
+
+export function dequeue(): QueuedTask | null {
+  const task = peekNext()
+  if (!task) return null
+  const updated: QueuedTask = { ...task, status: "leased" as const, updatedAt: new Date().toISOString() }
+  queueState.tasks.set(task.id, updated)
+  return updated
+}
+
+export function retryAll(): number {
+  const dead = listDeadLetterTasks()
+  dead.forEach(t => retryDeadLetterTask(t.id))
+  return dead.length
+}
