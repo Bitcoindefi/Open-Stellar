@@ -1,4 +1,4 @@
-export type AgentStatus = "active" | "idle" | "running" | "working" | "error" | "offline" | "stopped"
+export type AgentStatus = "active" | "idle" | "running" | "working" | "error" | "offline" | "stopped" | "degraded"
 
 export type DistrictId = "data-center" | "comm-hub" | "processing" | "defense" | "research"
 
