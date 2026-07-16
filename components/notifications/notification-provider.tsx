@@ -18,6 +18,7 @@ import {
   type ToastQueueState,
 } from "@/lib/notifications/toast-queue"
 import type { PublishedSystemEvent } from "@/lib/events/system-events"
+import { createToastFromSystemEvent } from "@/lib/notifications/system-toast-events"
 
 interface NotificationsContextValue {
   push: (notification: Omit<ToastNotification, "id"> & { id?: string }) => string
@@ -31,22 +32,6 @@ function toneClasses(tone: ToastNotification["tone"]): string {
     return "border-emerald-400/40 bg-emerald-500/10 text-emerald-100 shadow-[0_18px_50px_rgba(16,185,129,0.15)]"
   }
   return "border-cyan-400/30 bg-slate-950/95 text-slate-100 shadow-[0_18px_50px_rgba(2,8,23,0.35)]"
-}
-
-function isLevelUpEvent(event: PublishedSystemEvent): event is PublishedSystemEvent & {
-  type: "agent.xp"
-  leveledUp: boolean
-  level: number
-} {
-  return event.type === "agent.xp" && Boolean((event as { leveledUp?: boolean }).leveledUp)
-}
-
-function isQuestCompletedEvent(event: PublishedSystemEvent): event is PublishedSystemEvent & {
-  type: "quest.completed"
-  questTitle?: string
-  reward?: { xp?: number }
-} {
-  return event.type === "quest.completed"
 }
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
@@ -89,23 +74,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         if (!event.id || seenEventsRef.current.has(event.id)) return
         seenEventsRef.current.add(event.id)
 
-        if (isLevelUpEvent(event)) {
-          push({
-            id: `level-up:${event.id}`,
-            title: "Level up!",
-            message: `You're now Level ${event.level}`,
-            tone: "success",
-          })
-          return
-        }
-
-        if (isQuestCompletedEvent(event)) {
-          push({
-            id: `quest-complete:${event.id}`,
-            title: "Quest complete",
-            message: `${event.questTitle ?? "Quest completed"} (+${event.reward?.xp ?? 0} XP)`,
-            tone: "success",
-          })
+        const toast = createToastFromSystemEvent(event)
+        if (toast) {
+          push(toast)
         }
       } catch {
         // Ignore malformed SSE payloads.
