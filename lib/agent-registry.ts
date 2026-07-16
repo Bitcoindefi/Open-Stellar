@@ -21,6 +21,8 @@ export interface AgentCapabilityManifest {
   dependencies?: string[]
   x402: AgentX402Manifest
   status: AgentStatus
+  errorCount24h?: number
+  degraded?: boolean
   endpoint: string
   registeredAt: string
   updatedAt: string
@@ -41,7 +43,7 @@ export interface CapabilityCount {
 export type AgentRegistryChangeAction = "registered" | "updated" | "deregistered"
 
 const DISTRICTS: DistrictId[] = ["data-center", "comm-hub", "processing", "defense", "research"]
-const STATUSES: AgentStatus[] = ["active", "idle", "working", "error", "offline"]
+const STATUSES: AgentStatus[] = ["active", "idle", "working", "error", "offline", "degraded"]
 
 interface AgentRegistryState {
   agents: Map<string, AgentCapabilityManifest>
