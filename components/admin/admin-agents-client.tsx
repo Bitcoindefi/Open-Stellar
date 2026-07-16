@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import Link from "next/link"
 
 interface RegistryAdminAgent {
@@ -37,7 +37,7 @@ function statusTone(status: string): string {
   return "bg-rose-500/15 text-rose-300 border-rose-400/30"
 }
 
-export function AdminAgentsClient({ adminToken }: AdminAgentsClientProps) {
+export function AdminAgentsClient({ adminToken }: Readonly<AdminAgentsClientProps>) {
   const [agents, setAgents] = useState<RegistryAdminAgent[]>([])
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -139,6 +139,73 @@ export function AdminAgentsClient({ adminToken }: AdminAgentsClientProps) {
     setBulkBusy(false)
   }
 
+  let tableContent: ReactNode
+  if (loading) {
+    tableContent = (
+      <tr>
+        <td colSpan={9} className="px-3 py-10 text-center font-mono text-sm text-slate-500">
+          Loading agents...
+        </td>
+      </tr>
+    )
+  } else if (filtered.length === 0) {
+    tableContent = (
+      <tr>
+        <td colSpan={9} className="px-3 py-10 text-center font-mono text-sm text-slate-500">
+          No agents match the current filters.
+        </td>
+      </tr>
+    )
+  } else {
+    tableContent = filtered.map((agent) => (
+      <tr key={agent.agentId} className="align-top">
+        <td className="border-b border-slate-900 px-3 py-4">
+          <input
+            type="checkbox"
+            checked={selected.includes(agent.agentId)}
+            onChange={() => toggleSelection(agent.agentId)}
+            className="h-4 w-4 accent-cyan-400"
+          />
+        </td>
+        <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-100">
+          <Link href={`/agents/${encodeURIComponent(agent.agentId)}`} className="hover:text-cyan-300">
+            {agent.agentId}
+          </Link>
+        </td>
+        <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-300">{agent.name}</td>
+        <td className="border-b border-slate-900 px-3 py-4">
+          <span className={`inline-flex rounded-full border px-2.5 py-1 font-mono text-xs uppercase tracking-[0.16em] ${statusTone(agent.status)}`}>
+            {agent.status}
+          </span>
+        </td>
+        <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-200">{agent.xp.toLocaleString("en-US")}</td>
+        <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-200">{agent.tasksCompleted.toLocaleString("en-US")}</td>
+        <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-400">{formatDateTime(agent.registeredAt)}</td>
+        <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-400">{formatDateTime(agent.lastSeen)}</td>
+        <td className="border-b border-slate-900 px-3 py-4">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => forceOffline(agent.agentId)}
+              disabled={busyId === agent.agentId || bulkBusy}
+              className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Force offline
+            </button>
+            <button
+              type="button"
+              onClick={() => deregister(agent.agentId)}
+              disabled={busyId === agent.agentId || bulkBusy}
+              className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Deregister
+            </button>
+          </div>
+        </td>
+      </tr>
+    ))
+  }
+
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -203,7 +270,7 @@ export function AdminAgentsClient({ adminToken }: AdminAgentsClientProps) {
                 onChange={toggleVisibleSelection}
                 className="h-4 w-4 accent-cyan-400"
               />
-              Select visible
+              <span>Select visible</span>
             </label>
           </div>
 
@@ -218,69 +285,7 @@ export function AdminAgentsClient({ adminToken }: AdminAgentsClientProps) {
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={9} className="px-3 py-10 text-center font-mono text-sm text-slate-500">
-                      Loading agents...
-                    </td>
-                  </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-3 py-10 text-center font-mono text-sm text-slate-500">
-                      No agents match the current filters.
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((agent) => (
-                    <tr key={agent.agentId} className="align-top">
-                      <td className="border-b border-slate-900 px-3 py-4">
-                        <input
-                          type="checkbox"
-                          checked={selected.includes(agent.agentId)}
-                          onChange={() => toggleSelection(agent.agentId)}
-                          className="h-4 w-4 accent-cyan-400"
-                        />
-                      </td>
-                      <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-100">
-                        <Link href={`/agents/${encodeURIComponent(agent.agentId)}`} className="hover:text-cyan-300">
-                          {agent.agentId}
-                        </Link>
-                      </td>
-                      <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-300">{agent.name}</td>
-                      <td className="border-b border-slate-900 px-3 py-4">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 font-mono text-xs uppercase tracking-[0.16em] ${statusTone(agent.status)}`}>
-                          {agent.status}
-                        </span>
-                      </td>
-                      <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-200">{agent.xp.toLocaleString("en-US")}</td>
-                      <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-200">{agent.tasksCompleted.toLocaleString("en-US")}</td>
-                      <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-400">{formatDateTime(agent.registeredAt)}</td>
-                      <td className="border-b border-slate-900 px-3 py-4 font-mono text-sm text-slate-400">{formatDateTime(agent.lastSeen)}</td>
-                      <td className="border-b border-slate-900 px-3 py-4">
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => forceOffline(agent.agentId)}
-                            disabled={busyId === agent.agentId || bulkBusy}
-                            className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Force offline
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => deregister(agent.agentId)}
-                            disabled={busyId === agent.agentId || bulkBusy}
-                            className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            Deregister
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
+              <tbody>{tableContent}</tbody>
             </table>
           </div>
         </section>

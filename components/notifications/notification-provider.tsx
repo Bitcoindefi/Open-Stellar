@@ -1,9 +1,11 @@
 "use client"
 
 import {
+  useCallback,
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -49,26 +51,34 @@ function isQuestCompletedEvent(event: PublishedSystemEvent): event is PublishedS
   return event.type === "quest.completed"
 }
 
-export function NotificationProvider({ children }: { children: ReactNode }) {
+export function NotificationProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [state, setState] = useState<ToastQueueState>(() => createToastQueueState())
   const timersRef = useRef<Map<string, ReturnType<typeof window.setTimeout>>>(new Map())
   const seenEventsRef = useRef<Set<string>>(new Set())
 
-  const dismiss = (id: string) => {
+  const dismiss = useCallback((id: string) => {
     const timer = timersRef.current.get(id)
     if (timer !== undefined) {
       window.clearTimeout(timer)
       timersRef.current.delete(id)
     }
     setState((current) => dismissToast(current, id))
-  }
+  }, [])
 
-  const push = (notification: Omit<ToastNotification, "id"> & { id?: string }) => {
-    const id = notification.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const push = useCallback((notification: Omit<ToastNotification, "id"> & { id?: string }) => {
+    const id = notification.id ?? crypto.randomUUID()
     const next: ToastNotification = { ...notification, id }
     setState((current) => enqueueToast(current, next))
     return id
-  }
+  }, [])
+
+  const contextValue = useMemo<NotificationsContextValue>(
+    () => ({
+      push,
+      dismiss,
+    }),
+    [push, dismiss],
+  )
 
   useEffect(() => {
     for (const toast of state.visible) {
@@ -125,20 +135,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <NotificationsContext.Provider value={{ push, dismiss }}>
+    <NotificationsContext.Provider value={contextValue}>
       {children}
       <div className="pointer-events-none fixed right-4 top-4 z-[120] flex w-[min(22rem,calc(100vw-2rem))] flex-col gap-3">
         {state.visible.map((toast) => (
-          <div
+          <output
             key={toast.id}
             className={`pointer-events-auto rounded-2xl border px-4 py-3 transition duration-300 animate-in slide-in-from-right-4 fade-in-0 ${toneClasses(toast.tone)}`}
-            role="status"
+            aria-live="polite"
           >
             <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-slate-400">
               {toast.title}
             </div>
             <div className="mt-2 font-mono text-sm leading-5">{toast.message}</div>
-          </div>
+          </output>
         ))}
       </div>
     </NotificationsContext.Provider>
