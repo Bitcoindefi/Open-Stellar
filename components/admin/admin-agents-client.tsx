@@ -13,6 +13,10 @@ interface RegistryAdminAgent {
   lastSeen: string
 }
 
+interface AdminAgentsClientProps {
+  adminToken: string
+}
+
 function formatDateTime(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "Unknown"
@@ -33,7 +37,7 @@ function statusTone(status: string): string {
   return "bg-rose-500/15 text-rose-300 border-rose-400/30"
 }
 
-export function AdminAgentsClient() {
+export function AdminAgentsClient({ adminToken }: AdminAgentsClientProps) {
   const [agents, setAgents] = useState<RegistryAdminAgent[]>([])
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -42,8 +46,18 @@ export function AdminAgentsClient() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
 
+  const adminHeaders = useMemo(
+    () => ({
+      "x-admin-token": adminToken,
+    }),
+    [adminToken],
+  )
+
   async function loadAgents(): Promise<void> {
-    const response = await fetch("/api/registry", { cache: "no-store" })
+    const response = await fetch("/api/registry", {
+      cache: "no-store",
+      headers: adminHeaders,
+    })
     const data = await response.json() as { agents?: RegistryAdminAgent[] }
     setAgents(data.agents ?? [])
     setLoading(false)
@@ -88,7 +102,10 @@ export function AdminAgentsClient() {
     setBusyId(agentId)
     await fetch(`/api/registry/${encodeURIComponent(agentId)}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...adminHeaders,
+      },
       body: JSON.stringify({ status: "offline" }),
     })
     await loadAgents()
@@ -97,7 +114,10 @@ export function AdminAgentsClient() {
 
   const deregister = async (agentId: string) => {
     setBusyId(agentId)
-    await fetch(`/api/registry/${encodeURIComponent(agentId)}`, { method: "DELETE" })
+    await fetch(`/api/registry/${encodeURIComponent(agentId)}`, {
+      method: "DELETE",
+      headers: adminHeaders,
+    })
     setSelected((current) => current.filter((id) => id !== agentId))
     await loadAgents()
     setBusyId(null)
@@ -106,7 +126,14 @@ export function AdminAgentsClient() {
   const bulkDeregister = async () => {
     setBulkBusy(true)
     const ids = [...selected]
-    await Promise.all(ids.map((agentId) => fetch(`/api/registry/${encodeURIComponent(agentId)}`, { method: "DELETE" })))
+    await Promise.all(
+      ids.map((agentId) =>
+        fetch(`/api/registry/${encodeURIComponent(agentId)}`, {
+          method: "DELETE",
+          headers: adminHeaders,
+        }),
+      ),
+    )
     setSelected([])
     await loadAgents()
     setBulkBusy(false)

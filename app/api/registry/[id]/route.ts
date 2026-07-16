@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { hasValidAdminToken } from "@/lib/admin-token"
 import { deregisterAgent, getRegisteredAgent, updateAgentStatus } from "@/lib/agent-registry"
 
 interface RouteContext {
@@ -20,6 +21,10 @@ async function readBody(req: Request): Promise<UpdateRegistryBody> {
 }
 
 export async function GET(_req: Request, context: RouteContext) {
+  if (!hasValidAdminToken(_req.headers)) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 })
+  }
+
   const { id } = await context.params
   const agent = getRegisteredAgent(decodeURIComponent(id))
 
@@ -31,6 +36,10 @@ export async function GET(_req: Request, context: RouteContext) {
 }
 
 export async function PATCH(req: Request, context: RouteContext) {
+  if (!hasValidAdminToken(req.headers)) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 })
+  }
+
   const { id } = await context.params
   const agentId = decodeURIComponent(id)
   const body = await readBody(req)
@@ -51,6 +60,10 @@ export async function PATCH(req: Request, context: RouteContext) {
 }
 
 export async function DELETE(_req: Request, context: RouteContext) {
+  if (!hasValidAdminToken(_req.headers)) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 })
+  }
+
   const { id } = await context.params
   const agent = deregisterAgent(decodeURIComponent(id))
 
