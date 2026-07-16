@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
@@ -84,11 +83,12 @@ export default async function AgentPage({ params }: AgentPageProps) {
   const { id } = await params
   
   // Data loading as required by acceptance criteria
-  const [metaRes, healthRes, repRes, questRes] = await Promise.all([
+  const [metaRes, healthRes, repRes, questRes, badgeRes] = await Promise.all([
     fetch(absoluteUrl(`/api/agents/${id}`), { cache: 'no-store' }),
     fetch(absoluteUrl(`/api/agents/${id}/health`), { cache: 'no-store' }),
     fetch(absoluteUrl(`/api/protocol/reputation?actorId=${id}`), { cache: 'no-store' }),
-    fetch(absoluteUrl(`/api/agents/${id}/quest-recommendations`), { cache: 'no-store' })
+    fetch(absoluteUrl(`/api/agents/${id}/quest-recommendations`), { cache: 'no-store' }),
+    fetch(absoluteUrl(`/api/agents/${id}/badges`), { cache: 'no-store' })
   ])
 
   const localAgent = findAgentByLookup(id)
@@ -129,6 +129,11 @@ export default async function AgentPage({ params }: AgentPageProps) {
     repScore = data.reputation?.score || 0
     badges = data.reputation?.badges || []
     infractions = data.reputation?.history?.filter((h: any) => h.delta < 0).length || 0
+  }
+
+  if (badgeRes.ok) {
+    const data = await badgeRes.json()
+    badges = data.badges || []
   }
 
   // Parse Quests
@@ -245,8 +250,15 @@ export default async function AgentPage({ params }: AgentPageProps) {
               <CardContent>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {badges.length > 0 ? badges.map((badge, i) => (
-                    <div key={i} className={`flex flex-col items-center justify-center p-3 rounded-lg border ${badge.rarity === 'legendary' ? 'border-purple-500/50 bg-purple-500/10 text-purple-300' : badge.rarity === 'rare' ? 'border-blue-500/50 bg-blue-500/10 text-blue-300' : 'border-slate-700 bg-slate-800/50 text-slate-300'}`}>
-                      <span className="font-pixel text-xs text-center leading-tight">{badge.name}</span>
+                    <div
+                      key={badge.badgeId || badge.id || i}
+                      title={`${badge.name || badge.badgeId || badge.id}: ${badge.description || "Badge earned"}`}
+                      className={`group flex flex-col items-center justify-center gap-2 rounded-lg border p-3 transition hover:-translate-y-0.5 ${badge.rarity === 'legendary' ? 'border-purple-500/50 bg-purple-500/10 text-purple-300' : badge.rarity === 'epic' ? 'border-fuchsia-500/50 bg-fuchsia-500/10 text-fuchsia-300' : badge.rarity === 'rare' ? 'border-blue-500/50 bg-blue-500/10 text-blue-300' : 'border-slate-700 bg-slate-800/50 text-slate-300'}`}
+                    >
+                      <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full border border-current/30 bg-black/20 text-xl shadow-inner">
+                        {badge.iconName === 'zap' ? '⚡' : badge.iconName === 'trophy' ? '🏆' : badge.iconName === 'scroll-text' ? '📜' : badge.iconName === 'sparkles' ? '✨' : '✅'}
+                      </span>
+                      <span className="font-pixel text-xs text-center leading-tight">{badge.name || badge.badgeId || badge.id}</span>
                     </div>
                   )) : (
                     <div className="col-span-2 sm:col-span-3 text-center p-4">

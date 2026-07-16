@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getRegisteredAgent } from "@/lib/agent-registry"
 import { getReputation } from "@/lib/reputation/reputation-store"
 import { getBadgeCatalogEntry, BADGE_RARITY_VALUES, type BadgeRarity } from "@/lib/gamification/badge-catalog"
+import { getBadgeDefinition, listEarnedBadges } from "@/lib/gamification/badges"
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -25,14 +26,29 @@ export async function GET(req: Request, context: RouteContext) {
   }
 
   const { metrics } = getReputation(agentId)
-  let badges = (metrics.badges ?? [])
+  const storedBadges = listEarnedBadges(agentId).map((b) => ({ id: b.badgeId, awardedAt: b.earnedAt }))
+  const merged = new Map<string, { id: string; awardedAt: string; rarity?: BadgeRarity }>()
+
+  for (const b of metrics.badges ?? []) {
+    merged.set(b.id, { id: b.id, awardedAt: b.awardedAt, rarity: b.rarity as BadgeRarity })
+  }
+  for (const b of storedBadges) {
+    const existing = merged.get(b.id)
+    if (!existing || new Date(b.awardedAt).getTime() > new Date(existing.awardedAt).getTime()) {
+      merged.set(b.id, b)
+    }
+  }
+
+  let badges = Array.from(merged.values())
     .map((b) => {
+      const definition = getBadgeDefinition(b.id)
       const catalog = getBadgeCatalogEntry(b.id)
       return {
         badgeId: b.id,
-        name: catalog?.name ?? b.id,
-        description: catalog?.description ?? "",
-        rarity: b.rarity as BadgeRarity,
+        name: definition?.name ?? catalog?.name ?? b.id,
+        description: definition?.description ?? catalog?.description ?? "",
+        iconName: definition?.iconName ?? "award",
+        rarity: b.rarity ?? definition?.rarity ?? "common",
         earnedAt: b.awardedAt,
         xpValue: catalog?.xpValue ?? 0,
       }

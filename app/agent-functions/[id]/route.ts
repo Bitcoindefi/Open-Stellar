@@ -56,7 +56,6 @@ export async function POST(req: Request, context: RouteContext) {
   updateCloudAgentResult(config.id, summary)
   recordAgentHeartbeat(config.id, { status: "active", cpu: 8, memory: 24, currentTask: summary, autoRestart: true })
   publishSystemEvent({ type: "task.completed", agentId: config.id, taskId, result: { summary, durationMs: Date.now() - started } })
-
   return NextResponse.json({ ok: true, agentId: config.id, taskId, result: { summary } }, { headers: { "Cache-Control": "no-store" } })
 }
 

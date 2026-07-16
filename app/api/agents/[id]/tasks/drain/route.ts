@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server"
 import { drainAgentTasks } from "@/lib/agents/task-queue"
 import { publishSystemEvent } from "@/lib/events/system-events"
+import { checkAndAwardBadges, recordTaskCompletion } from "@/lib/gamification/badges"
 import { createApiRouteLogger } from "@/lib/api-logging"
 
 interface RouteContext {
@@ -27,6 +27,8 @@ export async function POST(req: Request, context: RouteContext) {
           taskId: task.id,
           result: { summary: `Completed task of type ${task.type}` },
         })
+        recordTaskCompletion(task.agentId)
+        checkAndAwardBadges(task.agentId)
       },
     })
 
