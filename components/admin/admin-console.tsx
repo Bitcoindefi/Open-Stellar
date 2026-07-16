@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Activity, AlertTriangle, Check, Cloud, Code2, Copy, Cpu, Download, ExternalLink, Fingerprint, ReceiptText, History, KeyRound, Layers3, ListChecks, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
+import { Activity, AlertTriangle, Check, Cloud, Code2, Copy, Cpu, Download, ExternalLink, Eye, Fingerprint, ReceiptText, History, KeyRound, Layers3, ListChecks, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
 import type { District, MoltbotAgent } from "@/lib/types"
 import { PassportPanel } from "@/components/admin/passport-panel"
 import { buildVercelDeployUrl } from "@/lib/vercel-deploy-url"
@@ -64,7 +64,9 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
   const [copied, setCopied] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<Plan>(plans[1])
   const [tab, setTab] = useState<AdminTab>("overview")
-  const [demoKey] = useState(() => generateAdminApiKey())
+  const [adminKey, setAdminKey] = useState<string | null>(null)
+  const [isKeyLoading, setIsKeyLoading] = useState(false)
+  const [keyError, setKeyError] = useState<string | null>(null)
 
   const activeAgents = agents.filter((agent) => agent.status === "active" || agent.status === "working")
   const totalTasks = agents.reduce((sum, agent) => sum + agent.tasksCompleted, 0)
@@ -87,9 +89,37 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
     }
   })
 
-  const handleCopy = async () => {
+  const revealAdminKey = async () => {
+    if (adminKey || isKeyLoading) {
+      return
+    }
+
+    setIsKeyLoading(true)
+    setKeyError(null)
+
     try {
-      await navigator.clipboard.writeText(demoKey)
+      const response = await fetch("/api/admin/key", { cache: "no-store" })
+      const data = await response.json().catch(() => ({})) as { key?: string; error?: string }
+
+      if (!response.ok || !data.key) {
+        throw new Error(data.error || "Failed to load admin API key")
+      }
+
+      setAdminKey(data.key)
+    } catch (error) {
+      setKeyError(error instanceof Error ? error.message : "Failed to load admin API key")
+    } finally {
+      setIsKeyLoading(false)
+    }
+  }
+
+  const handleCopy = async () => {
+    if (!adminKey) {
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(adminKey)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1600)
     } catch {
@@ -133,16 +163,39 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Issued key</p>
-                <p className="mt-3 font-mono text-sm text-cyan-200 sm:text-base">{demoKey}</p>
+                {isKeyLoading ? (
+                  <div className="mt-3 h-6 w-64 animate-pulse rounded bg-slate-800" aria-label="Loading admin API key" />
+                ) : (
+                  <input
+                    readOnly
+                    type={adminKey ? "text" : "password"}
+                    value={adminKey ?? "osk_hidden_until_reveal"}
+                    className="mt-3 w-full max-w-md rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 font-mono text-sm text-cyan-200 outline-none sm:text-base"
+                    aria-label="Admin API key"
+                  />
+                )}
+                {keyError ? <p className="mt-2 text-xs text-rose-300">{keyError}</p> : null}
               </div>
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 transition hover:border-cyan-400/50 hover:text-cyan-200"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {copied ? "Copied" : "Copy"}
-              </button>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={revealAdminKey}
+                  disabled={Boolean(adminKey) || isKeyLoading}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 transition hover:border-cyan-400/50 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  {adminKey ? "Revealed" : "Reveal"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  disabled={!adminKey}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 transition hover:border-cyan-400/50 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
             </div>
 
             <div className="mt-5 space-y-3">
