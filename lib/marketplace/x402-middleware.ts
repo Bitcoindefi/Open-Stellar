@@ -14,6 +14,19 @@ import { authorizePayment } from '@/lib/passport/passport'
 import { publishSystemEvent } from '@/lib/events/system-events'
 import { XP_AWARDS } from '@/lib/gamification/constants'
 import { awardXP } from '@/lib/gamification/xp'
+import { recordInvocation, updateInvocationStatus } from './invocation-ledger'
+
+// At start of invokeSkillWithPayment:
+const invocation = recordInvocation(request.agentId, skill.id, skill.priceXLM, '', skill.callUrl, request.payload)
+
+// Every exit path now calls updateInvocationStatus():
+// - 200 success → 'success'
+// - 404/500 → 'failed'
+// - quote mismatch → 'failed'
+// - insufficient_balance → 'failed'
+// - payment failure → 'failed'
+// - retry 200 → 'success' with paymentProof
+// - retry 500 → 'failed'
 
 export interface SkillListing {
   id: string
