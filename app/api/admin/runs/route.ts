@@ -1,14 +1,15 @@
 import { createApiRouteLogger } from "@/lib/api-logging"
 import { createRerun, listOrchestrationRuns } from "@/lib/orchestration/runs"
+import { withApiKeyAuth } from "@/lib/auth/api-key-middleware"
 
-export async function GET(req: Request) {
+export const GET = withApiKeyAuth(async (req: Request) => {
   const api = createApiRouteLogger(req, "/api/admin/runs")
   return api.json({ ok: true, ...listOrchestrationRuns() }, undefined, {
     event: "orchestration.runs.list",
   })
-}
+}, { keyType: 'admin' })
 
-export async function POST(req: Request) {
+export const POST = withApiKeyAuth(async (req: Request) => {
   const api = createApiRouteLogger(req, "/api/admin/runs")
 
   try {
@@ -39,4 +40,4 @@ export async function POST(req: Request) {
       { event: "orchestration.rerun.failed" },
     )
   }
-}
+}, { keyType: 'admin' })

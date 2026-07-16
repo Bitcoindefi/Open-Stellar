@@ -1,6 +1,7 @@
 import type { AgentStatus } from "@/lib/types"
 import type { X402Receipt } from "@/lib/protocols/x402"
 import type { BadgeRarity } from "@/lib/gamification/badge-catalog"
+import { saveSSEEvent, initializeSSEEventStorage } from "@/lib/storage/sse-events-kv"
 
 export interface AgentTask {
   id: string
@@ -93,6 +94,17 @@ if (!globalState.__openStellarEventBus__) {
   globalState.__openStellarEventBus__ = eventBus
 }
 
+// Initialize KV storage if available
+const USE_KV =
+  process.env.KV_URL !== undefined ||
+  process.env.KV_REST_API_URL !== undefined
+
+if (USE_KV) {
+  initializeSSEEventStorage().catch((error) => {
+    console.error("Failed to initialize KV SSE event storage:", error)
+  })
+}
+
 function getEventLog(): PublishedSystemEvent[] {
   if (!globalState.__openStellarEventLog__) {
     globalState.__openStellarEventLog__ = []
@@ -103,9 +115,11 @@ function getEventLog(): PublishedSystemEvent[] {
 function appendToEventLog(event: PublishedSystemEvent): void {
   const log = getEventLog()
   log.push(event)
+
   if (log.length > EVENT_LOG_LIMIT) {
     log.splice(0, log.length - EVENT_LOG_LIMIT)
   }
+}
 }
 
 function nextEventId(type: string) {
@@ -130,10 +144,23 @@ export function eventMatchesAgent(event: PublishedSystemEvent, agentId?: string)
 
 export function publishSystemEvent(event: SystemEvent): PublishedSystemEvent {
   const published = ensurePublishedEvent(event)
-  appendToEventLog(published)
+appendToEventCode(published)
+
+// Notify in-memory listeners
+for (const listener of listeners) {
+  listener(published)
+} main
   for (const listener of eventBus.listeners) {
     listener(published)
   }
+  
+  // Persist to KV if available (non-blocking)
+  if (USE_KV) {
+    saveSSEEvent(published).catch((error) => {
+      console.error('Failed to persist SSE event to KV:', error)
+    })
+  }
+  
   return published
 }
 
