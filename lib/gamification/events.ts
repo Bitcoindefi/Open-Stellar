@@ -66,9 +66,9 @@ export const DISTRICT_CHALLENGES: DistrictChallengeDefinition[] = [
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
-const EPOCH_START_MS = Date.UTC(2026, 0, 5, 0, 0, 0, 0)
+const EPOCH_START_MS = Date.UTC(2026, 0, 4, 0, 0, 0, 0)
 
-function getWeekBounds(now: Date = new Date()): { weekIndex: number; startedAt: Date; endsAt: Date } {
+export function getWeekBounds(now: Date = new Date()): { weekIndex: number; startedAt: Date; endsAt: Date } {
   const elapsed = Math.max(0, now.getTime() - EPOCH_START_MS)
   const weekIndex = Math.floor(elapsed / WEEK_MS)
   const startedAt = new Date(EPOCH_START_MS + weekIndex * WEEK_MS)
@@ -84,7 +84,7 @@ function seededNoise(seed: string): number {
   return (hash >>> 0) / 4294967295
 }
 
-function formatScore(challenge: DistrictChallengeDefinition, score: number): string {
+export function formatDistrictScore(challenge: DistrictChallengeDefinition, score: number): string {
   if (challenge.type === "revenue") return `$${score.toFixed(2)}`
   if (challenge.type === "uptime") return `${score.toFixed(1)}%`
   if (challenge.type === "speed") return `${score.toFixed(1)}m`
@@ -92,7 +92,7 @@ function formatScore(challenge: DistrictChallengeDefinition, score: number): str
   return String(Math.round(score))
 }
 
-function getAgentScore(agent: MoltbotAgent, challenge: DistrictChallengeDefinition, weekIndex: number): number {
+export function getAgentDistrictCompetitionScore(agent: MoltbotAgent, challenge: DistrictChallengeDefinition, weekIndex: number): number {
   const noise = seededNoise(`${weekIndex}:${challenge.type}:${agent.id}`)
   switch (challenge.type) {
     case "throughput":
@@ -106,6 +106,11 @@ function getAgentScore(agent: MoltbotAgent, challenge: DistrictChallengeDefiniti
     case "skill":
       return agent.skills.length === 0 ? 0 : agent.skills.reduce((sum, skill) => sum + skill.level, 0) / agent.skills.length
   }
+}
+
+export function getWeeklyTasksCompleted(agent: MoltbotAgent, weekIndex: number): number {
+  const completionRatio = 0.12 + seededNoise(`${weekIndex}:weekly-tasks:${agent.id}`) * 0.28
+  return Math.max(0, Math.round(agent.tasksCompleted * completionRatio))
 }
 
 export function getActiveDistrictEvent(now: Date = new Date()): ActiveDistrictEvent {
@@ -129,7 +134,7 @@ export function getDistrictStandings(agents: MoltbotAgent[], now: Date = new Dat
   const event = getActiveDistrictEvent(now)
   const standings = DISTRICTS.map((district) => {
     const districtAgents = agents.filter((agent) => agent.district === district.id)
-    const scoredAgents = districtAgents.map((agent) => ({ agent, score: getAgentScore(agent, event.challenge, event.weekIndex) }))
+    const scoredAgents = districtAgents.map((agent) => ({ agent, score: getAgentDistrictCompetitionScore(agent, event.challenge, event.weekIndex) }))
     const score = event.challenge.type === "speed"
       ? (scoredAgents.reduce((sum, entry) => sum + entry.score, 0) / Math.max(1, scoredAgents.length))
       : scoredAgents.reduce((sum, entry) => sum + entry.score, 0) / (event.challenge.type === "uptime" || event.challenge.type === "skill" ? Math.max(1, scoredAgents.length) : 1)
@@ -143,14 +148,14 @@ export function getDistrictStandings(agents: MoltbotAgent[], now: Date = new Dat
     districtName: entry.district.name,
     color: entry.district.color,
     score: Number(entry.score.toFixed(3)),
-    formattedScore: formatScore(event.challenge, entry.score),
+    formattedScore: formatDistrictScore(event.challenge, entry.score),
     rank: index + 1,
     multiplier: index === 0 ? 2 : index === 1 ? 1.5 : 1,
     topAgent: entry.top ? {
       id: entry.top.agent.id,
       name: entry.top.agent.name,
       score: Number(entry.top.score.toFixed(3)),
-      formattedScore: formatScore(event.challenge, entry.top.score),
+      formattedScore: formatDistrictScore(event.challenge, entry.top.score),
     } : null,
   }))
 }
