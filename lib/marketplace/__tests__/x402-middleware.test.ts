@@ -57,9 +57,14 @@ describe('x402-middleware', () => {
     resetInvocationLedgerForTests()
     resetX402SubscriptionsForTests()
     mockFetch.mockReset()
+    // Ensure mock-mode is restored to true before each test
+    vi.doMock('@/lib/mock/mock-mode', () => ({
+      isMockMode: () => true,
+    }))
   })
 
   it('should return 200 immediately if skill does not require payment', async () => {
+    vi.resetModules()
     const { invokeSkillWithPayment } = await import('../x402-middleware')
 
     mockFetch.mockResolvedValueOnce({
@@ -77,6 +82,7 @@ describe('x402-middleware', () => {
   })
 
   it('should handle 402 -> payment -> 200 flow with correct txHash in ledger', async () => {
+    vi.resetModules()
     const { invokeSkillWithPayment } = await import('../x402-middleware')
 
     const mockQuote = {
@@ -130,7 +136,6 @@ describe('x402-middleware', () => {
 
   it('should return 402 with insufficient_balance when payment fails due to low funds', async () => {
     vi.resetModules()
-
     vi.doMock('@/lib/mock/mock-mode', () => ({
       isMockMode: () => false,
     }))
@@ -178,14 +183,10 @@ describe('x402-middleware', () => {
     expect(result.ok).toBe(false)
     expect(result.status).toBe(402)
     expect(result.error).toBe('insufficient_balance')
-
-    // Restore mock-mode back to true so subsequent tests use the mock path
-    vi.doMock('@/lib/mock/mock-mode', () => ({
-      isMockMode: () => true,
-    }))
   })
 
   it('should record failed invocation in ledger when skill returns error after payment', async () => {
+    vi.resetModules()
     const { invokeSkillWithPayment } = await import('../x402-middleware')
 
     const mockQuote = {
@@ -231,6 +232,7 @@ describe('x402-middleware', () => {
   })
 
   it('should propagate non-402 errors without attempting payment', async () => {
+    vi.resetModules()
     const { invokeSkillWithPayment } = await import('../x402-middleware')
 
     mockFetch.mockResolvedValueOnce({
