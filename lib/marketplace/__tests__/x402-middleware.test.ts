@@ -1,27 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import {
-  invokeSkillWithPayment,
-  type SkillListing,
-  type SkillInvocationRequest,
+import type {
+  SkillListing,
+  SkillInvocationRequest,
 } from '../x402-middleware'
 import {
-  recordInvocation,
   listInvocations,
   resetInvocationLedgerForTests,
-  type InvocationRecord,
 } from '../invocation-ledger'
 import { resetX402SubscriptionsForTests } from '@/lib/protocols/x402'
 
-// Mock global fetch
 const mockFetch = vi.fn()
 globalThis.fetch = mockFetch
 
-// Mock mock-mode
 vi.mock('@/lib/mock/mock-mode', () => ({
   isMockMode: () => true,
 }))
 
-// Mock x402-mock
 vi.mock('@/lib/mock/x402-mock', () => ({
   settleMockX402: vi.fn(({ paymentRef, chain }) => ({
     txHash: `mock_tx_${paymentRef}_${chain}_hash`,
@@ -30,17 +24,14 @@ vi.mock('@/lib/mock/x402-mock', () => ({
   })),
 }))
 
-// Mock passport
 vi.mock('@/lib/passport/passport', () => ({
   authorizePayment: vi.fn(() => Promise.resolve({ authorized: true, cap: '100000000' })),
 }))
 
-// Mock gamification
 vi.mock('@/lib/gamification/xp', () => ({
   awardXP: vi.fn(),
 }))
 
-// Mock system events
 vi.mock('@/lib/events/system-events', () => ({
   publishSystemEvent: vi.fn(),
 }))
@@ -69,6 +60,8 @@ describe('x402-middleware', () => {
   })
 
   it('should return 200 immediately if skill does not require payment', async () => {
+    const { invokeSkillWithPayment } = await import('../x402-middleware')
+
     mockFetch.mockResolvedValueOnce({
       status: 200,
       json: async () => ({ result: 'analysis_complete', sentiment: 'positive' }),
@@ -84,7 +77,8 @@ describe('x402-middleware', () => {
   })
 
   it('should handle 402 -> payment -> 200 flow with correct txHash in ledger', async () => {
-    // First call returns 402 with quote
+    const { invokeSkillWithPayment } = await import('../x402-middleware')
+
     const mockQuote = {
       code: 402,
       quoteId: 'q_abc123',
@@ -93,7 +87,7 @@ describe('x402-middleware', () => {
       chain: 'stellar',
       payer: 'agent_buyer_1',
       amountUsd: 0.05,
-      amountUnits: '5000000', // 0.5 XLM in stroops
+      amountUnits: '5000000',
       address: mockSkill.ownerWallet,
       options: [
         {
@@ -112,7 +106,6 @@ describe('x402-middleware', () => {
         status: 402,
         json: async () => mockQuote,
       })
-      // Second call (with payment header) returns 200
       .mockResolvedValueOnce({
         status: 200,
         json: async () => ({ result: 'paid_analysis', sentiment: 'positive' }),
@@ -127,7 +120,6 @@ describe('x402-middleware', () => {
     expect(result.paymentProof?.txHash).toMatch(/^mock_tx_/)
     expect(result.paymentProof?.chain).toBe('stellar')
 
-    // Verify ledger was populated
     const invocations = listInvocations({ skillId: 'skill_123' })
     expect(invocations.length).toBe(1)
     expect(invocations[0].txHash).toBe(result.paymentProof?.txHash)
@@ -137,10 +129,13 @@ describe('x402-middleware', () => {
   })
 
   it('should return 402 with insufficient_balance when payment fails due to low funds', async () => {
-    // Override mock mode to test real path
+    vi.resetModules()
+
     vi.doMock('@/lib/mock/mock-mode', () => ({
       isMockMode: () => false,
     }))
+
+    const { invokeSkillWithPayment } = await import('../x402-middleware')
 
     const mockQuote = {
       code: 402,
@@ -169,17 +164,13 @@ describe('x402-middleware', () => {
       json: async () => mockQuote,
     })
 
-    // Mock build-tx to fail with insufficient balance
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 400,
       json: async () => ({ error: 'insufficient_balance' }),
     })
 
-    // Re-import to pick up mock change
-    const { invokeSkillWithPayment: invokeReal } = await import('../x402-middleware')
-    
-    const result = await invokeReal(mockSkill, {
+    const result = await invokeSkillWithPayment(mockSkill, {
       ...mockRequest,
       payerWallet: 'GCFXHS4FXFPMKTLHLQQBB4OHO56L4D3SEZ3DPF4B2HYG5B3J2K4Q5Z6A',
     })
@@ -190,6 +181,8 @@ describe('x402-middleware', () => {
   })
 
   it('should record failed invocation in ledger when skill returns error after payment', async () => {
+    const { invokeSkillWithPayment } = await import('../x402-middleware')
+
     const mockQuote = {
       code: 402,
       quoteId: 'q_ghi789',
@@ -233,6 +226,8 @@ describe('x402-middleware', () => {
   })
 
   it('should propagate non-402 errors without attempting payment', async () => {
+    const { invokeSkillWithPayment } = await import('../x402-middleware')
+
     mockFetch.mockResolvedValueOnce({
       status: 404,
       json: async () => ({ error: 'skill_endpoint_not_found' }),
@@ -242,6 +237,6 @@ describe('x402-middleware', () => {
 
     expect(result.ok).toBe(false)
     expect(result.status).toBe(404)
-    expect(mockFetch).toHaveBeenCalledTimes(1) // No retry attempted
+    expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })
