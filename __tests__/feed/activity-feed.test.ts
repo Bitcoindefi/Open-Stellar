@@ -55,6 +55,30 @@ describe("activity feed", () => {
     expect(event.agentName).toBe("Nexus-7")
   })
 
+  it("normalizes quest completion events with quest and reward details", () => {
+    const event = feedEventFromSystemEvent({
+      id: "quest-event-1",
+      type: "quest.completed",
+      agentId: "bot-0",
+      questId: "daily-complete-5-tasks",
+      quest: {
+        id: "daily-complete-5-tasks",
+        title: "Complete 5 tasks",
+      },
+      reward: {
+        xp: 50,
+        xlm: "0.05",
+      },
+      occurredAt: "2026-06-24T00:00:00.000Z",
+    })
+
+    expect(event.kind).toBe("task")
+    expect(event.title).toBe("Nexus-7 completed Complete 5 tasks")
+    expect(event.detail).toContain("+50 XP")
+    expect(event.detail).toContain("0.05 XLM")
+    expect(event.highlight).toBe("Quest completed")
+  })
+
   it("serves JSON feed API responses", async () => {
     const res = await getFeed(new Request("http://localhost/api/feed?kind=payment&limit=1"))
     const body = await res.json()
@@ -80,5 +104,32 @@ describe("activity feed", () => {
     expect(text).toContain("event: feed.event")
     expect(text).toContain('"kind":"badge"')
     expect(text).toContain("Speed Demon")
+  })
+
+  it("streams quest completion events over the activity feed SSE endpoint", async () => {
+    const res = getFeed(new Request("http://localhost/api/feed?stream=1"))
+    const text = await readStreamText(res, () => {
+      publishSystemEvent({
+        id: "feed-quest-completed",
+        type: "quest.completed",
+        agentId: "bot-0",
+        questId: "daily-complete-5-tasks",
+        quest: {
+          id: "daily-complete-5-tasks",
+          title: "Complete 5 tasks",
+        },
+        reward: {
+          xp: 50,
+          xlm: "0.05",
+        },
+        occurredAt: "2026-06-24T00:00:00.000Z",
+      })
+    })
+
+    expect(text).toContain("event: feed.event")
+    expect(text).toContain('"id":"feed-quest-completed"')
+    expect(text).toContain("Nexus-7 completed Complete 5 tasks")
+    expect(text).toContain("+50 XP")
+    expect(text).toContain("0.05 XLM")
   })
 })

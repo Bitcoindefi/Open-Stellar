@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server"
 import { getCloudAgentConfig, provisionCloudAgent, updateCloudAgentResult } from "@/lib/agent-runtime/cloud-agents"
 import { recordAgentHeartbeat, HEARTBEAT_INTERVAL_MS } from "@/lib/agents/agent-health-store"
+import { getAgentHealthSummary, recordAgentExecutionError, recordAgentInvocation } from "@/lib/agents/agent-error-store"
 import { publishSystemEvent } from "@/lib/events/system-events"
 import { isAuthorized } from "@/lib/auth"
 
-export const runtime = "edge"
+export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -48,16 +49,27 @@ export async function POST(req: Request, context: RouteContext) {
 
   const taskId = String(body.taskId || `task-${Date.now()}`)
 
-  recordAgentHeartbeat(config.id, { status: "working", cpu: 32, memory: 42, currentTask: task, autoRestart: true })
+  const health = getAgentHealthSummary(config.id)
+  if (health.degraded) console.warn(`[agent-health] Invoking degraded cloud agent ${config.id}`)
+  recordAgentInvocation(config.id)
+  recordAgentHeartbeat(config.id, { status: health.degraded ? "degraded" : "working", cpu: 32, memory: 42, currentTask: task, autoRestart: true })
   publishSystemEvent({ type: "task.started", agentId: config.id, task: { id: taskId, title: task, district: config.district } })
 
   const started = Date.now()
-  const summary = await reasonAboutTask(task, config.model)
-  updateCloudAgentResult(config.id, summary)
-  recordAgentHeartbeat(config.id, { status: "active", cpu: 8, memory: 24, currentTask: summary, autoRestart: true })
-  publishSystemEvent({ type: "task.completed", agentId: config.id, taskId, result: { summary, durationMs: Date.now() - started } })
+  try {
+    const summary = await reasonAboutTask(task, config.model)
+    updateCloudAgentResult(config.id, summary)
+    recordAgentHeartbeat(config.id, { status: getAgentHealthSummary(config.id).degraded ? "degraded" : "active", cpu: 8, memory: 24, currentTask: summary, autoRestart: true })
+    publishSystemEvent({ type: "task.completed", agentId: config.id, taskId, result: { summary, durationMs: Date.now() - started } })
 
-  return NextResponse.json({ ok: true, agentId: config.id, taskId, result: { summary } }, { headers: { "Cache-Control": "no-store" } })
+    return NextResponse.json({ ok: true, agentId: config.id, taskId, result: { summary } }, { headers: { "Cache-Control": "no-store" } })
+  } catch (error) {
+    const failure = recordAgentExecutionError({ agentId: config.id, error, taskExcerpt: task })
+    recordAgentHeartbeat(config.id, { status: failure.degraded ? "degraded" : "error", cpu: 8, memory: 24, currentTask: task, autoRestart: true })
+    const summary = error instanceof Error ? error.message : "Agent execution failed"
+    publishSystemEvent({ type: "task.completed", agentId: config.id, taskId, result: { summary, durationMs: Date.now() - started } })
+    return NextResponse.json({ ok: false, agentId: config.id, taskId, error: summary, degraded: failure.degraded }, { status: 500, headers: { "Cache-Control": "no-store" } })
+  }
 }
 
 export async function GET(req: Request, context: RouteContext) {
