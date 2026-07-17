@@ -75,6 +75,7 @@ type EventListener = (event: PublishedSystemEvent) => void
 interface EventBusState {
   listeners: Set<EventListener>
   sequence: number
+  events: PublishedSystemEvent[]
 }
 
 const EVENT_LOG_LIMIT = 500
@@ -87,6 +88,7 @@ const globalState = globalThis as typeof globalThis & {
 const eventBus: EventBusState = globalState.__openStellarEventBus__ ?? {
   listeners: new Set<EventListener>(),
   sequence: 0,
+  events: [],
 }
 
 if (!globalState.__openStellarEventBus__) {
@@ -130,19 +132,20 @@ export function eventMatchesAgent(event: PublishedSystemEvent, agentId?: string)
 
 export function publishSystemEvent(event: SystemEvent): PublishedSystemEvent {
   const published = ensurePublishedEvent(event)
-  appendToEventLog(published)
+  eventBus.events.push(published)
   for (const listener of eventBus.listeners) {
     listener(published)
   }
   return published
 }
 
-export function listPublishedSystemEvents(): PublishedSystemEvent[] {
-  return [...getEventLog()]
+export function listPublishedEvents(): PublishedSystemEvent[] {
+  return [...eventBus.events]
 }
 
-export function resetPublishedSystemEventLogForTests(): void {
-  globalState.__openStellarEventLog__ = []
+export function resetPublishedEventsForTests(): void {
+  eventBus.events.length = 0
+  eventBus.sequence = 0
 }
 
 export function subscribeToSystemEvents(listener: EventListener) {
