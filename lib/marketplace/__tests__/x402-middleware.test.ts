@@ -178,6 +178,11 @@ describe('x402-middleware', () => {
     expect(result.ok).toBe(false)
     expect(result.status).toBe(402)
     expect(result.error).toBe('insufficient_balance')
+
+    // Restore mock-mode back to true so subsequent tests use the mock path
+    vi.doMock('@/lib/mock/mock-mode', () => ({
+      isMockMode: () => true,
+    }))
   })
 
   it('should record failed invocation in ledger when skill returns error after payment', async () => {
