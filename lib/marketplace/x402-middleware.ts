@@ -16,18 +16,6 @@ import { XP_AWARDS } from '@/lib/gamification/constants'
 import { awardXP } from '@/lib/gamification/xp'
 import { recordInvocation, updateInvocationStatus } from './invocation-ledger'
 
-// At start of invokeSkillWithPayment:
-const invocation = recordInvocation(request.agentId, skill.id, skill.priceXLM, '', skill.callUrl, request.payload)
-
-// Every exit path now calls updateInvocationStatus():
-// - 200 success → 'success'
-// - 404/500 → 'failed'
-// - quote mismatch → 'failed'
-// - insufficient_balance → 'failed'
-// - payment failure → 'failed'
-// - retry 200 → 'success' with paymentProof
-// - retry 500 → 'failed'
-
 export interface SkillListing {
   id: string
   agentId: string
@@ -57,15 +45,12 @@ export interface SkillInvocationResult {
   data?: unknown
   error?: string
   paymentProof?: PaymentProof
+  invocationId?: string
 }
 
 const X_PAYMENT_HEADER = 'X-Payment'
 const X402_VERSION_HEADER = 'X-X402-Version'
 
-/**
- * Attempts an HTTP request to a skill endpoint.
- * If 402 is returned, parses payment requirements and returns the quote.
- */
 async function attemptSkillRequest(
   callUrl: string,
   payload: unknown,
@@ -93,23 +78,19 @@ async function attemptSkillRequest(
   return { status: response.status, data }
 }
 
-/**
- * Generates a Stellar payment transaction and submits it.
- * Returns the transaction hash as payment proof.
- */
 async function generateStellarPayment(
   fromWallet: string,
   toWallet: string,
   amountXLM: number,
   memo?: string,
 ): Promise<{ txHash: string; success: boolean; error?: string }> {
-  // Validate addresses
   if (!StrKey.isValidEd25519PublicKey(toWallet)) {
     return { txHash: '', success: false, error: 'invalid_destination_address' }
   }
 
-  // Build transaction via existing Stellar helpers
-  const buildRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || ''}/api/stellar/build-tx`, {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+
+  const buildRes = await fetch(`${baseUrl}/api/stellar/build-tx`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -133,10 +114,7 @@ async function generateStellarPayment(
 
   const { xdr } = (await buildRes.json()) as { xdr: string }
 
-  // In a real flow, the client wallet (Freighter) signs and submits
-  // For server-side agent invocation, we expect a pre-signed tx or use a custodial signer
-  // Here we submit the built tx (assuming it's signed by a custodial key or the caller)
-  const submitRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || ''}/api/stellar/submit-tx`, {
+  const submitRes = await fetch(`${baseUrl}/api/stellar/submit-tx`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ xdr }),
@@ -149,7 +127,6 @@ async function generateStellarPayment(
   }
 
   if (!submitRes.ok || submitData.status !== 'success') {
-    // Check for insufficient balance
     if (
       submitData.error?.includes('insufficient') ||
       submitData.error?.includes('underfunded') ||
@@ -167,14 +144,6 @@ async function generateStellarPayment(
   return { txHash: submitData.hash || '', success: true }
 }
 
-/**
- * Main x402 middleware flow for skill invocation:
- * 1. Attempt request → if 200, return response
- * 2. If 402, capture quote requirements
- * 3. Generate Stellar payment to skill owner
- * 4. Attach payment proof as X-Payment header
- * 5. Retry request
- */
 export async function invokeSkillWithPayment(
   skill: SkillListing,
   request: SkillInvocationRequest,
@@ -189,15 +158,30 @@ export async function invokeSkillWithPayment(
     },
   } as ReturnType<typeof createApiRouteLogger>
 
+  // Record invocation attempt in ledger immediately
+  const invocation = recordInvocation(
+    request.agentId,
+    skill.id,
+    skill.priceXLM,
+    '',
+    skill.callUrl,
+    request.payload,
+  )
+
   // Step 1: Initial attempt without payment
   const firstAttempt = await attemptSkillRequest(skill.callUrl, request.payload)
 
-  // If not 402, return whatever we got (could be 200, 404, 500, etc.)
   if (firstAttempt.status !== 402) {
+    if (firstAttempt.status >= 200 && firstAttempt.status < 300) {
+      updateInvocationStatus(invocation.id, 'success')
+    } else {
+      updateInvocationStatus(invocation.id, 'failed', firstAttempt.status === 404 ? 'skill_not_found' : 'request_failed')
+    }
     return {
       ok: firstAttempt.status >= 200 && firstAttempt.status < 300,
       status: firstAttempt.status,
       data: firstAttempt.data,
+      invocationId: invocation.id,
     }
   }
 
@@ -205,22 +189,26 @@ export async function invokeSkillWithPayment(
   const quote = firstAttempt.quote
 
   if (!quote) {
+    updateInvocationStatus(invocation.id, 'failed', 'payment_required_but_no_quote')
     return {
       ok: false,
       status: 402,
       error: 'payment_required_but_no_quote',
+      invocationId: invocation.id,
     }
   }
 
   // Verify the quote matches expected skill price
   const expectedAmountXLM = skill.priceXLM
-  const quoteAmountXLM = parseFloat(quote.amountUnits) / 10 ** 7 // Stellar has 7 decimals
+  const quoteAmountXLM = parseFloat(quote.amountUnits) / 10 ** 7
 
   if (Math.abs(quoteAmountXLM - expectedAmountXLM) > 0.0001) {
+    updateInvocationStatus(invocation.id, 'failed', 'quote_mismatch')
     return {
       ok: false,
       status: 402,
       error: 'quote_mismatch',
+      invocationId: invocation.id,
     }
   }
 
@@ -239,20 +227,24 @@ export async function invokeSkillWithPayment(
   } else {
     const payerWallet = request.payerWallet || request.agentId
     if (!payerWallet || !StrKey.isValidEd25519PublicKey(payerWallet)) {
+      updateInvocationStatus(invocation.id, 'failed', 'insufficient_balance')
       return {
         ok: false,
         status: 402,
         error: 'insufficient_balance',
+        invocationId: invocation.id,
       }
     }
 
-    // Agent Passport gate: check spend cap if applicable
+    // Agent Passport gate: check spend cap
     const gate = await authorizePayment(request.agentId, quote.amountUnits)
     if (!gate.authorized) {
+      updateInvocationStatus(invocation.id, 'failed', 'insufficient_balance')
       return {
         ok: false,
         status: 402,
         error: 'insufficient_balance',
+        invocationId: invocation.id,
       }
     }
 
@@ -265,19 +257,25 @@ export async function invokeSkillWithPayment(
   }
 
   if (!paymentResult.success) {
+    updateInvocationStatus(invocation.id, 'failed', paymentResult.error || 'payment_failed')
     if (paymentResult.error === 'insufficient_balance') {
       return {
         ok: false,
         status: 402,
         error: 'insufficient_balance',
+        invocationId: invocation.id,
       }
     }
     return {
       ok: false,
       status: 500,
       error: paymentResult.error || 'payment_failed',
+      invocationId: invocation.id,
     }
   }
+
+  // Update txHash in ledger now that we have it
+  invocation.txHash = paymentResult.txHash
 
   // Step 4: Settle the x402 payment on-chain via protocol
   const settlement: X402Settlement = {
@@ -293,10 +291,12 @@ export async function invokeSkillWithPayment(
   if (!isMockMode()) {
     const settleResult = settleX402(settlement)
     if (!settleResult.ok || !settleResult.receipt) {
+      updateInvocationStatus(invocation.id, 'failed', settleResult.error || 'settlement_failed')
       return {
         ok: false,
         status: 402,
         error: settleResult.error || 'settlement_failed',
+        invocationId: invocation.id,
       }
     }
     receipt = settleResult.receipt
@@ -316,30 +316,39 @@ export async function invokeSkillWithPayment(
   })
 
   // Award XP for successful payment
-  awardXP(request.agentId, XP_AWARDS.X402_PAYMENT_RECEIVED, 'payment.received')  // ✅ valid XPAwardReason
-publishSystemEvent({
-  type: 'payment.received',  // ✅ valid SystemEvent type
-  agentId: request.agentId,
-  receipt: receipt ?? {     // ✅ requires X402Receipt shape
-    accepted: true,
-    paymentRef: quote.paymentRef,
-    settledAt: new Date().toISOString(),
+  awardXP(request.agentId, XP_AWARDS.X402_PAYMENT_RECEIVED, 'payment.received')
+  publishSystemEvent({
+    type: 'payment.received',
+    agentId: request.agentId,
+    receipt: receipt ?? {
+      accepted: true,
+      paymentRef: quote.paymentRef,
+      settledAt: new Date().toISOString(),
+      txHash: paymentResult.txHash,
+      chain: 'stellar',
+      amountUsd: quote.amountUsd,
+      amountUnits: quote.amountUnits,
+    },
+  })
+
+  const paymentProof: PaymentProof = {
     txHash: paymentResult.txHash,
     chain: 'stellar',
-    amountUsd: quote.amountUsd,
     amountUnits: quote.amountUnits,
-  },
-})
+    settledAt: new Date().toISOString(),
+  }
+
+  if (retryAttempt.status >= 200 && retryAttempt.status < 300) {
+    updateInvocationStatus(invocation.id, 'success', undefined, JSON.stringify(paymentProof))
+  } else {
+    updateInvocationStatus(invocation.id, 'failed', retryAttempt.status === 500 ? 'internal_skill_error' : 'retry_failed')
+  }
 
   return {
     ok: retryAttempt.status >= 200 && retryAttempt.status < 300,
     status: retryAttempt.status,
     data: retryAttempt.data,
-    paymentProof: {
-      txHash: paymentResult.txHash,
-      chain: 'stellar',
-      amountUnits: quote.amountUnits,
-      settledAt: new Date().toISOString(),
-    },
+    paymentProof,
+    invocationId: invocation.id,
   }
 }
