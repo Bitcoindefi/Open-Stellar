@@ -19,3 +19,5 @@ node_modules
 # Local file-backed stores
 .data/
 tsconfig.tsbuildinfo
+coverage/
+test-results/
