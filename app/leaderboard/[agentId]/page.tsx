@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { getLeaderboardAgent } from "@/lib/leaderboard"
+import type { LeaderboardBadge } from "@/lib/leaderboard"
 
 type AgentLeaderboardPageProps = {
   params: Promise<{ agentId: string }>
@@ -11,6 +12,14 @@ export async function generateMetadata({ params }: AgentLeaderboardPageProps) {
   const { agentId } = await params
   const agent = getLeaderboardAgent(agentId)
   return { title: agent ? `${agent.name} Leaderboard Stats | Open Stellar` : "Agent not found | Open Stellar" }
+}
+
+const RARITY_COLORS: Record<string, string> = {
+  common: "border-slate-600 bg-slate-700 text-slate-200",
+  uncommon: "border-emerald-600 bg-emerald-700 text-emerald-100",
+  rare: "border-blue-600 bg-blue-700 text-blue-100",
+  epic: "border-purple-600 bg-purple-700 text-purple-100",
+  legendary: "border-amber-500 bg-amber-600 text-amber-100",
 }
 
 export default async function AgentLeaderboardPage({ params }: AgentLeaderboardPageProps) {
@@ -40,9 +49,9 @@ export default async function AgentLeaderboardPage({ params }: AgentLeaderboardP
 
         <section className="grid gap-4 md:grid-cols-4">
           <Stat label="XP" value={agent.xp.toLocaleString()} />
-          <Stat label="x402 revenue" value={`$${agent.x402Revenue.toFixed(2)}`} />
+          <Stat label="x402 revenue" value={`$${agent.x402Revenue.toFixed(2)}}`} />
           <Stat label="Weekly tasks" value={agent.weeklyTasks.toLocaleString()} />
-          <Stat label="Badges" value={agent.badges.join(" ")} />
+          <Stat label="Badges" value={agent.badges.length > 0 ? `${agent.badges.length} earned` : "None yet"} />
         </section>
 
         <section className="grid gap-4 md:grid-cols-2">
@@ -63,7 +72,22 @@ export default async function AgentLeaderboardPage({ params }: AgentLeaderboardP
         </section>
 
         <Panel title="Badge collection">
-          <div className="flex flex-wrap gap-3 text-3xl">{agent.badges.map((badge) => <span key={badge} className="rounded-xl border border-slate-700 bg-slate-900 p-3">{badge}</span>)}</div>
+          {agent.badges.length === 0 ? (
+            <p className="font-mono text-sm text-slate-500">No badges earned yet</p>
+          ) : (
+            <div className="flex flex-wrap gap-3">
+              {agent.badges.map((badge: LeaderboardBadge) => (
+                <div
+                  key={badge.badgeId}
+                  className={`flex flex-col items-center justify-center rounded-xl border p-4 ${RARITY_COLORS[badge.rarity] ?? "border-slate-700 bg-slate-800/50 text-slate-300"}`}
+                >
+                  <span className="text-2xl">{badge.name[0].toUpperCase()}</span>
+                  <span className="mt-2 font-pixel text-xs text-center leading-tight">{badge.name}</span>
+                  <span className="mt-1 text-xs text-slate-500">{new Date(badge.earnedAt).toLocaleDateString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </Panel>
 
         <Panel title="Recent task history">

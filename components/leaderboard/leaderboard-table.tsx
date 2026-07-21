@@ -2,13 +2,57 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import type { DistrictId } from "@/lib/types"
-import type { LeaderboardAgent, LeaderboardView } from "@/lib/leaderboard"
+import type { DistrictId, LeaderboardBadge } from "@/lib/leaderboard"
+import type { LeaderboardView } from "@/lib/leaderboard"
 
 type LeaderboardTableProps = {
-  initialAgents: LeaderboardAgent[]
+  initialAgents: Array<{
+    id: string
+    name: string
+    district: DistrictId
+    districtName: string
+    districtColor: string
+    tasksCompleted: number
+    weeklyTasks: number
+    level: number
+    xp: number
+    x402Revenue: number
+    spriteId: number
+    badges: LeaderboardBadge[]
+    rank: number
+    previousRank: number
+    districtRank: number
+    globalRank: number
+  }>
   view: LeaderboardView
   district?: DistrictId
+}
+
+const RARITY_COLORS: Record<string, string> = {
+  common: "border-slate-600 bg-slate-700 text-slate-200",
+  uncommon: "border-emerald-600 bg-emerald-700 text-emerald-100",
+  rare: "border-blue-600 bg-blue-700 text-blue-100",
+  epic: "border-purple-600 bg-purple-700 text-purple-100",
+  legendary: "border-amber-500 bg-amber-600 text-amber-100",
+}
+
+function BadgeIcon({ badge }: { badge: LeaderboardBadge }) {
+  const earned = new Date(badge.earnedAt)
+  const label = `${badge.name}, earned ${earned.toLocaleDateString()}`
+  return (
+    <button
+      type="button"
+      className={`group relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold ${RARITY_COLORS[badge.rarity] ?? "border-slate-600 bg-slate-700 text-slate-200"}`}
+      aria-label={label}
+      title={label}
+    >
+      {badge.name[0].toUpperCase()}
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-50 hidden -translate-x-1/2 mb-2 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-left whitespace-nowrap group-hover:block group-focus:block">
+        <span className="block font-semibold text-slate-100">{badge.name}</span>
+        <span className="block text-slate-400">Earned {earned.toLocaleDateString()}</span>
+      </span>
+    </button>
+  )
 }
 
 export function LeaderboardTable({ initialAgents, view, district }: LeaderboardTableProps) {
@@ -23,7 +67,7 @@ export function LeaderboardTable({ initialAgents, view, district }: LeaderboardT
     async function refresh() {
       const response = await fetch(`/api/leaderboard?${params.toString()}`)
       if (!response.ok || cancelled) return
-      const payload = await response.json() as { agents: LeaderboardAgent[]; refreshedAt: string }
+      const payload = await response.json() as { agents: typeof initialAgents; refreshedAt: string }
       setAgents(payload.agents)
       setRefreshedAt(payload.refreshedAt)
     }
@@ -51,6 +95,8 @@ export function LeaderboardTable({ initialAgents, view, district }: LeaderboardT
         )}
         {agents.map((agent) => {
           const delta = agent.previousRank - agent.rank
+          const visibleBadges = agent.badges.slice(0, 3)
+          const extraCount = agent.badges.length - visibleBadges.length
           return (
             <Link
               key={agent.id}
@@ -71,8 +117,15 @@ export function LeaderboardTable({ initialAgents, view, district }: LeaderboardT
               <div className="font-mono text-sm" style={{ color: agent.districtColor }}>{agent.districtName}</div>
               <div className="font-mono text-sm text-slate-200">{(view === "week" ? agent.weeklyTasks : agent.tasksCompleted).toLocaleString()} {title.toLowerCase()}</div>
               <div className="font-mono text-sm text-slate-300">Level {agent.level}</div>
-              <div className="flex items-center justify-between gap-2 font-mono text-sm text-slate-300">
-                <span>{agent.badges.join(" ")}</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1">
+                  {visibleBadges.map((badge) => (
+                    <BadgeIcon key={badge.badgeId} badge={badge} />
+                  ))}
+                  {extraCount > 0 && (
+                    <span className="font-mono text-xs text-slate-400">+{extraCount} more</span>
+                  )}
+                </div>
                 <span className={delta > 0 ? "text-emerald-300" : delta < 0 ? "text-rose-300" : "text-slate-500"}>{delta > 0 ? "▲" : delta < 0 ? "▼" : "—"}</span>
               </div>
             </Link>

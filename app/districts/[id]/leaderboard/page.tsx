@@ -4,6 +4,8 @@ import { CountdownTimer } from "@/components/districts/countdown-timer"
 import { DISTRICTS, createAgents } from "@/lib/data"
 import { getDistrictLeaderboard, getPreviousDistrictLeaderboardSnapshot } from "@/lib/gamification/district-leaderboard"
 import { getActiveDistrictEvent } from "@/lib/gamification/events"
+import { getBadgeCatalogEntry, type BadgeRarity } from "@/lib/gamification/badge-catalog"
+import { getReputation } from "@/lib/reputation/reputation-store"
 import type { DistrictId } from "@/lib/types"
 
 type DistrictLeaderboardPageProps = {
@@ -11,6 +13,48 @@ type DistrictLeaderboardPageProps = {
 }
 
 export const dynamic = "force-dynamic"
+
+const RARITY_COLORS: Record<string, string> = {
+  common: "border-slate-600 bg-slate-700 text-slate-200",
+  uncommon: "border-emerald-600 bg-emerald-700 text-emerald-100",
+  rare: "border-blue-600 bg-blue-700 text-blue-100",
+  epic: "border-purple-600 bg-purple-700 text-purple-100",
+  legendary: "border-amber-500 bg-amber-600 text-amber-100",
+}
+
+function enrichBadges(agentId: string) {
+  const { metrics } = getReputation(agentId)
+  return (metrics.badges ?? [])
+    .map((badge) => {
+      const catalog = getBadgeCatalogEntry(badge.id)
+      return {
+        badgeId: badge.id,
+        name: catalog?.name ?? badge.id,
+        rarity: badge.rarity as BadgeRarity,
+        earnedAt: badge.awardedAt,
+      }
+    })
+    .sort((a, z) => new Date(z.earnedAt).getTime() - new Date(a.earnedAt).getTime())
+}
+
+function BadgeIcon({ badge }: { badge: { badgeId: string; name: string; rarity: string; earnedAt: string } }) {
+  const earned = new Date(badge.earnedAt)
+  const label = `${badge.name}, earned ${earned.toLocaleDateString()}`
+  return (
+    <button
+      type="button"
+      className={`group relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold ${RARITY_COLORS[badge.rarity] ?? "border-slate-600 bg-slate-700 text-slate-200"}`}
+      aria-label={label}
+      title={label}
+    >
+      {badge.name[0].toUpperCase()}
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-50 hidden -translate-x-1/2 mb-2 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-left whitespace-nowrap group-hover:block group-focus:block">
+        <span className="block font-semibold text-slate-100">{badge.name}</span>
+        <span className="block text-slate-400">Earned {earned.toLocaleDateString()}</span>
+      </span>
+    </button>
+  )
+}
 
 export async function generateMetadata({ params }: DistrictLeaderboardPageProps) {
   const { id } = await params
@@ -31,6 +75,11 @@ export default async function DistrictLeaderboardPage({ params }: DistrictLeader
   const event = getActiveDistrictEvent()
   const entries = getDistrictLeaderboard(agents, districtId)
   const previousSnapshot = getPreviousDistrictLeaderboardSnapshot(districtId)
+
+  const badgeEntries = await Promise.all(
+    entries.map(async (entry) => [entry.agentId, enrichBadges(entry.agentId)] as const)
+  )
+  const badgesById = Object.fromEntries(badgeEntries)
 
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
@@ -78,18 +127,34 @@ export default async function DistrictLeaderboardPage({ params }: DistrictLeader
                   <th className="px-4 py-3">Score</th>
                   <th className="px-4 py-3">Tasks completed this week</th>
                   <th className="px-4 py-3">District</th>
+                  <th className="px-4 py-3">Badges</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {entries.map((entry) => (
-                  <tr key={entry.agentId} className="bg-slate-950/60">
-                    <td className="px-4 py-3 text-cyan-200">#{entry.rank}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-100">{entry.agentName}</td>
-                    <td className="px-4 py-3">{entry.formattedScore}</td>
-                    <td className="px-4 py-3">{entry.tasksCompletedThisWeek}</td>
-                    <td className="px-4 py-3" style={{ color: district.color }}>{entry.districtName}</td>
-                  </tr>
-                ))}
+                {entries.map((entry) => {
+                  const badges = badgesById[entry.agentId] ?? []
+                  const visibleBadges = badges.slice(0, 3)
+                  const extraCount = badges.length - visibleBadges.length
+                  return (
+                    <tr key={entry.agentId} className="bg-slate-950/60">
+                      <td className="px-4 py-3 text-cyan-200">#{entry.rank}</td>
+                      <td className="px-4 py-3 font-semibold text-slate-100">{entry.agentName}</td>
+                      <td className="px-4 py-3">{entry.formattedScore}</td>
+                      <td className="px-4 py-3">{entry.tasksCompletedThisWeek}</td>
+                      <td className="px-4 py-3" style={{ color: district.color }}>{entry.districtName}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-1">
+                          {visibleBadges.map((badge) => (
+                            <BadgeIcon key={badge.badgeId} badge={badge} />
+                          ))}
+                          {extraCount > 0 && (
+                            <span className="font-mono text-xs text-slate-400">+{extraCount} more</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

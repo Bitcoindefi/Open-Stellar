@@ -1,10 +1,21 @@
 import { getAgentRegistry } from "@/lib/agent-registry"
 import { DISTRICTS } from "@/lib/data"
 import { getAgentXP } from "@/lib/gamification/xp"
+import { getBadgeCatalogEntry } from "@/lib/gamification/badge-catalog"
 import { getReputation } from "@/lib/reputation/reputation-store"
+import type { BadgeRarity } from "@/lib/gamification/badge-catalog"
 import type { DistrictId } from "@/lib/types"
 
 export type LeaderboardView = "global" | "district" | "week"
+
+export type LeaderboardBadge = {
+  badgeId: string
+  name: string
+  description: string
+  rarity: BadgeRarity
+  earnedAt: string
+  xpValue: number
+}
 
 export interface LeaderboardAgent {
   id: string
@@ -18,19 +29,32 @@ export interface LeaderboardAgent {
   xp: number
   x402Revenue: number
   spriteId: number
-  badges: string[]
+  badges: LeaderboardBadge[]
   rank: number
   previousRank: number
   districtRank: number
   globalRank: number
 }
 
-function spriteIdForAgent(agentId: string): number {
-  return [...agentId].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 7
+export function enrichBadges(agentId: string): LeaderboardBadge[] {
+  const { metrics } = getReputation(agentId)
+  return (metrics.badges ?? [])
+    .map((badge) => {
+      const catalog = getBadgeCatalogEntry(badge.id)
+      return {
+        badgeId: badge.id,
+        name: catalog?.name ?? badge.id,
+        description: catalog?.description ?? "",
+        rarity: badge.rarity as BadgeRarity,
+        earnedAt: badge.awardedAt,
+        xpValue: catalog?.xpValue ?? 0,
+      }
+    })
+    .sort((a, z) => new Date(z.earnedAt).getTime() - new Date(a.earnedAt).getTime())
 }
 
-function badgesForAgent(capabilities: string[]): string[] {
-  return capabilities.slice(0, 3).map((capability) => capability.slice(0, 2).toUpperCase())
+function spriteIdForAgent(agentId: string): number {
+  return [...agentId].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 7
 }
 
 function toLeaderboardAgent(agent: ReturnType<typeof getAgentRegistry>[number]): LeaderboardAgent {
@@ -50,7 +74,7 @@ function toLeaderboardAgent(agent: ReturnType<typeof getAgentRegistry>[number]):
     xp: xp.xp,
     x402Revenue: reputation.metrics.x402RevenueXlm,
     spriteId: spriteIdForAgent(agent.agentId),
-    badges: badgesForAgent(agent.capabilities),
+    badges: [],
     rank: 0,
     previousRank: 0,
     districtRank: 0,
@@ -85,5 +109,7 @@ export function listLeaderboardAgents(view: LeaderboardView = "global", district
 }
 
 export function getLeaderboardAgent(agentId: string): LeaderboardAgent | undefined {
-  return listLeaderboardAgents("global").find((agent) => agent.id === agentId)
+  const agent = listLeaderboardAgents("global").find((agent) => agent.id === agentId)
+  if (!agent) return undefined
+  return { ...agent, badges: enrichBadges(agentId) }
 }

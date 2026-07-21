@@ -73,7 +73,21 @@ const leaderboardAgentSchema = {
     xp: { type: "integer" },
     x402Revenue: { type: "number" },
     spriteId: { type: "integer" },
-    badges: { type: "array", items: { type: "string" } },
+    badges: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          badgeId: { type: "string" },
+          name: { type: "string" },
+          description: { type: "string" },
+          rarity: { type: "string", enum: ["common", "uncommon", "rare", "epic", "legendary"] },
+          earnedAt: { type: "string", format: "date-time" },
+          xpValue: { type: "integer" },
+        },
+        required: ["badgeId", "name", "rarity", "earnedAt", "xpValue"],
+      },
+    },
     rank: { type: "integer" },
     previousRank: { type: "integer" },
     districtRank: { type: "integer" },

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { GET } from "@/app/api/leaderboard/route"
 import { registerAgent, resetAgentRegistryForTests } from "@/lib/agent-registry"
 import { awardXP, resetAgentXpDb } from "@/lib/gamification/xp"
-import { resetReputationStoreForTests, upsertReputationMetrics } from "@/lib/reputation/reputation-store"
+import { upsertReputationMetrics, resetReputationStoreForTests } from "@/lib/reputation/reputation-store"
 
 function register(agentId: string, district: "data-center" | "comm-hub" = "data-center") {
   registerAgent({
@@ -59,5 +59,37 @@ describe("GET /api/leaderboard", () => {
     const body = await res.json()
 
     expect(body.agents).toEqual([])
+  })
+
+  it("enriches agents with earned badges sorted by earnedAt descending", async () => {
+    register("badged-agent")
+    upsertReputationMetrics("badged-agent", {
+      badges: [
+        { id: "first-quest", rarity: "common", awardedAt: "2026-05-01T00:00:00.000Z" },
+        { id: "rare-taskmaster", rarity: "rare", awardedAt: "2026-06-01T00:00:00.000Z" },
+      ],
+    })
+
+    const res = await GET(new Request("http://localhost/api/leaderboard"))
+    const body = await res.json()
+    const agent = body.agents.find((a: { id: string }) => a.id === "badged-agent")
+
+    expect(agent).toBeDefined()
+    expect(agent.badges).toHaveLength(2)
+    expect(agent.badges[0].badgeId).toBe("rare-taskmaster")
+    expect(agent.badges[0].earnedAt).toBe("2026-06-01T00:00:00.000Z")
+    expect(agent.badges[0].name).toBe("Rare Taskmaster")
+    expect(agent.badges[1].badgeId).toBe("first-quest")
+  })
+
+  it("returns empty badges array for agents with no badges", async () => {
+    register("no-badges")
+
+    const res = await GET(new Request("http://localhost/api/leaderboard"))
+    const body = await res.json()
+    const agent = body.agents.find((a: { id: string }) => a.id === "no-badges")
+
+    expect(agent).toBeDefined()
+    expect(agent.badges).toEqual([])
   })
 })
