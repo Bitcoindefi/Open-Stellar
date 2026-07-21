@@ -2,8 +2,12 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname } from "node:path"
 import { DISTRICTS } from "@/lib/data"
 import type { DistrictId } from "@/lib/types"
+import {
+  checkAndConsumeHighPrioritySlot,
+  resetHighPriorityRateLimitStoreForTests,
+} from "./high-priority-rate-limit"
 
-export type QueuedTaskPriority = "critical" | "high" | "normal" | "low"
+export type QueuedTaskPriority = "critical" | "high" | "medium" | "normal" | "low"
 export type QueuedTaskStatus = "pending" | "leased" | "completed" | "failed" | "cancelled" | "dead-letter"
 
 export interface QueuedTask {
@@ -65,8 +69,9 @@ if (!globalState.__openStellarTaskQueue__) {
 const PRIORITY_WEIGHT: Record<QueuedTaskPriority, number> = {
   critical: 0,
   high: 1,
-  normal: 2,
-  low: 3,
+  medium: 2,
+  normal: 3,
+  low: 4,
 }
 
 const RETRY_BACKOFF_SECONDS = [5, 15, 45, 135] as const
@@ -82,6 +87,7 @@ function nextTaskId(): string {
 export function resetTaskQueueForTests(): void {
   queueState.tasks.clear()
   queueState.sequence = 0
+  resetHighPriorityRateLimitStoreForTests()
 }
 
 export function loadDeadLetterQueueForTests(): void {
@@ -89,7 +95,13 @@ export function loadDeadLetterQueueForTests(): void {
 }
 
 export function isQueuedTaskPriority(value: unknown): value is QueuedTaskPriority {
-  return value === "critical" || value === "high" || value === "normal" || value === "low"
+  return (
+    value === "critical" ||
+    value === "high" ||
+    value === "medium" ||
+    value === "normal" ||
+    value === "low"
+  )
 }
 
 export function isQueuedTaskStatus(value: unknown): value is QueuedTaskStatus {
@@ -185,16 +197,23 @@ function normalizeScheduledFor(value: string | undefined): string | undefined {
 
 export function enqueueTask(input: EnqueueTaskInput): QueuedTask {
   const now = new Date().toISOString()
-  const priority = input.priority ?? "normal"
+  let priority = input.priority ?? "normal"
   if (!isQueuedTaskPriority(priority)) throw new Error("Unsupported task priority")
   if (input.targetDistrict && !isValidTaskDistrict(input.targetDistrict)) throw new Error("Unsupported target district")
+
+  const targetAgentId = input.targetAgentId?.trim() || undefined
+
+  if (priority === "high" && targetAgentId) {
+    const check = checkAndConsumeHighPrioritySlot(targetAgentId)
+    priority = check.priority
+  }
 
   const task: QueuedTask = {
     id: input.id?.trim() || nextTaskId(),
     type: assertNonEmpty(input.type, "type"),
     payload: input.payload ?? {},
     priority,
-    targetAgentId: input.targetAgentId?.trim() || undefined,
+    targetAgentId,
     targetDistrict: input.targetDistrict,
     targetCapability: input.targetCapability?.trim() || undefined,
     retryCount: 0,
