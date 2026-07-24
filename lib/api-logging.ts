@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { Logtail } from '@logtail/node'
+import { getCorrelationId, extractTraceContext, setTraceContext } from '@/lib/observability/tracing'
 
 export type ApiLogLevel = 'info' | 'warn' | 'error'
 
@@ -10,6 +11,8 @@ export interface ApiLogContext {
   status?: number
   durationMs?: number
   error?: unknown
+  correlationId?: string
+  traceId?: string
   [key: string]: unknown
 }
 
@@ -82,12 +85,20 @@ function routeContext(
     Array.from(url.searchParams.entries(), ([key, value]) => [key, normalizeKeyedValue(key, value)]),
   )
 
+  // Extract or create trace context
+  const traceContext = extractTraceContext(req.headers)
+  if (traceContext) {
+    setTraceContext(traceContext)
+  }
+
   return normalizeContext({
     route,
     method: req.method,
     path: url.pathname,
     query,
     durationMs: Date.now() - startedAt,
+    correlationId: getCorrelationId(),
+    traceId: traceContext?.traceId,
     ...details,
   })
 }

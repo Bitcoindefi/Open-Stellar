@@ -1,6 +1,7 @@
 import type { AgentStatus } from "@/lib/types"
 import type { X402Receipt } from "@/lib/protocols/x402"
 import type { BadgeRarity } from "@/lib/gamification/badge-catalog"
+import { saveSSEEvent, initializeSSEEventStorage } from "@/lib/storage/sse-events-kv"
 
 export interface AgentTask {
   id: string
@@ -107,6 +108,8 @@ function appendToEventLog(event: PublishedSystemEvent): void {
     log.splice(0, log.length - EVENT_LOG_LIMIT)
   }
 }
+main
+}
 
 function nextEventId(type: string) {
   eventBus.sequence += 1
@@ -130,10 +133,18 @@ export function eventMatchesAgent(event: PublishedSystemEvent, agentId?: string)
 
 export function publishSystemEvent(event: SystemEvent): PublishedSystemEvent {
   const published = ensurePublishedEvent(event)
-  appendToEventLog(published)
+main
   for (const listener of eventBus.listeners) {
     listener(published)
   }
+  
+  // Persist to KV if available (non-blocking)
+  if (USE_KV) {
+    saveSSEEvent(published).catch((error) => {
+      console.error('Failed to persist SSE event to KV:', error)
+    })
+  }
+  
   return published
 }
 
