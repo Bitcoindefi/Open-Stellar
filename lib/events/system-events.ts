@@ -20,6 +20,18 @@ export interface Badge {
   rarity?: BadgeRarity
 }
 
+export interface QuestCompletionSummary {
+  id: string
+  title: string
+}
+
+export interface QuestCompletionReward {
+  xp: number
+  xlm?: string
+  badge?: string
+  title?: string
+}
+
 interface BaseEvent {
   id?: string
   occurredAt?: string
@@ -30,7 +42,13 @@ export type SystemEvent =
   | (BaseEvent & { type: "task.started"; agentId: string; task: AgentTask })
   | (BaseEvent & { type: "task.completed"; agentId: string; taskId: string; result: TaskResult; skillId?: string })
   | (BaseEvent & { type: "payment.received"; agentId: string; receipt: X402Receipt })
-  | (BaseEvent & { type: "quest.completed"; agentId: string; questId?: string; quest?: unknown; reward?: unknown })
+  | (BaseEvent & {
+    type: "quest.completed"
+    agentId: string
+    questId?: string
+    quest?: QuestCompletionSummary
+    reward?: QuestCompletionReward
+  })
   | (BaseEvent & { type: "quest.expired"; agentId: string; questId: string; completedSubtasks: number; totalSubtasks: number })
   | (BaseEvent & { type: "quest.unlocked"; agentId: string; questId: string })
   | (BaseEvent & { type: "agent.xp"; agentId: string; xp: number; totalXp?: number; level: number; xpToNext?: number; reason?: string })
@@ -60,8 +78,11 @@ interface EventBusState {
   sequence: number
 }
 
+const EVENT_LOG_LIMIT = 500
+
 const globalState = globalThis as typeof globalThis & {
   __openStellarEventBus__?: EventBusState
+  __openStellarEventLog__?: PublishedSystemEvent[]
 }
 
 const eventBus: EventBusState = globalState.__openStellarEventBus__ ?? {
@@ -73,12 +94,21 @@ if (!globalState.__openStellarEventBus__) {
   globalState.__openStellarEventBus__ = eventBus
 }
 
-// Initialize KV storage if available
-const USE_KV = process.env.KV_URL !== undefined || process.env.KV_REST_API_URL !== undefined
-if (USE_KV) {
-  initializeSSEEventStorage().catch((error) => {
-    console.error('Failed to initialize KV SSE event storage:', error)
-  })
+function getEventLog(): PublishedSystemEvent[] {
+  if (!globalState.__openStellarEventLog__) {
+    globalState.__openStellarEventLog__ = []
+  }
+  return globalState.__openStellarEventLog__
+}
+
+function appendToEventLog(event: PublishedSystemEvent): void {
+  const log = getEventLog()
+  log.push(event)
+  if (log.length > EVENT_LOG_LIMIT) {
+    log.splice(0, log.length - EVENT_LOG_LIMIT)
+  }
+}
+main
 }
 
 function nextEventId(type: string) {
@@ -103,8 +133,7 @@ export function eventMatchesAgent(event: PublishedSystemEvent, agentId?: string)
 
 export function publishSystemEvent(event: SystemEvent): PublishedSystemEvent {
   const published = ensurePublishedEvent(event)
-  
-  // Notify in-memory listeners
+main
   for (const listener of eventBus.listeners) {
     listener(published)
   }
@@ -117,6 +146,14 @@ export function publishSystemEvent(event: SystemEvent): PublishedSystemEvent {
   }
   
   return published
+}
+
+export function listPublishedSystemEvents(): PublishedSystemEvent[] {
+  return [...getEventLog()]
+}
+
+export function resetPublishedSystemEventLogForTests(): void {
+  globalState.__openStellarEventLog__ = []
 }
 
 export function subscribeToSystemEvents(listener: EventListener) {

@@ -790,7 +790,10 @@ export function SidebarPanel({
           {SIDEBAR_TABS.map(tab => (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
+              aria-pressed={activeTab === tab.id}
+              aria-label={`${tab.label} tab`}
               style={{
                 flex: 1,
                 minHeight: variant === "mobile" ? 46 : undefined,
