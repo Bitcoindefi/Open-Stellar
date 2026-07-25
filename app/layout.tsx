@@ -31,8 +31,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
-import { THEME_INLINE_SCRIPT } from "@/components/theme-provider-top";
-import { ThemeProviderTop } from "@/components/theme-provider-top";
+import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggleNavbar } from "@/components/theme-toggle-navbar";
 
 export default function RootLayout({
@@ -42,24 +41,25 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="bg-background" suppressHydrationWarning>
-      {/* Inline script to apply the stored theme before hydration to avoid FOUC */}
-      <head>
-        <script
-          // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: THEME_INLINE_SCRIPT }}
-        />
-      </head>
+      <head />
       <body
         className={`${pressStart2P.variable} ${vt323.variable} font-sans antialiased`}
       >
         <MockBanner />
 
-        <ThemeProviderTop>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          storageKey="theme"
+          disableTransitionOnChange
+        >
           <div style={{ position: "fixed", top: 12, right: 12, zIndex: 50 }}>
             <ThemeToggleNavbar />
           </div>
           <WalletProvider>{children}</WalletProvider>
-        </ThemeProviderTop>
+        </ThemeProvider>
+
 
         <Analytics />
         <Toaster
