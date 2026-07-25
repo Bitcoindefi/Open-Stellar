@@ -202,14 +202,14 @@ export default async function AgentPage({ params }: AgentPageProps) {
   let infractions = 0
   if (reputationData) {
     repScore = reputationData.reputation?.score || 0
-    badges = reputationData.reputation?.badges || []
-    infractions = reputationData.reputation?.history?.filter((h: any) => h.delta < 0).length || 0
+    badges = reputationData.reputation?.metrics?.badges || reputationData.reputation?.badges || []
+    infractions = reputationData.reputation?.metrics?.infractions || reputationData.reputation?.history?.filter((h: any) => h.delta < 0).length || 0
   } else {
     const reputation = getReputation(id)
     if (reputation) {
       repScore = reputation.score || 0
-      badges = reputation.badges || []
-      infractions = reputation.history?.filter((h: any) => h.delta < 0).length || 0
+      badges = reputation.metrics?.badges || []
+      infractions = reputation.metrics?.infractions || 0
     }
   }
 

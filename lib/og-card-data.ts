@@ -41,7 +41,7 @@ export function slugifyAgent(agent: Pick<MoltbotAgent, "id" | "name">): string {
 }
 
 import { getRegisteredAgent } from "@/lib/agent-registry"
-import { getAgentXP } from "@/lib/gamification/xp"
+import { getAgentXP, getXpToNextLevel } from "@/lib/gamification/xp"
 import { listAgentTasks } from "@/lib/agents/task-queue"
 import { getAgentHealth } from "@/lib/agents/agent-health-store"
 
@@ -70,6 +70,7 @@ export function findAgentByLookup(id: string, agents: MoltbotAgent[] = createAge
       .filter((task) => task.status === "completed")
       .length
     const health = getAgentHealth(reg.agentId)
+    const xpToNext = getXpToNextLevel(progress.level)
     
     return {
       id: reg.agentId,
@@ -77,7 +78,7 @@ export function findAgentByLookup(id: string, agents: MoltbotAgent[] = createAge
       model: reg.model,
       xp: progress.xp,
       level: progress.level,
-      xpToNext: progress.xpToNext,
+      xpToNext,
       status: reg.status,
       district: reg.district,
       cpu: health?.cpu ?? 0,
@@ -100,7 +101,12 @@ export function findAgentByLookup(id: string, agents: MoltbotAgent[] = createAge
         maxLevel: 5,
         xp: 0,
         xpToNext: 100
-      }))
+      })),
+      appearance: {
+        skin: "default",
+        accessories: [],
+        customColor: null
+      }
     }
   }
 
