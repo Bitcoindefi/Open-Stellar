@@ -25,10 +25,7 @@ const globalQuests = globalThis as typeof globalThis & {
   __openStellarQuestDb__?: QuestDb
 }
 
-const db: QuestDb = globalQuests.__openStellarQuestDb__ ?? new Map()
-if (!globalQuests.__openStellarQuestDb__) {
-  globalQuests.__openStellarQuestDb__ = db
-}
+const db: QuestDb = globalQuests.__openStellarQuestDb__ ??= new Map()
 
 export function createQuest(input: {
   id?: string

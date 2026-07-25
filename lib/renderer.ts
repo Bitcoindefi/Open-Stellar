@@ -384,37 +384,145 @@ function drawAuraParticles(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, t
   ctx.restore()
 }
 
+function drawSelectionRing(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick: number, cx: number, cy: number, c: string) {
+  const ringPulse = Math.sin(tick * 0.08) * 2 + 22
+  ctx.strokeStyle = "#ffffff"
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.arc(cx, cy + 4, ringPulse, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.strokeStyle = c + "66"
+  ctx.lineWidth = 3
+  ctx.beginPath()
+  ctx.arc(cx, cy + 4, ringPulse + 2, 0, Math.PI * 2)
+  ctx.stroke()
+}
+
+function drawOfflinePulse(ctx: CanvasRenderingContext2D, tick: number, cx: number, cy: number) {
+  const pulse = Math.sin(tick * 0.16) * 0.35 + 0.65
+  ctx.strokeStyle = `rgba(248,113,113,${pulse})`
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(cx, cy + 4, 18 + pulse * 4, 0, Math.PI * 2)
+  ctx.stroke()
+}
+
+function drawBotSprite(
+  ctx: CanvasRenderingContext2D,
+  agent: MoltbotAgent,
+  tick: number,
+  sprite: HTMLImageElement,
+  cropRegion: [number, number, number, number] | undefined,
+  drawX: number,
+  drawY: number,
+  spriteSize: number,
+  c: string,
+  cx: number
+) {
+  const tinted = getProcessedSprite(sprite, c, cropRegion)
+  ctx.save()
+  const skinId = agent.appearance?.skin ?? "default"
+  if (skinId === "hologram") {
+    ctx.globalAlpha = 0.55 + Math.sin(tick * 0.1) * 0.15
+  }
+  if (agent.direction === "left") {
+    ctx.translate(drawX + spriteSize, 0)
+    ctx.scale(-1, 1)
+    ctx.drawImage(tinted, 0, drawY, spriteSize, spriteSize)
+  } else {
+    ctx.drawImage(tinted, drawX, drawY, spriteSize, spriteSize)
+  }
+  ctx.restore()
+
+  if (agent.status === "offline") {
+    ctx.fillStyle = "rgba(0,0,0,0.6)"
+    ctx.fillRect(drawX, drawY, spriteSize, spriteSize)
+  }
+  if (agent.status === "error") {
+    const flash = Math.sin(tick * 0.2) > 0
+    if (flash) {
+      ctx.fillStyle = "rgba(248,113,113,0.25)"
+      ctx.fillRect(drawX, drawY, spriteSize, spriteSize)
+    }
+  }
+
+  drawSkinOverlay(ctx, agent, tick, drawX, drawY, spriteSize, c)
+  drawAccessories(ctx, agent, drawX, drawY, spriteSize)
+  drawAuraParticles(ctx, agent, tick, cx, drawY + spriteSize / 2, c)
+}
+
+function drawAntennaWaves(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick: number, cx: number, drawY: number, c: string) {
+  const antennaGlow = Math.sin(tick * 0.1) > 0
+  if (antennaGlow) {
+    ctx.strokeStyle = c + "55"
+    ctx.lineWidth = 1
+    for (let r = 0; r < 3; r++) {
+      ctx.beginPath()
+      ctx.arc(cx, drawY, 6 + r * 5, -Math.PI * 0.8, -Math.PI * 0.2)
+      ctx.stroke()
+    }
+  }
+}
+
+function drawOfflineText(ctx: CanvasRenderingContext2D, cx: number, y: number) {
+  ctx.font = "bold 7px monospace"
+  ctx.textAlign = "center"
+  ctx.fillStyle = "#f87171"
+  ctx.fillText("OFFLINE", cx, y - 6)
+  ctx.textAlign = "left"
+}
+
+function drawStatusDot(ctx: CanvasRenderingContext2D, status: string, drawX: number, drawY: number, spriteSize: number) {
+  const statusColors: Record<string, string> = {
+    active: "#34d399",
+    working: "#fbbf24",
+    idle: "#64748b",
+    error: "#f87171",
+    offline: "#1e293b",
+  }
+  drawRect(ctx, drawX + spriteSize - 6, drawY + 2, 5, 5, statusColors[status] || "#64748b")
+  ctx.strokeStyle = "#0a0e17"
+  ctx.lineWidth = 0.5
+  ctx.strokeRect(drawX + spriteSize - 6, drawY + 2, 5, 5)
+}
+
+function drawNameLabel(ctx: CanvasRenderingContext2D, name: string, cx: number, y: number, spriteSize: number, c: string) {
+  ctx.font = "bold 8px monospace"
+  ctx.textAlign = "center"
+  ctx.fillStyle = "#000000"
+  ctx.fillText(name, cx + 1, y + spriteSize + 5)
+  ctx.fillStyle = c
+  ctx.fillText(name, cx, y + spriteSize + 4)
+  ctx.textAlign = "left"
+}
+
+function drawTaskProgressBar(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, cx: number, y: number, spriteSize: number, c: string) {
+  const barW = 28
+  const barH = 3
+  const barX = cx - barW / 2
+  const barY = y + spriteSize + 8
+  drawRect(ctx, barX, barY, barW, barH, "#0a0e17")
+  drawRect(ctx, barX, barY, Math.floor(barW * agent.taskProgress / 100), barH, c)
+  ctx.strokeStyle = c + "44"
+  ctx.lineWidth = 0.5
+  ctx.strokeRect(barX, barY, barW, barH)
+}
+
 export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick: number, isSelected: boolean, sprite?: HTMLImageElement, cropRegion?: [number, number, number, number]) {
   const x = Math.round(agent.pixelX)
   const y = Math.round(agent.pixelY)
   const c = agent.color
   const bobY = agent.status === "working" ? Math.sin(tick * 0.15) * 2 : 0
   const spriteSize = 36
-  const cx = x + 8 // center x of the bot
+  const cx = x + 8
   const cy = y + 10
 
   if (isSelected) {
-    // Pulsing selection ring
-    const ringPulse = Math.sin(tick * 0.08) * 2 + 22
-    ctx.strokeStyle = "#ffffff"
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.arc(cx, cy + 4, ringPulse, 0, Math.PI * 2)
-    ctx.stroke()
-    ctx.strokeStyle = c + "66"
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.arc(cx, cy + 4, ringPulse + 2, 0, Math.PI * 2)
-    ctx.stroke()
+    drawSelectionRing(ctx, agent, tick, cx, cy, c)
   }
 
   if (agent.status === "offline") {
-    const pulse = Math.sin(tick * 0.16) * 0.35 + 0.65
-    ctx.strokeStyle = `rgba(248,113,113,${pulse})`
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.arc(cx, cy + 4, 18 + pulse * 4, 0, Math.PI * 2)
-    ctx.stroke()
+    drawOfflinePulse(ctx, tick, cx, cy)
   }
 
   // Shadow
@@ -423,47 +531,11 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
   ctx.ellipse(cx, y + spriteSize - 2, 10, 4, 0, 0, Math.PI * 2)
   ctx.fill()
 
-  // Draw the tinted sprite or fallback
   const drawY = y + bobY - 4
   const drawX = x - spriteSize / 2 + 8
 
-  const skinId = agent.appearance?.skin ?? "default"
-
   if (sprite) {
-    const tinted = getProcessedSprite(sprite, c, cropRegion)
-    ctx.save()
-    // Hologram skin: semi-transparent, gently flickering
-    if (skinId === "hologram") {
-      ctx.globalAlpha = 0.55 + Math.sin(tick * 0.1) * 0.15
-    }
-    // Flip horizontally if facing left
-    if (agent.direction === "left") {
-      ctx.translate(drawX + spriteSize, 0)
-      ctx.scale(-1, 1)
-      ctx.drawImage(tinted, 0, drawY, spriteSize, spriteSize)
-    } else {
-      ctx.drawImage(tinted, drawX, drawY, spriteSize, spriteSize)
-    }
-    ctx.restore()
-
-    // Dim the sprite for offline/error
-    if (agent.status === "offline") {
-      ctx.fillStyle = "rgba(0,0,0,0.6)"
-      ctx.fillRect(drawX, drawY, spriteSize, spriteSize)
-    }
-    if (agent.status === "error") {
-      // Red flash overlay
-      const flash = Math.sin(tick * 0.2) > 0
-      if (flash) {
-        ctx.fillStyle = "rgba(248,113,113,0.25)"
-        ctx.fillRect(drawX, drawY, spriteSize, spriteSize)
-      }
-    }
-
-    // Cosmetic layers: skin overlay, equipped accessories, legendary aura
-    drawSkinOverlay(ctx, agent, tick, drawX, drawY, spriteSize, c)
-    drawAccessories(ctx, agent, drawX, drawY, spriteSize)
-    drawAuraParticles(ctx, agent, tick, cx, drawY + spriteSize / 2, c)
+    drawBotSprite(ctx, agent, tick, sprite, cropRegion, drawX, drawY, spriteSize, c, cx)
   } else {
     // Minimal fallback if sprite hasn't loaded
     drawRect(ctx, x + 2, y + bobY, 12, 16, c)
@@ -471,62 +543,19 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
     drawRect(ctx, x + 9, y + bobY + 2, 3, 3, "#000")
   }
 
-  // Signal waves for working bots (above sprite head)
   if (agent.status === "working") {
-    const antennaGlow = Math.sin(tick * 0.1) > 0
-    if (antennaGlow) {
-      ctx.strokeStyle = c + "55"
-      ctx.lineWidth = 1
-      for (let r = 0; r < 3; r++) {
-        ctx.beginPath()
-        ctx.arc(cx, drawY, 6 + r * 5, -Math.PI * 0.8, -Math.PI * 0.2)
-        ctx.stroke()
-      }
-    }
+    drawAntennaWaves(ctx, agent, tick, cx, drawY, c)
   }
 
   if (agent.status === "offline") {
-    ctx.font = "bold 7px monospace"
-    ctx.textAlign = "center"
-    ctx.fillStyle = "#f87171"
-    ctx.fillText("OFFLINE", cx, y - 6)
-    ctx.textAlign = "left"
+    drawOfflineText(ctx, cx, y)
   }
 
-  // Status indicator dot (top right of sprite)
-  const statusColors: Record<string, string> = {
-    active: "#34d399",
-    working: "#fbbf24",
-    idle: "#64748b",
-    error: "#f87171",
-    offline: "#1e293b",
-  }
-  drawRect(ctx, drawX + spriteSize - 6, drawY + 2, 5, 5, statusColors[agent.status] || "#64748b")
-  // Status dot border
-  ctx.strokeStyle = "#0a0e17"
-  ctx.lineWidth = 0.5
-  ctx.strokeRect(drawX + spriteSize - 6, drawY + 2, 5, 5)
+  drawStatusDot(ctx, agent.status, drawX, drawY, spriteSize)
+  drawNameLabel(ctx, agent.name, cx, y, spriteSize, c)
 
-  // Name label
-  ctx.font = "bold 8px monospace"
-  ctx.textAlign = "center"
-  ctx.fillStyle = "#000000"
-  ctx.fillText(agent.name, cx + 1, y + spriteSize + 5)
-  ctx.fillStyle = c
-  ctx.fillText(agent.name, cx, y + spriteSize + 4)
-  ctx.textAlign = "left"
-
-  // Task progress bar
   if (agent.status === "working" && agent.taskProgress > 0) {
-    const barW = 28
-    const barH = 3
-    const barX = cx - barW / 2
-    const barY = y + spriteSize + 8
-    drawRect(ctx, barX, barY, barW, barH, "#0a0e17")
-    drawRect(ctx, barX, barY, Math.floor(barW * agent.taskProgress / 100), barH, c)
-    ctx.strokeStyle = c + "44"
-    ctx.lineWidth = 0.5
-    ctx.strokeRect(barX, barY, barW, barH)
+    drawTaskProgressBar(ctx, agent, cx, y, spriteSize, c)
   }
 }
 

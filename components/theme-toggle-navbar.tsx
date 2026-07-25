@@ -42,7 +42,12 @@ export function ThemeToggleNavbar() {
       ? "Theme: system"
       : `Theme: ${theme}`;
 
-  const Icon = theme === "dark" ? Moon : theme === "light" ? Sun : Laptop;
+  let Icon = Laptop;
+  if (theme === "dark") {
+    Icon = Moon;
+  } else if (theme === "light") {
+    Icon = Sun;
+  }
 
   return (
     <button

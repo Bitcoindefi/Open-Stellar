@@ -36,14 +36,23 @@ const SKILL_POOL: Record<DistrictId, string[]> = {
   research: ["Hypothesis Testing", "Data Viz", "Paper Analysis", "Experiment Design", "Stats Modeling"],
 }
 
+function secureRandom(): number {
+  if (typeof globalThis !== "undefined" && globalThis.crypto && globalThis.crypto.getRandomValues) {
+    const array = new Uint32Array(1)
+    globalThis.crypto.getRandomValues(array)
+    return array[0] / 4294967296
+  }
+  return Math.random()
+}
+
 function rand(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1)) + min
+  return Math.floor(secureRandom() * (max - min + 1)) + min
 }
 
 function generateSkills(district: DistrictId): Skill[] {
   const pool = SKILL_POOL[district]
   const count = rand(2, 4)
-  const shuffled = [...pool].sort(() => Math.random() - 0.5)
+  const shuffled = [...pool].sort(() => secureRandom() - 0.5)
   return shuffled.slice(0, count).map((name, i) => ({
     id: `${district}-skill-${i}`,
     name,
@@ -159,7 +168,7 @@ export function createAgents(): MoltbotAgent[] {
       memory: rand(30, 85),
       tasksCompleted: rand(10, 200),
       currentTask: TASKS[district.id][rand(0, 3)],
-      taskProgress: Math.random() * 100,
+      taskProgress: secureRandom() * 100,
       color: colors[i % colors.length],
       pixelX: px,
       pixelY: py,

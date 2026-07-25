@@ -17,10 +17,7 @@ const globalDb = globalThis as typeof globalThis & {
   __openStellarDistrictUnlockDb__?: DistrictUnlockDb
 }
 
-const db: DistrictUnlockDb = globalDb.__openStellarDistrictUnlockDb__ ?? new Map()
-if (!globalDb.__openStellarDistrictUnlockDb__) {
-  globalDb.__openStellarDistrictUnlockDb__ = db
-}
+const db: DistrictUnlockDb = globalDb.__openStellarDistrictUnlockDb__ ??= new Map()
 
 export interface UnlockedDistrictEntry {
   id: DistrictId

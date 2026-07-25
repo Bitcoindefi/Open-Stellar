@@ -144,8 +144,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     process.exit(1)
   }
   const yes = process.argv.includes("--yes")
-  runWizard({ yes }).catch((err) => {
+  try {
+    await runWizard({ yes })
+  } catch (err) {
     console.error(err)
     process.exit(1)
-  })
+  }
 }
