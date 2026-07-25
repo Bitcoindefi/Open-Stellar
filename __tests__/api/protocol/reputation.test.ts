@@ -1,8 +1,13 @@
-import { describe, it, expect } from "vitest"
+import { afterEach, describe, it, expect } from "vitest"
 import { GET, POST } from "@/app/api/protocol/reputation/route"
+import { listUnseenNotifications, resetNotificationStore } from "@/lib/notifications/notification-store"
 
 // The reputation store uses an in-memory Map on globalThis, so tests share state.
 // Use unique actorIds per test to avoid cross-test contamination.
+
+afterEach(() => {
+  resetNotificationStore()
+})
 
 describe("GET /api/protocol/reputation", () => {
   it("returns a new actor with default score 500", async () => {
@@ -105,5 +110,24 @@ describe("POST /api/protocol/reputation", () => {
 
     expect(data.ok).toBe(true)
     expect(data.reputation.score).toBe(510)
+  })
+
+  it("generates a reputation update notification", async () => {
+    const actorId = "rep-test-notification"
+    const req = new Request("http://localhost/api/protocol/reputation", {
+      method: "POST",
+      body: JSON.stringify({ actorId, delta: 25, reason: "good-service", scope: "service" }),
+      headers: { "Content-Type": "application/json" },
+    })
+
+    await POST(req)
+
+    expect(listUnseenNotifications(actorId)).toMatchObject([
+      {
+        agentId: actorId,
+        type: "reputation_updated",
+        resourceHref: `/leaderboard/${actorId}`,
+      },
+    ])
   })
 })

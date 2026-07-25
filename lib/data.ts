@@ -1,4 +1,6 @@
 import type { MoltbotAgent, District, DistrictId, Skill, ChatMessage } from "./types"
+import { getSkillUpgradeCost } from "./gamification/skill-upgrades"
+import { getXpToNextLevel } from "./gamification/xp"
 
 export const DISTRICTS: District[] = [
   { id: "data-center", name: "Data Center", color: "#22d3ee", bgColor: "#0e2a30", x: 40, y: 60, w: 260, h: 200 },
@@ -43,22 +45,37 @@ function secureRandom(): number {
   return array[0] / 4294967296
 }
 
-function rand(min: number, max: number) {
-  return Math.floor(secureRandom() * (max - min + 1)) + min
+function rand(min: number, max: number, random = secureRandom) {
+  return Math.floor(random() * (max - min + 1)) + min
 }
 
-function generateSkills(district: DistrictId): Skill[] {
+function createSeededRandom(seed: number) {
+  let state = seed >>> 0
+
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 0x100000000
+  }
+}
+
+function generateSkills(district: DistrictId, random = secureRandom): Skill[] {
   const pool = SKILL_POOL[district]
-  const count = rand(2, 4)
-  const shuffled = [...pool].sort(() => secureRandom() - 0.5)
-  return shuffled.slice(0, count).map((name, i) => ({
-    id: `${district}-skill-${i}`,
-    name,
-    level: rand(1, 4),
-    maxLevel: 5,
-    xp: rand(0, 80),
-    xpToNext: 100,
-  }))
+  const count = rand(2, 4, random)
+  const shuffled = [...pool].sort(() => random() - 0.5)
+  return shuffled.slice(0, count).map((name, i) => {
+    const level = rand(1, 4, random)
+    const maxLevel = 5
+    const xpToNext = getSkillUpgradeCost({ level, maxLevel }) ?? 0
+
+    return {
+      id: `${district}-skill-${i}`,
+      name,
+      level,
+      maxLevel,
+      xp: rand(0, Math.max(80, xpToNext + 40), random),
+      xpToNext,
+    }
+  })
 }
 
 // -------- Chat System --------
@@ -114,7 +131,7 @@ export function generateChatMessage(agents: MoltbotAgent[]): ChatMessage | null 
   if (from.status === "error") category = "error"
   else if (from.status === "idle") category = "idle"
   else if (from.district !== to.district) category = "cross_district"
-  else if (Math.random() < 0.3) category = "social"
+  else if (secureRandom() < 0.3) category = "social"
   else category = "working"
 
   const templates = CHAT_TEMPLATES[category]
@@ -150,23 +167,27 @@ export function generateChatMessage(agents: MoltbotAgent[]): ChatMessage | null 
 // -------- Agent Factory --------
 
 export function createAgents(): MoltbotAgent[] {
+  const random = createSeededRandom(0x051e11a9)
   const colors = ["#22d3ee", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#60a5fa", "#fb923c", "#e879f9", "#2dd4bf", "#facc15", "#818cf8", "#f472b6"]
   return NAMES.map((name, i) => {
     const districtIdx = i % DISTRICTS.length
     const district = DISTRICTS[districtIdx]
-    const px = district.x + rand(30, district.w - 50)
-    const py = district.y + rand(40, district.h - 40)
+    const px = district.x + rand(30, district.w - 50, random)
+    const py = district.y + rand(40, district.h - 40, random)
     return {
       id: `bot-${i}`,
       name,
       model: MODELS[i % MODELS.length],
+      xp: rand(0, 90, random),
+      level: 1,
+      xpToNext: getXpToNextLevel(1),
       status: (["active", "working", "idle", "working", "active"] as const)[i % 5],
       district: district.id,
-      cpu: rand(20, 95),
-      memory: rand(30, 85),
-      tasksCompleted: rand(10, 200),
-      currentTask: TASKS[district.id][rand(0, 3)],
-      taskProgress: secureRandom() * 100,
+      cpu: rand(20, 95, random),
+      memory: rand(30, 85, random),
+      tasksCompleted: rand(10, 200, random),
+      currentTask: TASKS[district.id][rand(0, 3, random)],
+      taskProgress: random() * 100,
       color: colors[i % colors.length],
       pixelX: px,
       pixelY: py,
@@ -175,7 +196,7 @@ export function createAgents(): MoltbotAgent[] {
       frame: 0,
       direction: "right" as const,
       spriteId: i % SPRITE_COUNT,
-      skills: generateSkills(district.id),
+      skills: generateSkills(district.id, random),
       autoRestart: i % 3 === 0,
       appearance: { skin: "default", accessories: [], customColor: null },
     }

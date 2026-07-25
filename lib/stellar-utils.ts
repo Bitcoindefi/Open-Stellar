@@ -266,3 +266,73 @@ export async function sendStellarPayment(params: {
     return { txHash: null, error: message }
   }
 }
+
+export interface VerifyStellarPaymentInput {
+  txHash: string
+  expectedDestination: string
+  expectedAmount: string
+  expectedSource?: string
+  memo?: string
+  network?: StellarNetwork
+}
+
+export interface StellarPaymentVerification {
+  accepted: boolean
+  txHash: string
+  source?: string
+  destination?: string
+  amount?: string
+  error?: string
+}
+
+export async function verifyStellarPayment(input: VerifyStellarPaymentInput): Promise<StellarPaymentVerification> {
+  if (!/^[a-fA-F0-9]{64}$/.test(input.txHash)) {
+    return { accepted: false, txHash: input.txHash, error: 'Invalid Stellar tx hash format' }
+  }
+
+  const config = input.network === 'PUBLIC' ? STELLAR_MAINNET : STELLAR_TESTNET
+  const server = new Horizon.Server(config.networkUrl)
+
+  try {
+    const [transaction, operations] = await Promise.all([
+      server.transactions().transaction(input.txHash).call(),
+      server.operations().forTransaction(input.txHash).call(),
+    ])
+
+    if (!transaction.successful) {
+      return { accepted: false, txHash: input.txHash, error: 'Stellar transaction failed' }
+    }
+
+    if (input.memo && transaction.memo !== input.memo) {
+      return { accepted: false, txHash: input.txHash, error: 'Stellar transaction memo mismatch' }
+    }
+
+    const payment = operations.records.find((operation) => {
+      if (operation.type !== 'payment') return false
+      const record = operation as typeof operation & {
+        from?: string
+        to?: string
+        asset_type?: string
+        amount?: string
+      }
+      return record.asset_type === 'native'
+        && record.to === input.expectedDestination
+        && (!input.expectedSource || record.from === input.expectedSource)
+        && Number(record.amount) >= Number(input.expectedAmount)
+    }) as ({ from?: string; to?: string; amount?: string } | undefined)
+
+    if (!payment) {
+      return { accepted: false, txHash: input.txHash, error: 'Matching Stellar payment operation not found' }
+    }
+
+    return {
+      accepted: true,
+      txHash: input.txHash,
+      source: payment.from,
+      destination: payment.to,
+      amount: payment.amount,
+    }
+  } catch (err) {
+    return { accepted: false, txHash: input.txHash, error: err instanceof Error ? err.message : 'Failed to verify Stellar payment' }
+  }
+}

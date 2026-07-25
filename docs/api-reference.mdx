@@ -1,0 +1,20 @@
+---
+title: API reference
+description: Reference for the Open Stellar HTTP API.
+---
+# API reference
+
+The canonical OpenAPI document is available at [`/api/openapi.json`](/api/openapi.json). It covers agent health and messaging, x402, ZK Passport, reputation, Stellar wallet helpers, feed events, explorer receipts, admin runs, and user data routes.
+
+## Generate a client
+
+```bash
+npx openapi-typescript https://your-open-stellar.app/api/openapi.json -o open-stellar-api.d.ts
+```
+
+## Core route groups
+
+- Agent runtime: `/api/agents/{id}/messages`, `/api/agents/{id}/health`, `/api/agents/{id}/heartbeat`, `/api/agents/{id}/appearance`.
+- Protocols: `/api/protocol/x402/quote`, `/api/protocol/x402/settle`, `/api/protocol/passport/authorize`, `/api/protocol/passport/status`, `/api/protocol/reputation`, `/api/protocol/track8004`.
+- Stellar: `/api/stellar/balance`, `/api/stellar/build-tx`, `/api/stellar/submit-tx`, `/api/stellar/fund`.
+- Operations: `/api/events`, `/api/feed`, `/api/explorer/receipts`, `/api/admin/runs`.

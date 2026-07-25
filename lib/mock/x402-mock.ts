@@ -11,14 +11,19 @@ export function createMockX402Quote(input: {
   const ttlSeconds = input.ttlSeconds ?? 300
   const amountUsd = Number((input.units * input.unitPriceUsd).toFixed(6))
   const paymentRef = `mock:${input.serviceId}:${input.chain}:${Date.now()}`
+  const option = { chain: input.chain, amount: `${amountUsd} MOCK`, amountUnits: String(Math.round(amountUsd * 10_000_000)), address: 'mock-address' }
 
   return {
     code: 402,
+    quoteId: paymentRef,
+    service: input.serviceId,
     serviceId: input.serviceId,
     chain: input.chain,
     payer: input.payer,
     amountUsd,
-    amountUnits: String(Math.round(amountUsd * 10_000_000)),
+    amountUnits: option.amountUnits,
+    address: option.address,
+    options: [option],
     expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
     paymentRef,
     memo: `mock-x402/${input.serviceId}/${input.chain}`,

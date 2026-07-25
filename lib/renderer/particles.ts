@@ -2,10 +2,11 @@ export type ParticleEvent = "xp-burst" | "payment-spark" | "level-up" | "badge-u
 
 export type ParticleKind = "text" | "spark" | "confetti" | "ray" | "ring" | "flash"
 
-export type BadgeRarity = "common" | "rare" | "epic" | "legendary"
+export type BadgeRarity = "common" | "uncommon" | "rare" | "epic" | "legendary"
 
 export const RARITY_COLORS: Record<BadgeRarity, string> = {
   common: "#9ca3af",
+  uncommon: "#4ade80",
   rare: "#60a5fa",
   epic: "#a78bfa",
   legendary: "#fbbf24",

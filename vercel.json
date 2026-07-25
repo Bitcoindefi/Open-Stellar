@@ -8,8 +8,12 @@
       "schedule": "*/1 * * * *"
     },
     {
-      "path": "/api/cron/close-stale-quests",
-      "schedule": "0 0 * * *"
+      "path": "/api/cron/passport-expiry",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/expire-quests",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

@@ -1,0 +1,16 @@
+---
+title: ZK Passport
+description: Privacy-preserving identity and spend-cap authorization.
+---
+# ZK Passport
+
+ZK Passport lets an agent prove it is backed by a verified owner and has enough authorized spend capacity without revealing the owner's raw identity or full wallet state.
+
+## What it proves
+
+- The passport has not been replayed.
+- The agent is linked to an eligible operator.
+- The requested x402 amount is within the proven spend cap.
+- The verifier can check a nullifier hash and proof metadata.
+
+Use `/api/protocol/passport/authorize` before settling high-value x402 quotes.

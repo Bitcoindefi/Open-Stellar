@@ -3,6 +3,11 @@ import { withLogtail } from '@logtail/next'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async rewrites() {
+    return [
+      { source: "/agents/:id(cloud-[^/]+)", destination: "/agent-functions/:id" },
+    ]
+  },
   images: {
     unoptimized: true,
   },

@@ -4,6 +4,13 @@ import { ACCESSORIES } from "./cosmetics"
 
 const PIXEL = 2
 
+type DistrictRenderEventState = {
+  isLeading?: boolean
+  rank?: number
+  scoreLabel?: string
+  multiplier?: number
+}
+
 function drawRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
   ctx.fillStyle = color
   ctx.fillRect(x, y, w, h)
@@ -59,7 +66,14 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, x: number, y: number
   }
 }
 
-export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: number, bgImage?: HTMLImageElement) {
+export function drawDistrict(
+  ctx: CanvasRenderingContext2D,
+  d: District,
+  tick: number,
+  bgImage?: HTMLImageElement,
+  colorBlindMode = false,
+  eventState: DistrictRenderEventState | null = null,
+) {
   // Save state for clipping
   ctx.save()
 
@@ -82,11 +96,63 @@ export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: n
   if (bgImage) {
     ctx.drawImage(bgImage, d.x, d.y, d.w, d.h)
     // Semi-transparent overlay to darken and tint with district color
-    ctx.fillStyle = d.bgColor + "cc"
+    ctx.fillStyle = d.bgColor + (colorBlindMode ? "ee" : "cc")
     ctx.fillRect(d.x, d.y, d.w, d.h)
   } else {
     ctx.fillStyle = d.bgColor
     ctx.fillRect(d.x, d.y, d.w, d.h)
+  }
+
+  // Pattern fills for color-blind mode
+  if (colorBlindMode) {
+    ctx.save()
+    ctx.strokeStyle = d.color + "44"
+    ctx.lineWidth = 1
+    const idx = DISTRICTS.findIndex(dist => dist.id === d.id)
+
+    if (idx === 0) { // Data Center - Diagonal Hatching
+      for (let i = -d.h; i < d.w; i += 8) {
+        ctx.beginPath()
+        ctx.moveTo(d.x + i, d.y)
+        ctx.lineTo(d.x + i + d.h, d.y + d.h)
+        ctx.stroke()
+      }
+    } else if (idx === 1) { // Comm Hub - Dots
+      ctx.fillStyle = d.color + "44"
+      for (let px = 4; px < d.w; px += 10) {
+        for (let py = 4; py < d.h; py += 10) {
+          ctx.beginPath()
+          ctx.arc(d.x + px, d.y + py, 1, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+    } else if (idx === 2) { // Processing - Crosshatch
+      for (let i = 0; i < d.w + d.h; i += 10) {
+        ctx.beginPath()
+        ctx.moveTo(d.x + i, d.y)
+        ctx.lineTo(d.x, d.y + i)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(d.x + d.w - i, d.y)
+        ctx.lineTo(d.x + d.w, d.y + i)
+        ctx.stroke()
+      }
+    } else if (idx === 3) { // Defense - Vertical Stripes
+      for (let i = 0; i < d.w; i += 6) {
+        ctx.beginPath()
+        ctx.moveTo(d.x + i, d.y)
+        ctx.lineTo(d.x + i, d.y + d.h)
+        ctx.stroke()
+      }
+    } else { // Research Lab - Horizontal Stripes
+      for (let i = 0; i < d.h; i += 6) {
+        ctx.beginPath()
+        ctx.moveTo(d.x, d.y + i)
+        ctx.lineTo(d.x + d.w, d.y + i)
+        ctx.stroke()
+      }
+    }
+    ctx.restore()
   }
 
   // Pixel scanline effect over the background
@@ -98,8 +164,11 @@ export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: n
   ctx.restore()
 
   // Border glow
-  ctx.strokeStyle = d.color + "55"
-  ctx.lineWidth = 2
+  const eventPulse = eventState ? Math.sin(tick * 0.16) * 0.25 + 0.75 : 0
+  ctx.shadowColor = eventState ? d.color : "transparent"
+  ctx.shadowBlur = eventState ? (eventState.isLeading ? 24 : 12) * eventPulse : 0
+  ctx.strokeStyle = eventState ? d.color + (eventState.isLeading ? "dd" : "99") : d.color + "55"
+  ctx.lineWidth = eventState?.isLeading ? 4 : 2
   ctx.beginPath()
   ctx.moveTo(d.x + radius, d.y)
   ctx.lineTo(d.x + d.w - radius, d.y)
@@ -112,6 +181,7 @@ export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: n
   ctx.quadraticCurveTo(d.x, d.y, d.x + radius, d.y)
   ctx.closePath()
   ctx.stroke()
+  ctx.shadowBlur = 0
 
   // Animated corner glow pulses
   const pulse = Math.sin(tick * 0.05) * 0.3 + 0.7
@@ -130,11 +200,18 @@ export function drawDistrict(ctx: CanvasRenderingContext2D, d: District, tick: n
 
   // District label with background pill
   ctx.font = "bold 10px monospace"
-  const labelW = ctx.measureText(d.name.toUpperCase()).width + 12
+  const districtLabel = d.name.toUpperCase()
+  const scoreLabel = eventState?.scoreLabel ? ` #${eventState.rank} ${eventState.scoreLabel}${eventState.multiplier && eventState.multiplier > 1 ? ` ${eventState.multiplier}x` : ""}` : ""
+  const labelW = Math.max(ctx.measureText(districtLabel).width, scoreLabel ? ctx.measureText(scoreLabel).width : 0) + 12
   ctx.fillStyle = d.bgColor + "dd"
-  ctx.fillRect(d.x + 6, d.y + 6, labelW, 18)
+  ctx.fillRect(d.x + 6, d.y + 6, labelW, scoreLabel ? 30 : 18)
   ctx.fillStyle = d.color
-  ctx.fillText(d.name.toUpperCase(), d.x + 12, d.y + 18)
+  ctx.fillText(districtLabel, d.x + 12, d.y + 18)
+  if (scoreLabel) {
+    ctx.font = "bold 9px monospace"
+    ctx.fillStyle = eventState?.isLeading ? "#fbbf24" : "#cbd5e1"
+    ctx.fillText(scoreLabel, d.x + 12, d.y + 30)
+  }
 }
 
 // Cache for processed sprites: key = src+color
@@ -215,7 +292,9 @@ function getProcessedSprite(
   maxX = Math.min(srcW - 1, maxX + pad)
   maxY = Math.min(srcH - 1, maxY + pad)
   const cropW = maxX - minX + 1
+  const cropW_safe = cropW <= 0 ? 1 : cropW
   const cropH = maxY - minY + 1
+  const cropH_safe = cropH <= 0 ? 1 : cropH
 
   // Step 3: draw auto-cropped content into output, removing background
   const size = 42
@@ -224,16 +303,16 @@ function getProcessedSprite(
   out.height = size
   const oc = out.getContext("2d")!
   // Draw from the tmp canvas (already sub-cropped) using the auto-crop bounds
-  oc.drawImage(tmp, minX, minY, cropW, cropH, 0, 0, size, size)
+  oc.drawImage(tmp, minX, minY, cropW_safe, cropH_safe, 0, 0, size, size)
 
   const imgData = oc.getImageData(0, 0, size, size)
-  const d = imgData.data
-  for (let i = 0; i < d.length; i += 4) {
-    const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3]
-    if (a < 50) { d[i + 3] = 0; continue }
+  const d_pixels = imgData.data
+  for (let i = 0; i < d_pixels.length; i += 4) {
+    const r = d_pixels[i], g = d_pixels[i + 1], b = d_pixels[i + 2], a = d_pixels[i + 3]
+    if (a < 50) { d_pixels[i + 3] = 0; continue }
     const dist = Math.abs(r - bgR) + Math.abs(g - bgG) + Math.abs(b - bgB)
     if (dist < tolerance) {
-      d[i + 3] = 0
+      d_pixels[i + 3] = 0
     }
   }
   oc.putImageData(imgData, 0, 0)
@@ -469,7 +548,14 @@ function drawOfflineText(ctx: CanvasRenderingContext2D, cx: number, y: number) {
   ctx.textAlign = "left"
 }
 
-function drawStatusDot(ctx: CanvasRenderingContext2D, status: string, drawX: number, drawY: number, spriteSize: number) {
+function drawStatusDot(
+  ctx: CanvasRenderingContext2D,
+  status: string,
+  drawX: number,
+  drawY: number,
+  spriteSize: number,
+  colorBlindMode = false
+) {
   const statusColors: Record<string, string> = {
     active: "#34d399",
     working: "#fbbf24",
@@ -477,10 +563,44 @@ function drawStatusDot(ctx: CanvasRenderingContext2D, status: string, drawX: num
     error: "#f87171",
     offline: "#1e293b",
   }
-  drawRect(ctx, drawX + spriteSize - 6, drawY + 2, 5, 5, statusColors[status] || "#64748b")
+
+  const sx = drawX + spriteSize - 6
+  const sy = drawY + 2
+  const sw = 6
+  const sh = 6
+
+  ctx.fillStyle = statusColors[status] || "#64748b"
+
+  if (colorBlindMode) {
+    ctx.beginPath()
+    if (status === "active") { // Circle
+      ctx.arc(sx + sw/2, sy + sh/2, sw/2, 0, Math.PI * 2)
+    } else if (status === "working") { // Diamond
+      ctx.moveTo(sx + sw/2, sy)
+      ctx.lineTo(sx + sw, sy + sh/2)
+      ctx.lineTo(sx + sw/2, sy + sh)
+      ctx.lineTo(sx, sy + sh/2)
+    } else if (status === "error" || status === "offline") { // X
+      ctx.fillRect(sx, sy, sw, sh)
+      ctx.strokeStyle = "#fff"
+      ctx.lineWidth = 1
+      ctx.moveTo(sx, sy)
+      ctx.lineTo(sx + sw, sy + sh)
+      ctx.moveTo(sx + sw, sy)
+      ctx.lineTo(sx, sy + sh)
+      ctx.stroke()
+    } else { // Square
+      ctx.rect(sx, sy, sw, sh)
+    }
+    ctx.fill()
+  } else {
+    ctx.fillRect(sx, sy, sw, sh)
+  }
+
+  // Status dot border
   ctx.strokeStyle = "#0a0e17"
   ctx.lineWidth = 0.5
-  ctx.strokeRect(drawX + spriteSize - 6, drawY + 2, 5, 5)
+  ctx.strokeRect(sx, sy, sw, sh)
 }
 
 function drawNameLabel(ctx: CanvasRenderingContext2D, name: string, cx: number, y: number, spriteSize: number, c: string) {
@@ -505,7 +625,20 @@ function drawTaskProgressBar(ctx: CanvasRenderingContext2D, agent: MoltbotAgent,
   ctx.strokeRect(barX, barY, barW, barH)
 }
 
-export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick: number, isSelected: boolean, sprite?: HTMLImageElement, cropRegion?: [number, number, number, number]) {
+function drawCloudBadge(ctx: CanvasRenderingContext2D, drawX: number, drawY: number) {
+  ctx.save()
+  ctx.font = "bold 7px monospace"
+  ctx.textAlign = "center"
+  ctx.fillStyle = "#0f172a"
+  ctx.fillRect(drawX + 2, drawY - 9, 32, 9)
+  ctx.strokeStyle = "#38bdf8"
+  ctx.strokeRect(drawX + 2, drawY - 9, 32, 9)
+  ctx.fillStyle = "#7dd3fc"
+  ctx.fillText("CLOUD", drawX + 18, drawY - 2)
+  ctx.restore()
+}
+
+export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick: number, isSelected: boolean, sprite?: HTMLImageElement, cropRegion?: [number, number, number, number], colorBlindMode = false) {
   const x = Math.round(agent.pixelX)
   const y = Math.round(agent.pixelY)
   const c = agent.color
@@ -516,6 +649,17 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
 
   if (isSelected) {
     drawSelectionRing(ctx, agent, tick, cx, cy, c)
+  }
+
+  const isDistrictLeader = (agent as MoltbotAgent & { isDistrictLeader?: boolean }).isDistrictLeader
+
+  if (isDistrictLeader) {
+    const pulse = Math.sin(tick * 0.1) * 0.25 + 0.75
+    ctx.strokeStyle = `${c}${Math.round(pulse * 120).toString(16).padStart(2, "0")}`
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(cx, cy + 4, 20 + pulse * 3, 0, Math.PI * 2)
+    ctx.stroke()
   }
 
   if (agent.status === "offline") {
@@ -548,8 +692,22 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
     drawOfflineText(ctx, cx, y)
   }
 
-  drawStatusDot(ctx, agent.status, drawX, drawY, spriteSize)
+  // Crown overlay for top global performers. The city canvas derives the top three
+  // from completed task totals so the visual stays in sync with leaderboard data.
+  const globalRank = (agent as MoltbotAgent & { leaderboardRank?: number }).leaderboardRank
+  if (globalRank && globalRank <= 3) {
+    ctx.font = "bold 14px serif"
+    ctx.textAlign = "center"
+    ctx.fillText("👑", cx, drawY - 4)
+    ctx.textAlign = "left"
+  }
+
+  drawStatusDot(ctx, agent.status, drawX, drawY, spriteSize, colorBlindMode)
   drawNameLabel(ctx, agent.name, cx, y, spriteSize, c)
+
+  if (agent.deployment === "cloud") {
+    drawCloudBadge(ctx, drawX, drawY)
+  }
 
   if (agent.status === "working" && agent.taskProgress > 0) {
     drawTaskProgressBar(ctx, agent, cx, y, spriteSize, c)

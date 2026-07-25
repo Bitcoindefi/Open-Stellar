@@ -1,0 +1,29 @@
+{
+  "name": "create-open-stellar-app",
+  "version": "0.1.0",
+  "description": "Scaffold a new Open Stellar node in one command",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "create-open-stellar-app": "./bin/create-open-stellar-app.js"
+  },
+  "files": [
+    "bin",
+    "template"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "open-stellar",
+    "stellar",
+    "x402",
+    "scaffold",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bitcoindefi/Open-Stellar.git",
+    "directory": "packages/create-app"
+  }
+}
