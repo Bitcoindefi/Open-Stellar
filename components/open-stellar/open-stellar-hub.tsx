@@ -20,12 +20,10 @@ function nowTime() {
 }
 
 function secureRandom(): number {
-  if (typeof window !== "undefined" && window.crypto && window.crypto.getRandomValues) {
-    const array = new Uint32Array(1)
-    window.crypto.getRandomValues(array)
-    return array[0] / 4294967296
-  }
-  return Math.random()
+  const array = new Uint32Array(1)
+  const c = typeof crypto !== "undefined" ? crypto : (globalThis as any).crypto
+  c.getRandomValues(array)
+  return array[0] / 4294967296
 }
 
 const ONBOARDING_STEPS = [
@@ -603,15 +601,18 @@ export function OpenStellarHub() {
           const taskProgress = Math.min(100, agent.taskProgress + progressDelta)
           const finishedTask = taskProgress >= 100
 
+          let status: MoltbotAgent["status"] = "working"
+          if (finishedTask) {
+            status = "active"
+          } else if (secureRandom() < 0.04) {
+            status = "idle"
+          }
+
           return {
             ...agent,
             cpu: Math.max(10, Math.min(98, agent.cpu + (secureRandom() - 0.5) * 10)),
             memory: Math.max(20, Math.min(95, agent.memory + (secureRandom() - 0.5) * 6)),
-            status: finishedTask
-              ? "active"
-              : secureRandom() < 0.04
-              ? "idle"
-              : "working",
+            status,
             taskProgress: finishedTask ? 0 : taskProgress,
             tasksCompleted: finishedTask ? agent.tasksCompleted + 1 : agent.tasksCompleted,
             currentTask: finishedTask ? getRandomTask(agent.district) : agent.currentTask,

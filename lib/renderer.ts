@@ -413,12 +413,9 @@ function drawBotSprite(
   tick: number,
   sprite: HTMLImageElement,
   cropRegion: [number, number, number, number] | undefined,
-  drawX: number,
-  drawY: number,
-  spriteSize: number,
-  c: string,
-  cx: number
+  opts: { drawX: number; drawY: number; spriteSize: number; c: string; cx: number }
 ) {
+  const { drawX, drawY, spriteSize, c, cx } = opts
   const tinted = getProcessedSprite(sprite, c, cropRegion)
   ctx.save()
   const skinId = agent.appearance?.skin ?? "default"
@@ -535,7 +532,7 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
   const drawX = x - spriteSize / 2 + 8
 
   if (sprite) {
-    drawBotSprite(ctx, agent, tick, sprite, cropRegion, drawX, drawY, spriteSize, c, cx)
+    drawBotSprite(ctx, agent, tick, sprite, cropRegion, { drawX, drawY, spriteSize, c, cx })
   } else {
     // Minimal fallback if sprite hasn't loaded
     drawRect(ctx, x + 2, y + bobY, 12, 16, c)
