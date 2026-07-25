@@ -40,6 +40,11 @@ export function slugifyAgent(agent: Pick<MoltbotAgent, "id" | "name">): string {
     .replace(/(^-|-$)/g, "") || agent.id
 }
 
+import { getRegisteredAgent } from "@/lib/agent-registry"
+import { getAgentXP } from "@/lib/gamification/xp"
+import { listAgentTasks } from "@/lib/agents/task-queue"
+import { getAgentHealth } from "@/lib/agents/agent-health-store"
+
 function normalizeLookup(id: string): string {
   try {
     return decodeURIComponent(id).trim().toLowerCase()
@@ -50,11 +55,56 @@ function normalizeLookup(id: string): string {
 
 export function findAgentByLookup(id: string, agents: MoltbotAgent[] = createAgents()): MoltbotAgent | null {
   const lookup = normalizeLookup(id)
-  return agents.find((agent) => (
+  const found = agents.find((agent) => (
     agent.id.toLowerCase() === lookup ||
     agent.name.toLowerCase() === lookup ||
     slugifyAgent(agent) === lookup
-  )) ?? null
+  ))
+  if (found) return found
+
+  // Fallback to registered agent from the in-memory store
+  const reg = getRegisteredAgent(decodeURIComponent(id)) || getRegisteredAgent(id)
+  if (reg) {
+    const progress = getAgentXP(reg.agentId)
+    const tasksCompleted = listAgentTasks(reg.agentId)
+      .filter((task) => task.status === "completed")
+      .length
+    const health = getAgentHealth(reg.agentId)
+    
+    return {
+      id: reg.agentId,
+      name: reg.agentId,
+      model: reg.model,
+      xp: progress.xp,
+      level: progress.level,
+      xpToNext: progress.xpToNext,
+      status: reg.status,
+      district: reg.district,
+      cpu: health?.cpu ?? 0,
+      memory: health?.memory ?? 0,
+      tasksCompleted,
+      currentTask: health?.currentTask ?? null,
+      taskProgress: 0,
+      color: "#22d3ee",
+      pixelX: 0,
+      pixelY: 0,
+      targetX: 0,
+      targetY: 0,
+      frame: 0,
+      direction: "left",
+      spriteId: 0,
+      skills: reg.capabilities.map((c, i) => ({
+        id: `${reg.district}-skill-${i}`,
+        name: c,
+        level: 1,
+        maxLevel: 5,
+        xp: 0,
+        xpToNext: 100
+      }))
+    }
+  }
+
+  return null
 }
 
 export function findDistrictByLookup(id: string): District | null {
