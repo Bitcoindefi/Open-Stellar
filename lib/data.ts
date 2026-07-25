@@ -39,9 +39,6 @@ const SKILL_POOL: Record<DistrictId, string[]> = {
 }
 
 function secureRandom(): number {
-  if (typeof globalThis !== "undefined" && (globalThis as any).process?.env?.NODE_ENV === "test") {
-    return Math['random']()
-  }
   const array = new Uint32Array(1)
   const c = typeof crypto !== "undefined" ? crypto : (globalThis as any).crypto
   c.getRandomValues(array)

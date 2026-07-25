@@ -17,7 +17,6 @@ import {
   getAgentProfilePath,
 } from "@/lib/og-card-data"
 
-import { getRegisteredAgent } from "@/lib/agent-registry"
 import { getAgentHealth } from "@/lib/agents/agent-health-store"
 import { getReputation } from "@/lib/reputation/reputation-store"
 import { getQuests } from "@/lib/gamification/quests"
@@ -123,35 +122,35 @@ export default async function AgentPage({ params }: AgentPageProps) {
     const res = await fetch(absoluteUrl(`/api/agents/${id}`), { cache: 'no-store' })
     if (res.ok) metaData = await res.json()
   } catch (e) {
-    // Ignore fetch error, fallback will handle it
+    console.warn(`Failed to fetch metadata for agent ${id}:`, e)
   }
 
   try {
     const res = await fetch(absoluteUrl(`/api/agents/${id}/health`), { cache: 'no-store' })
     if (res.ok) healthData = await res.json()
   } catch (e) {
-    // Ignore fetch error
+    console.warn(`Failed to fetch health for agent ${id}:`, e)
   }
 
   try {
     const res = await fetch(absoluteUrl(`/api/protocol/reputation?actorId=${id}`), { cache: 'no-store' })
     if (res.ok) reputationData = await res.json()
   } catch (e) {
-    // Ignore fetch error
+    console.warn(`Failed to fetch reputation for agent ${id}:`, e)
   }
 
   try {
     const res = await fetch(absoluteUrl(`/api/agents/${id}/quest-recommendations`), { cache: 'no-store' })
     if (res.ok) questsData = await res.json()
   } catch (e) {
-    // Ignore fetch error
+    console.warn(`Failed to fetch quest recommendations for agent ${id}:`, e)
   }
 
   try {
     const res = await fetch(absoluteUrl(`/api/agents/${id}/xp/history?pageSize=100`), { cache: 'no-store' })
     if (res.ok) xpHistoryData = await res.json()
   } catch (e) {
-    // Ignore fetch error
+    console.warn(`Failed to fetch XP history for agent ${id}:`, e)
   }
 
   const localAgent = findAgentByLookup(id)
