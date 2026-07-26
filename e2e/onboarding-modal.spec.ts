@@ -2,16 +2,13 @@ import { expect, test } from "@playwright/test";
 
 test.describe("onboarding modal", () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      window.localStorage.clear();
-    });
+    await page.goto("/");
+    await page.evaluate(() => localStorage.clear());
   });
 
   test("shows the first-visit tour with the expected first step", async ({
     page,
   }) => {
-    await page.goto("/");
-
     await expect(page.getByText("Step 1 of 3")).toBeVisible();
     await expect(page.getByText("Agent City")).toBeVisible();
     await expect(
@@ -23,8 +20,6 @@ test.describe("onboarding modal", () => {
   });
 
   test("steps through all onboarding panels", async ({ page }) => {
-    await page.goto("/");
-
     await expect(page.locator("text=Agent City")).toBeVisible();
 
     const nextButton = page.getByRole("button", { name: "Next", exact: true });
@@ -44,8 +39,6 @@ test.describe("onboarding modal", () => {
   });
 
   test("persists completion after Get started", async ({ page }) => {
-    await page.goto("/");
-
     const nextButton = page.getByRole("button", { name: "Next", exact: true });
     await nextButton.click();
     await nextButton.click();
@@ -62,8 +55,6 @@ test.describe("onboarding modal", () => {
   });
 
   test("allows skipping the tour", async ({ page }) => {
-    await page.goto("/");
-
     await page.getByRole("button", { name: /skip/i }).click();
 
     await expect(page.getByText("Step 1 of 3")).not.toBeVisible();

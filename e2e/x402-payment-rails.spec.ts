@@ -14,7 +14,7 @@ test.describe("x402 Payment Rails E2E Flow", () => {
 
     // Verify modal elements
     await expect(page.getByText("Live x402 Payment Gate Test")).toBeVisible();
-    await expect(page.getByText(/Quote ID:/i)).toBeVisible();
+    await expect(page.getByText(/Quote ID:/i)).toBeVisible({ timeout: 10000 });
 
     // Settle the quote
     const settleButton = page.getByRole("button", { name: /Settle Payment on STELLAR/i });

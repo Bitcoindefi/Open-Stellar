@@ -244,7 +244,9 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
 
   quoteRegistry.delete(paymentRef)
   quoteRegistry.delete(quote.quoteId)
-  void dispatchX402Webhooks(storedReceipt)
+  dispatchX402Webhooks(storedReceipt).catch((err: unknown) => {
+    console.error('[x402] webhook dispatch error', err instanceof Error ? err.message : err)
+  })
   return { ok: true, receipt: storedReceipt }
 }
 

@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DELETE as deleteWebhook, GET as getWebhooks, POST as registerWebhook } from '@/app/api/protocol/x402/webhooks/route'
 import { createX402Quote, settleX402 } from '@/lib/protocols/x402'
 import { dispatchX402Webhooks, resetX402WebhookStoreForTests } from '@/lib/protocols/x402-webhook-store'
+import { resetX402ReceiptStoreForTests } from '@/lib/protocols/x402-receipt-store'
 
 describe('x402 webhooks', () => {
   beforeEach(() => {
     resetX402WebhookStoreForTests()
+    resetX402ReceiptStoreForTests()
   })
 
   it('registers, lists, and deletes a webhook callback', async () => {

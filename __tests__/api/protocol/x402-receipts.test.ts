@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeAll } from "vitest";
 import { GET as listReceipts } from "@/app/api/protocol/x402/receipts/route";
 import { GET as getReceipt } from "@/app/api/protocol/x402/receipts/[receiptId]/route";
 import { createX402Quote, settleX402 } from "@/lib/protocols/x402";
+import { resetX402ReceiptStoreForTests } from "@/lib/protocols/x402-receipt-store";
 
 describe("GET /api/protocol/x402/receipts", () => {
+  beforeAll(() => {
+    resetX402ReceiptStoreForTests();
+  });
+
   it("lists persisted receipts and filters by agent", async () => {
     const quote = createX402Quote({
       serviceId: "data-indexing",

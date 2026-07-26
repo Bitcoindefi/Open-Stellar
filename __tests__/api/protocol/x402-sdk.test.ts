@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, beforeAll } from 'vitest'
 import { withX402 } from '@/lib/sdk/x402'
 import { createX402Subscription } from '@/lib/protocols/x402'
-import { saveX402Receipt } from '@/lib/protocols/x402-receipt-store'
+import { saveX402Receipt, resetX402ReceiptStoreForTests } from '@/lib/protocols/x402-receipt-store'
 
 describe('x402 SDK (withX402 middleware)', () => {
+  beforeAll(() => {
+    resetX402ReceiptStoreForTests()
+  })
+
   it('returns HTTP 402 with quote headers when no payment credentials are provided', async () => {
     const handler = withX402(
       { serviceId: 'oracle-service', unitPriceUsd: 0.1 },

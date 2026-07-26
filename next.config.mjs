@@ -33,6 +33,15 @@ const nextConfig = {
         }),
       );
     }
+
+    // Stub optional @wagmi/connectors dependencies that are not installed.
+    // Without these aliases the client bundle fails with "Module not found".
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@base-org/account": new URL("src/shims/empty-client-shim.js", import.meta.url).pathname,
+      "@metamask/connect-evm": new URL("src/shims/empty-client-shim.js", import.meta.url).pathname,
+    };
+
     return config;
   },
 };

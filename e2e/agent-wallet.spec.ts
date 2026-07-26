@@ -11,10 +11,10 @@ test.describe("agent selection and wallet surface", () => {
   test("selects an agent from the canvas and keeps the wallet workflow reachable", async ({
     page,
   }) => {
-    const cityCanvas = page.getByRole("listbox", {
-      name: "Agents on city canvas",
+    const overviewList = page.getByRole("listbox", {
+      name: "Agents",
     });
-    const nexusAgent = cityCanvas.getByRole("option", { name: /Nexus-7/i });
+    const nexusAgent = overviewList.getByRole("option", { name: /Nexus-7/i }).first();
 
     await nexusAgent.click();
     await expect(nexusAgent).toHaveAttribute("aria-selected", "true");

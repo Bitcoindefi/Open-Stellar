@@ -62,6 +62,12 @@ test.describe("sidebar tab persistence", () => {
 
     await page.reload();
 
+    await page.waitForFunction(
+      () => localStorage.getItem("sidebar-tab") === "wallet",
+      undefined,
+      { timeout: 60000 },
+    );
+
     await expect(tabButton(page, "Wallet")).toHaveAttribute(
       "aria-pressed",
       "true",

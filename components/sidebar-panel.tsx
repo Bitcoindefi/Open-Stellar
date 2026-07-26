@@ -1201,18 +1201,25 @@ export function SidebarPanel({
   showTabBar = true,
 }: SidebarPanelProps) {
   const [uncontrolledActiveTab, setUncontrolledActiveTab] =
-    useState<SidebarTabId>(() => {
-      if (typeof window !== "undefined") {
-        const storedTab = localStorage.getItem(
-          "sidebar-tab",
-        ) as SidebarTabId | null;
-        return storedTab && SIDEBAR_TABS.some((tab) => tab.id === storedTab)
-          ? storedTab
-          : "overview";
-      }
-      return "overview";
-    });
+    useState<SidebarTabId>("overview");
   const activeTab = controlledActiveTab ?? uncontrolledActiveTab;
+
+  // Restore persisted tab only on the client after hydration.
+  // Reading localStorage inside useState() causes a server/client mismatch
+  // because the server always returns "overview" but the client re-renders
+  // with the stored value, triggering a React hydration error.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(
+        "sidebar-tab",
+      ) as SidebarTabId | null;
+      if (stored && SIDEBAR_TABS.some((tab) => tab.id === stored)) {
+        setUncontrolledActiveTab(stored);
+      }
+    } catch {
+      // ignore — localStorage unavailable in restricted environments
+    }
+  }, []);
 
   const setActiveTab = useCallback(
     (tab: SidebarTabId) => {
@@ -1223,7 +1230,11 @@ export function SidebarPanel({
   );
 
   useEffect(() => {
-    localStorage.setItem("sidebar-tab", activeTab);
+    try {
+      localStorage.setItem("sidebar-tab", activeTab);
+    } catch {
+      // ignore
+    }
   }, [activeTab]);
 
   const chatCount = chatMessages.length;

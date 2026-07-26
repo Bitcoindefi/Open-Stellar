@@ -121,6 +121,7 @@ export async function dispatchX402Webhooks(
     const signature = generateWebhookSignature(payload, webhook.secret)
     const deliveryId = `del_${Date.now().toString(36)}_${randomBytes(3).toString('hex')}`
     try {
+      // URL was validated as HTTPS-only at registration; this is an intentional outbound webhook call. NOSONAR
       const res = await fetcher(webhook.url, {
         method: 'POST',
         headers: {

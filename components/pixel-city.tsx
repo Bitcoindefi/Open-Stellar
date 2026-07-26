@@ -947,6 +947,7 @@ export function PixelCity({
         alt=""
         aria-hidden="true"
         unoptimized
+        priority
         fill
         sizes="100vw"
         style={{
