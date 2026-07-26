@@ -858,6 +858,12 @@ export function OpenStellarHub() {
           const levelState = finishedTask ? checkLevelUp(nextXp, agent.level ?? 1) : null
           const skillId = agent.skills[0]?.id
 
+          if (finishedTask && levelState?.leveledUp) {
+            toast.success("Agent Level Up!", {
+              description: `${agent.name} reached Level ${levelState.level}!`,
+            })
+          }
+
           return {
             ...agent,
             xp: finishedTask ? nextXp : agent.xp,
@@ -964,6 +970,7 @@ export function OpenStellarHub() {
     if (!preview.result.upgraded) {
       const blockedReason = preview.result.reason === "max-level" ? "already at max level" : "not enough XP"
       pushLog(`skill upgrade blocked: ${blockedReason}`, "warning", currentAgent.name)
+      toast.error("Skill Upgrade Blocked", { description: `${currentAgent.name}: ${blockedReason}` })
       return
     }
 
@@ -972,6 +979,7 @@ export function OpenStellarHub() {
     )
 
     pushLog(`${preview.result.skill.name} upgraded to level ${preview.result.skill.level}`, "success", preview.agent.name)
+    toast.success("Skill Upgraded!", { description: `${preview.agent.name} upgraded ${preview.result.skill.name} to Level ${preview.result.skill.level}` })
     showAgentOverlay(preview.agent, `${preview.result.skill.name} Lv.${preview.result.skill.level}`, preview.agent.color)
   }, [pushLog, showAgentOverlay])
 

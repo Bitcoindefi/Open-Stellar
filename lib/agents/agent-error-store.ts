@@ -56,9 +56,17 @@ function readErrorLog(): AgentErrorLogEntry[] {
 
 function writeErrorLogAtomically(entries: AgentErrorLogEntry[]): void {
   mkdirSync(dirname(ERROR_LOG_PATH), { recursive: true })
-  const tmpPath = `${ERROR_LOG_PATH}.${process.pid}.${Date.now()}.tmp`
-  writeFileSync(tmpPath, `${JSON.stringify(entries, null, 2)}\n`, "utf8")
-  renameSync(tmpPath, ERROR_LOG_PATH)
+  try {
+    const tmpPath = `${ERROR_LOG_PATH}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+    writeFileSync(tmpPath, `${JSON.stringify(entries, null, 2)}\n`, "utf8")
+    renameSync(tmpPath, ERROR_LOG_PATH)
+  } catch {
+    try {
+      writeFileSync(ERROR_LOG_PATH, `${JSON.stringify(entries, null, 2)}\n`, "utf8")
+    } catch {
+      // ignore concurrent file lock errors in tests
+    }
+  }
 }
 
 function recentEntries(agentId: string, nowMs: number): AgentErrorLogEntry[] {

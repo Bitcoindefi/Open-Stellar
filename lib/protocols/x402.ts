@@ -1,7 +1,7 @@
 import { StrKey } from '@stellar/stellar-sdk'
 import { verifyEvmPayment, type EvmSettlementChain } from '@/lib/evm-utils'
 
-import { getX402Receipt, listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
+import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
 import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
 import { checkReputationGate } from '@/lib/reputation/attestation'
 
@@ -380,18 +380,27 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
 
     const requiredXlm = parseXlmAmount(subscription.pricePerMonth)
     const balance = balances[subscription.agentId]
-    if (requiredXlm > 0 && balance !== undefined && balance < requiredXlm) {
-      subscription.status = now.getTime() <= new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS ? 'grace' : 'paused'
+    const hasExplicitBalanceFailure = requiredXlm > 0 && balance !== undefined && balance < requiredXlm
+    const isUnfundedInGraceOrPaused = requiredXlm > 0 && balance === undefined && (subscription.status === 'grace' || subscription.status === 'paused')
+
+    if (hasExplicitBalanceFailure || isUnfundedInGraceOrPaused) {
+      const graceEndTime = subscription.graceEndsAt
+        ? new Date(subscription.graceEndsAt).getTime()
+        : new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS
+
+      subscription.status = now.getTime() <= graceEndTime ? 'grace' : 'paused'
       subscription.active = subscription.status === 'grace'
-      subscription.graceEndsAt = new Date(new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS).toISOString()
+      subscription.graceEndsAt = new Date(graceEndTime).toISOString()
       if (subscription.status === 'paused') subscription.pausedAt = now.toISOString()
-      subscription.billingEvents.unshift({
-        id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
-        type: 'renewal_failed',
-        amount: subscription.pricePerMonth,
-        at: now.toISOString(),
-        note: 'Insufficient Stellar wallet balance; subscription entered grace/paused state',
-      })
+      if (hasExplicitBalanceFailure) {
+        subscription.billingEvents.unshift({
+          id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
+          type: 'renewal_failed',
+          amount: subscription.pricePerMonth,
+          at: now.toISOString(),
+          note: 'Insufficient Stellar wallet balance; subscription entered grace/paused state',
+        })
+      }
       paused.push(subscription)
       continue
     }
@@ -420,7 +429,6 @@ export function checkX402Subscription(agentId: string, serviceId: string, option
   const subscription = subscriptionRegistry.get(subscriptionKey(agentId.trim(), serviceId.trim()))
   if (!subscription) return { active: false, callsRemaining: 0, renewsAt: '', status: 'missing' }
 
-  renewX402Subscriptions()
   if (!subscription.active) {
     return { active: false, callsRemaining: Math.max(0, (subscription.callsPerMonth ?? 0) - subscription.callsUsed), renewsAt: subscription.renewsAt, status: subscription.status, graceEndsAt: subscription.graceEndsAt, subscription }
   }
