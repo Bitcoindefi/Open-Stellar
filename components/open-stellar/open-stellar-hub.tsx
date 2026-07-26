@@ -246,7 +246,14 @@ export function OpenStellarHub() {
   const [particleTriggers, setParticleTriggers] = useState<ParticleTrigger[]>([])
   const agentLevelsRef = useRef<Map<string, number>>(new Map())
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [sidebarTab, setSidebarTab] = useState<SidebarTabId>("overview")
+  // `open-stellar-hub.tsx` is a 'use client' component — the lazy useState
+  // initializer runs ONLY on the client, never during SSR, so reading
+  // localStorage here is safe and race-condition-free.
+  const [sidebarTab, setSidebarTab] = useState<SidebarTabId>(() => {
+    if (typeof window === "undefined") return "overview"
+    const stored = localStorage.getItem("sidebar-tab") as SidebarTabId | null
+    return stored && SIDEBAR_TABS.some((t) => t.id === stored) ? stored : "overview"
+  })
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false)
   const [isMobile, setIsMobile] = useState<boolean | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -314,6 +321,7 @@ export function OpenStellarHub() {
     }
   }, [])
 
+  // Persist the active tab whenever it changes.
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("sidebar-tab", sidebarTab)
