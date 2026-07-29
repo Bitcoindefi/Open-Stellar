@@ -15,7 +15,9 @@
     "test:coverage": "vitest run --coverage",
     "deploy:evm:guide": "node scripts/deploy/evm/guide.mjs",
     "deploy:soroban:guide": "node scripts/deploy/soroban/guide.mjs",
-    "generate:audio": "node scripts/generate-audio-assets.mjs"
+    "generate:audio": "node scripts/generate-audio-assets.mjs",
+    "docs:generate": "node scripts/generate-contract-docs.mjs",
+    "docs:check": "node scripts/generate-contract-docs.mjs --check"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

@@ -277,6 +277,21 @@ Protecciones recomendadas para `main`:
 
 ---
 
+## Documentación y Referencias de API
+
+- **Arquitectura del Sistema**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- **Referencias de Contratos Inteligentes (Auto-generadas)**: [`docs/contracts/README.md`](docs/contracts/README.md)
+- **Actualizar documentación de contratos**:
+  ```bash
+  npm run docs:generate
+  ```
+- **Validar drift de documentación**:
+  ```bash
+  npm run docs:check
+  ```
+
+---
+
 ## Contratos desplegados (Stellar testnet)
 
 | Contrato | ID |

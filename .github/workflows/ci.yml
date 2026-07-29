@@ -43,6 +43,9 @@ jobs:
       - name: Secret scan
         run: npm run secretlint -- --format=github
 
+      - name: Validate contract docs drift
+        run: npm run docs:check
+
       - name: Build
         run: npm run build
 
