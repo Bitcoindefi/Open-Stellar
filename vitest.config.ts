@@ -18,6 +18,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),
+      "next/server": path.resolve(__dirname, "__mocks__/next/server.ts"),
     },
   },
 })
+
