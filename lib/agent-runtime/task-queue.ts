@@ -324,6 +324,39 @@ export function retryDeadLetterTask(id: string): QueuedTask {
   return retry
 }
 
+export function peekNext(agentId?: string): QueuedTask | null {
+  const pending = listTasks({ agentId, status: "pending" })
+  return pending[0] || null
+}
+
+export function dequeue(agentId?: string): QueuedTask | null {
+  const next = peekNext(agentId)
+  if (!next) return null
+  const updated = {
+    ...next,
+    status: "leased" as const,
+    updatedAt: new Date().toISOString(),
+  }
+  queueState.tasks.set(next.id, updated)
+  return updated
+}
+
+export function retryAll(): number {
+  let count = 0
+  for (const task of queueState.tasks.values()) {
+    if (task.status === "dead-letter") {
+      queueState.tasks.set(task.id, {
+        ...task,
+        status: "pending",
+        retryCount: 0,
+        scheduledFor: undefined,
+        deadLetteredAt: undefined,
+        updatedAt: new Date().toISOString(),
+      })
+      count++
+    }
+  }
+  return count
 export function discardDeadLetterTask(id: string): QueuedTask {
   const task = queueState.tasks.get(id)
   if (!task) throw new Error("Task not found")
