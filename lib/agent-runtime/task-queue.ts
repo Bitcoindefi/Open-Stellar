@@ -357,6 +357,8 @@ export function retryAll(): number {
     }
   }
   return count
+}
+
 export function discardDeadLetterTask(id: string): QueuedTask {
   const task = queueState.tasks.get(id)
   if (!task) throw new Error("Task not found")
