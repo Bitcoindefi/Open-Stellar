@@ -3,12 +3,16 @@ import { afterEach, describe, expect, it } from "vitest"
 import { GET as getQuestsRoute } from "@/app/api/quests/route"
 import {
   buildQuests,
+  completeQuest,
+  getQuestById,
   getNextDailyReset,
   getNextWeeklyReset,
   recordCompletedQuestNotifications,
   type QuestStats,
 } from "@/lib/gamification/quests"
+import { subscribeToSystemEvents } from "@/lib/events/system-events"
 import { listUnseenNotifications, resetNotificationStore } from "@/lib/notifications/notification-store"
+import { resetAgentXpDb } from "@/lib/gamification/xp"
 
 const completeStats: QuestStats = {
   tasksCompletedToday: 5,
@@ -26,6 +30,7 @@ const completeStats: QuestStats = {
 
 afterEach(() => {
   resetNotificationStore()
+  resetAgentXpDb()
 })
 
 describe("quests", () => {
@@ -86,5 +91,29 @@ describe("quests", () => {
     expect(res.status).toBe(200)
     expect(data.quests.length).toBeGreaterThan(0)
     expect(listUnseenNotifications("quest-route-agent")).toEqual([])
+  })
+
+  it("publishes a quest completion event with the XP reward when a quest is completed", () => {
+    const quest = getQuestById("daily-complete-5-tasks", new Date("2026-06-26T13:45:00.000Z"))
+    expect(quest).not.toBeNull()
+
+    const events: Array<{ type: string; questTitle?: string; reward?: { xp?: number } }> = []
+    const unsubscribe = subscribeToSystemEvents((event) => {
+      events.push(event)
+    })
+
+    const result = completeQuest("quest-agent", quest!)
+    unsubscribe()
+
+    expect(result.xpAward.awardedXp).toBe(50)
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "quest.completed",
+          questTitle: "Complete 5 tasks",
+          reward: { xp: 50 },
+        }),
+      ]),
+    )
   })
 })

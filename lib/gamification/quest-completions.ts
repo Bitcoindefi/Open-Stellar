@@ -34,6 +34,17 @@ export function markQuestClaimed(questId: string, actorId: string): void {
   store().add(key(questId, actorId))
 }
 
+export function countClaimedQuests(actorId: string): number {
+  const prefix = `::${actorId}`
+  let count = 0
+  for (const entry of store()) {
+    if (entry.endsWith(prefix)) {
+      count += 1
+    }
+  }
+  return count
+}
+
 /** Test helper — clears all recorded completions. */
 export function resetQuestCompletions(): void {
   store().clear()

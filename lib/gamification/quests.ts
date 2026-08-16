@@ -1,4 +1,7 @@
 import { addNotification } from "@/lib/notifications/notification-store"
+import { publishSystemEvent } from "@/lib/events/system-events"
+import { XP_AWARDS } from "@/lib/gamification/constants"
+import { awardXP, type XPAwardResult } from "@/lib/gamification/xp"
 import { invalidateLeaderboardCache } from "./leaderboard-cache"
 import { listStoredQuests } from "./quest-store"
 
@@ -33,6 +36,11 @@ export interface Quest {
   expiresAt?: string
   subTasks?: SubTask[]
   status?: "in_progress" | "completed"
+}
+
+export interface QuestCompletionResult {
+  quest: Quest
+  xpAward: XPAwardResult
 }
 
 interface QuestDefinition {
@@ -361,6 +369,22 @@ export function getQuests(now: Date = new Date()): Quest[] {
 
 export function getQuestById(id: string, now: Date = new Date()): Quest | null {
   return getQuests(now).find((quest) => quest.id === id) ?? null
+}
+
+export function completeQuest(agentId: string, quest: Quest): QuestCompletionResult {
+  const xpAmount = Math.max(0, quest.reward.xp || XP_AWARDS.QUEST_COMPLETED)
+  const xpAward = awardXP(agentId, xpAmount, "quest.completed")
+
+  publishSystemEvent({
+    type: "quest.completed",
+    agentId,
+    questId: quest.id,
+    questTitle: quest.title,
+    quest,
+    reward: { xp: xpAward.awardedXp },
+  })
+
+  return { quest, xpAward }
 }
 
 export function recordCompletedQuestNotifications(agentId: string, quests: Quest[]): void {

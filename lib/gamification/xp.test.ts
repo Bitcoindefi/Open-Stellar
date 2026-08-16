@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 import { XP_AWARDS } from "@/lib/gamification/constants"
-import { awardSkillXP, checkLevelUp, getXpToNextLevel } from "@/lib/gamification/xp"
+import { subscribeToSystemEvents } from "@/lib/events/system-events"
+import { awardSkillXP, awardXP, checkLevelUp, getXpToNextLevel, resetAgentXpDb } from "@/lib/gamification/xp"
 import type { Skill } from "@/lib/types"
+
+afterEach(() => {
+  resetAgentXpDb()
+})
 
 describe("XP leveling", () => {
   it("uses cumulative 1.5x level thresholds", () => {
@@ -26,5 +31,28 @@ describe("XP leveling", () => {
       { id: "data", name: "Data Mining", level: 1, maxLevel: 5, xp: 10, xpToNext: 50 },
       { id: "ops", name: "Backup Ops", level: 1, maxLevel: 5, xp: 0, xpToNext: 50 },
     ])
+  })
+
+  it("publishes a leveled-up XP event when crossing a level threshold", () => {
+    const events: Array<{ type: string; level?: number; leveledUp?: boolean; previousLevel?: number }> = []
+    const unsubscribe = subscribeToSystemEvents((event) => {
+      events.push(event)
+    })
+
+    const award = awardXP("agent-level-up", 100, "task.completed")
+    unsubscribe()
+
+    expect(award.level).toBe(2)
+    expect(award.leveledUp).toBe(true)
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "agent.xp",
+          level: 2,
+          previousLevel: 1,
+          leveledUp: true,
+        }),
+      ]),
+    )
   })
 })
