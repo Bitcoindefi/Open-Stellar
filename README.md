@@ -201,6 +201,9 @@ LOGTAIL_SOURCE_TOKEN=logtail-source-token
 # Custom EVM RPC URLs for x402 settlement (opcional)
 NEXT_PUBLIC_BNB_RPC_URL=https://tu-rpc-bnb.com
 NEXT_PUBLIC_BASE_RPC_URL=https://tu-rpc-base.com
+
+# Optional settlement webhook for merchant backends
+WEBHOOK_URL=https://merchant.example/webhooks/open-stellar
 ```
 
 Obtener WalletConnect project ID en [cloud.walletconnect.com](https://cloud.walletconnect.com).
@@ -210,6 +213,8 @@ Obtener WalletConnect project ID en [cloud.walletconnect.com](https://cloud.wall
 Set `NEXT_PUBLIC_MOCK_MODE=true` in `.env.local` to run the local demo without live Stellar testnet, Friendbot, Soroban, or x402 settlement calls. Mock mode returns a fixed funded Stellar balance, mock transaction hashes, mock x402 receipts, and mock passport attestations. A yellow banner appears at the top of the app so operators do not mistake mock responses for real payments.
 
 ### Observabilidad de API
+
+Cuando `WEBHOOK_URL` esta configurado, cada liquidacion x402 exitosa envia un `POST` con el recibo normalizado. Los intentos se guardan en `.data/webhook-log.json`; cada entrega fallida se reintenta tres veces con backoff de 1, 3 y 9 segundos. El endpoint protegido `GET /api/webhooks/test` permite verificar la integracion usando el mismo token Bearer que las rutas administrativas.
 
 Las rutas bajo `/api/protocol/*` y `/api/stellar/*` emiten logs estructurados mediante Better Stack / Logtail cuando `LOGTAIL_SOURCE_TOKEN` está configurado. La app tambien envuelve `next.config.mjs` con `withLogtail` para habilitar la integracion de Next.js. Si la variable no existe, el logger queda en modo no-op para desarrollo local.
 

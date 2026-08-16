@@ -105,7 +105,7 @@ const globalState = globalThis as typeof globalThis & {
 
 const quoteRegistry: QuoteRegistry = globalState.__x402QuoteRegistry__ ?? new Map()
 if (!globalState.__x402QuoteRegistry__) globalState.__x402QuoteRegistry__ = quoteRegistry
-export interface X402SettlementResult { ok: boolean; receipt?: X402Receipt; error?: string }
+export interface X402SettlementResult { ok: boolean; receipt?: X402ExplorerReceipt; error?: string }
 
 export function peekX402Quote(paymentRef: string): X402Quote | undefined { return quoteRegistry.get(paymentRef) }
 

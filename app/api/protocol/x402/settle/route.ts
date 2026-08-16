@@ -7,6 +7,7 @@ import { settleMockX402 } from '@/lib/mock/x402-mock'
 import { publishSystemEvent } from '@/lib/events/system-events'
 import { XP_AWARDS } from '@/lib/gamification/constants'
 import { awardXP } from '@/lib/gamification/xp'
+import { createSettlementWebhookPayload, deliverSettlementWebhook } from '@/lib/protocols/x402-settlement-webhook'
 
 function ledgerFromBody(body: Record<string, unknown>): unknown {
   return body.lastPaymentLedger ?? body.ledger ?? body.ledgerSequence
@@ -79,6 +80,16 @@ export async function POST(req: Request) {
           receipt,
         })
       }
+      const webhookPayload = createSettlementWebhookPayload({
+        receipt: {
+          ...receipt,
+          quoteId: quote?.quoteId,
+          amountUnits: quote?.options.find((option) => option.chain === chain)?.amountUnits,
+        },
+        requestUrl: req.url,
+        fallbackAgentId: agentId || quote?.payer || paidBy,
+      })
+      await deliverSettlementWebhook(webhookPayload)
       return await api.json({ ok: true, receipt, subscriptionProof }, undefined, { event: 'x402.settle.mock', paymentRef, subscriptionId })
     }
 
@@ -136,6 +147,13 @@ export async function POST(req: Request) {
       receipt: result.receipt,
     })
     awardXP(agentId || paidBy, XP_AWARDS.X402_PAYMENT_RECEIVED, 'payment.received')
+
+    const webhookPayload = createSettlementWebhookPayload({
+      receipt: result.receipt,
+      requestUrl: req.url,
+      fallbackAgentId: agentId || quote?.payer || paidBy,
+    })
+    await deliverSettlementWebhook(webhookPayload)
 
     return await api.json({ ok: true, receipt: result.receipt, subscriptionProof }, undefined, {
       event: 'x402.settle.completed',

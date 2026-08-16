@@ -15,6 +15,9 @@ MOLTBOT_GATEWAY_TOKEN=dev-token-change-in-prod
 # Optional - Better Stack / Logtail source token for structured API logs
 # LOGTAIL_SOURCE_TOKEN=logtail-source-token
 
+# Optional - receive a POST after each successful x402 settlement
+# WEBHOOK_URL=https://merchant.example/webhooks/open-stellar
+
 # Cloudflare Access configuration for /_admin and /api routes
 # Required for admin UI and device pairing API in production
 # CF_ACCESS_TEAM_DOMAIN=myteam.cloudflareaccess.com
