@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Press_Start_2P, VT323 } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { NotificationProvider } from '@/components/notifications/notification-provider'
 import { WalletProvider } from '@/components/wallet/wallet-provider'
 import { MockBanner } from '@/components/mock-banner'
 import { PwaRegister } from '@/components/pwa-register'
@@ -56,11 +55,9 @@ export default function RootLayout({
     <html lang="en" className="bg-background">
       <body className={`${pressStart2P.variable} ${vt323.variable} font-sans antialiased`}>
         <MockBanner />
-        <NotificationProvider>
-          <WalletProvider>
-            {children}
-          </WalletProvider>
-        </NotificationProvider>
+        <WalletProvider>
+          {children}
+        </WalletProvider>
         <PwaRegister />
         <Analytics />
         <Toaster

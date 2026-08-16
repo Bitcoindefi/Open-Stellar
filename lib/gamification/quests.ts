@@ -1,9 +1,6 @@
 import { addNotification } from "@/lib/notifications/notification-store"
-import { publishSystemEvent } from "@/lib/events/system-events"
-import { XP_AWARDS } from "@/lib/gamification/constants"
-import { awardXP, type XPAwardResult } from "@/lib/gamification/xp"
 import { invalidateLeaderboardCache } from "./leaderboard-cache"
-import { listStoredQuests, getStoredQuest, updateQuestSubtasks } from "./quest-store"
+import { listStoredQuests } from "./quest-store"
 
 export type QuestType = "daily" | "weekly" | "story"
 
@@ -36,11 +33,6 @@ export interface Quest {
   expiresAt?: string
   subTasks?: SubTask[]
   status?: "in_progress" | "completed"
-}
-
-export interface QuestCompletionResult {
-  quest: Quest
-  xpAward: XPAwardResult
 }
 
 interface QuestDefinition {
@@ -208,10 +200,30 @@ function toProgress(value: number, goal: number): number {
   return Math.max(0, Math.min(100, Math.round((value / goal) * 100)))
 }
 
+type SubTaskStore = Map<string, SubTask[]>
+
+const globalQuests = globalThis as typeof globalThis & {
+  __openStellarQuestSubTasks__?: SubTaskStore
+}
+
+function hydrateSubTasks(): SubTaskStore {
+  if (globalQuests.__openStellarQuestSubTasks__) return globalQuests.__openStellarQuestSubTasks__
+  const map: SubTaskStore = new Map()
+  
+  for (const q of listStoredQuests({ includeExpired: true })) {
+    if (q.subTasks && q.subTasks.length > 0) {
+      map.set(q.id, q.subTasks)
+    }
+  }
+
+  globalQuests.__openStellarQuestSubTasks__ = map
+  return map
+}
+
+const subtaskDb = hydrateSubTasks()
 
 export function getSubTasks(questId: string): SubTask[] {
-  const quest = getStoredQuest(questId)
-  return quest?.subTasks ?? []
+  return subtaskDb.get(questId) ?? []
 }
 
 function generateId(): string {
@@ -231,7 +243,7 @@ export function addSubTask(questId: string, title: string, assignedAgentId?: str
     status: "pending",
   }
   subtasks.push(newSubTask)
-  updateQuestSubtasks(questId, subtasks)
+  subtaskDb.set(questId, subtasks)
 
   return newSubTask
 }
@@ -258,7 +270,7 @@ export function updateSubTask(
   }
 
   subtasks[index] = updated
-  updateQuestSubtasks(questId, subtasks)
+  subtaskDb.set(questId, subtasks)
 
   return updated
 }
@@ -349,22 +361,6 @@ export function getQuests(now: Date = new Date()): Quest[] {
 
 export function getQuestById(id: string, now: Date = new Date()): Quest | null {
   return getQuests(now).find((quest) => quest.id === id) ?? null
-}
-
-export function completeQuest(agentId: string, quest: Quest): QuestCompletionResult {
-  const xpAmount = Math.max(0, quest.reward.xp || XP_AWARDS.QUEST_COMPLETED)
-  const xpAward = awardXP(agentId, xpAmount, "quest.completed")
-
-  publishSystemEvent({
-    type: "quest.completed",
-    agentId,
-    questId: quest.id,
-    questTitle: quest.title,
-    quest,
-    reward: { xp: xpAward.awardedXp },
-  })
-
-  return { quest, xpAward }
 }
 
 export function recordCompletedQuestNotifications(agentId: string, quests: Quest[]): void {

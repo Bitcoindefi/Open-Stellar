@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { completeQuest, getQuestById } from "@/lib/gamification/quests"
+import { getQuestById } from "@/lib/gamification/quests"
 import { getReputationByActorId } from "@/lib/reputation/reputation-store"
 import { isAuthorized } from "@/lib/auth"
 import { hasClaimedQuest, markQuestClaimed } from "@/lib/gamification/quest-completions"
@@ -77,7 +77,16 @@ export async function POST(req: Request, context: QuestApplyContext) {
   }
 
   markQuestClaimed(quest.id, actorId)
-  const completion = completeQuest(actorId, quest)
+  publishSystemEvent({
+    type: "quest.completed",
+    agentId: actorId,
+    questId: quest.id,
+    quest: {
+      id: quest.id,
+      title: quest.title,
+    },
+    reward: quest.reward,
+  })
 
-  return NextResponse.json({ ok: true, quest, actorId, xpAward: completion.xpAward })
+  return NextResponse.json({ ok: true, quest, actorId })
 }

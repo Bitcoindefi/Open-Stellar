@@ -147,38 +147,6 @@ const spec = {
         },
       }),
     },
-    "/api/agents/{id}/rate-limit": {
-      get: op("Agents", "Read high-priority task rate limit for an agent", ["id"], undefined, {
-        responseSchema: {
-          type: "object",
-          properties: {
-            ok: { type: "boolean", enum: [true] },
-            agentId: { type: "string" },
-            limit: { type: "integer", minimum: 0 },
-            highPriorityPerMinute: { type: "integer", minimum: 0 },
-            usage: { type: "integer", minimum: 0 },
-            currentUsage: { type: "integer", minimum: 0 },
-            windowMs: { type: "integer", minimum: 1 },
-            resetsInSeconds: { type: "integer", minimum: 0 },
-          },
-          required: ["ok", "agentId", "limit", "highPriorityPerMinute", "usage", "windowMs", "resetsInSeconds"],
-        },
-      }),
-    },
-    "/api/admin/agents/{id}/rate-limit": {
-      patch: op("Admin", "Update high-priority task rate limit for an agent", ["id"], { highPriorityPerMinute: 5 }, {
-        responseSchema: {
-          type: "object",
-          properties: {
-            ok: { type: "boolean", enum: [true] },
-            agentId: { type: "string" },
-            highPriorityPerMinute: { type: "integer", minimum: 0 },
-            limit: { type: "integer", minimum: 0 },
-          },
-          required: ["ok", "agentId", "highPriorityPerMinute", "limit"],
-        },
-      }),
-    },
     "/api/agents/{id}/messages": { post: op("Agents", "Send a message to an agent", ["id"], { role: "user", content: "Hello" }) },
     "/api/agents/{id}/health": { get: op("Agents", "Read agent health", ["id"]) },
     "/api/agents/{id}/heartbeat": { post: op("Agents", "Record agent heartbeat", ["id"], { status: "active", load: 0.2 }) },

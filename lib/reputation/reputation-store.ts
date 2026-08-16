@@ -1,5 +1,4 @@
 import type { ReputationAction } from '@/lib/protocols/track8004'
-import { checkAndAwardBadges } from '@/lib/agents/badges'
 import { addNotification } from '@/lib/notifications/notification-store'
 import { getAgentUptime } from '@/lib/agents/agent-uptime-store'
 
@@ -144,7 +143,6 @@ export function upsertReputationMetrics(actorId: string, metrics: Partial<Reputa
   const updated = snapshot(cleanId, metrics)
   db.set(cleanId, updated)
   persist(db)
-  checkAndAwardBadges(cleanId)
   return updated
 }
 

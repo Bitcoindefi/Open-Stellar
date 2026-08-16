@@ -1,6 +1,5 @@
 import type { MoltbotAgent, Skill } from "@/lib/types"
 import { publishSystemEvent } from "@/lib/events/system-events"
-import { checkAndAwardBadges } from "@/lib/agents/badges"
 import {
   AGENT_LEVEL_CAP,
   FAST_TASK_MAX_DURATION_MS,
@@ -105,12 +104,17 @@ export function awardXP(agentId: string, amount: number, reason: XPAwardReason):
     xp: awardedXp,
     totalXp: xp,
     level: next.level,
-    previousLevel: previous.level,
     xpToNext: levelState.xpToNext,
     reason,
-    leveledUp: levelState.leveledUp,
   })
-  checkAndAwardBadges(agentId)
+
+  if (reason === "quest.completed") {
+    publishSystemEvent({
+      type: "quest.completed",
+      agentId,
+      reward: { xp: awardedXp },
+    })
+  }
 
   return result
 }
