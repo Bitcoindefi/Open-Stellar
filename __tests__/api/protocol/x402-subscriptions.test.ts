@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest"
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest"
 import { GET as checkSubscription } from "@/app/api/protocol/x402/subscriptions/[agentId]/[serviceId]/route"
 import { POST as createSubscription } from "@/app/api/protocol/x402/subscriptions/route"
 import { checkX402Subscription, createX402Subscription, renewX402Subscriptions, resetX402SubscriptionsForTests } from "@/lib/protocols/x402"
@@ -6,6 +6,10 @@ import { checkX402Subscription, createX402Subscription, renewX402Subscriptions, 
 describe("x402 subscriptions", () => {
   beforeEach(() => {
     resetX402SubscriptionsForTests()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it("creates a recurring subscription and charges the first month", async () => {
@@ -57,6 +61,9 @@ describe("x402 subscriptions", () => {
 
   it("moves renewals into grace and then paused when wallet balance is insufficient", () => {
     const startedAt = new Date("2026-06-22T00:00:00.000Z")
+    vi.useFakeTimers()
+    vi.setSystemTime(startedAt)
+
     createX402Subscription({
       serviceId: "my-data-api",
       agentId: "nexus-7",
@@ -65,13 +72,17 @@ describe("x402 subscriptions", () => {
       walletBalanceXlm: 10,
     })
 
-    const grace = renewX402Subscriptions(new Date("2026-07-22T12:00:00.000Z"), { "nexus-7": 1 })
+    const renewalTime = new Date("2026-07-22T12:00:00.000Z")
+    vi.setSystemTime(renewalTime)
+    const grace = renewX402Subscriptions(renewalTime, { "nexus-7": 1 })
     const accessDuringGrace = checkX402Subscription("nexus-7", "my-data-api")
 
     expect(grace.paused[0].status).toBe("grace")
     expect(accessDuringGrace.active).toBe(true)
 
-    const paused = renewX402Subscriptions(new Date("2026-07-23T12:01:00.000Z"), { "nexus-7": 1 })
+    const pauseTime = new Date("2026-07-23T12:01:00.000Z")
+    vi.setSystemTime(pauseTime)
+    const paused = renewX402Subscriptions(pauseTime, { "nexus-7": 1 })
     const accessAfterGrace = checkX402Subscription("nexus-7", "my-data-api")
 
     expect(paused.paused[0].status).toBe("paused")

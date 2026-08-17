@@ -3,6 +3,7 @@
 import { Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import { useEffect, useRef } from 'react'
+import Link from 'next/link'
 import type { Agent } from '@/lib/map-types'
 
 const STATUS_COLORS: Record<Agent['status'], string> = {
@@ -73,6 +74,14 @@ export default function AgentMarker({ agent }: { agent: Agent }) {
               <p><strong>Building:</strong> {agent.assignedTask.buildingName}</p>
             </div>
           )}
+          <div className="mt-2 pt-2 border-t border-gray-200 text-sm">
+            <Link 
+              href={`/agents/${agent.id}`} 
+              className="text-blue-500 hover:underline font-semibold block"
+            >
+              View Profile &rarr;
+            </Link>
+          </div>
         </div>
       </Popup>
     </Marker>
