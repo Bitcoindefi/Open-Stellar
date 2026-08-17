@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server"
 import { listRegisteredAgents } from "@/lib/agent-registry"
-import { getAgentHealthSummary } from "@/lib/agents/agent-error-store"
+import { hasValidAdminToken } from "@/lib/admin-token"
+import { getAgentHealth } from "@/lib/agents/agent-health-store"
+import { getAgentXP } from "@/lib/gamification/xp"
+import { getReputation } from "@/lib/reputation/reputation-store"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(req: Request) {
+  if (!hasValidAdminToken(req.headers)) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 })
+  }
+
   const url = new URL(req.url)
   const agents = listRegisteredAgents({
     capability: url.searchParams.get("capability") ?? undefined,
@@ -17,8 +24,23 @@ export async function GET(req: Request) {
       degraded: health.degraded,
     }
   })
+  const items = agents.map((agent) => {
+    const health = getAgentHealth(agent.agentId)
+    const xp = getAgentXP(agent.agentId)
+    const reputation = getReputation(agent.agentId)
+
+    return {
+      ...agent,
+      name: agent.name ?? agent.agentId,
+      status: health?.runtimeStatus ?? agent.status,
+      xp: xp.xp,
+      level: xp.level,
+      tasksCompleted: reputation.metrics.tasksCompleted,
+      lastSeen: health?.lastHeartbeat ?? agent.updatedAt,
+    }
+  })
   return NextResponse.json(
-    { ok: true, agents },
+    { ok: true, agents: items },
     { headers: { "Cache-Control": "no-store" } },
   )
 }
