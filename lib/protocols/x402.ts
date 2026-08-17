@@ -400,8 +400,8 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
     if (now.getTime() < new Date(subscription.renewsAt).getTime()) continue
 
     const requiredXlm = parseXlmAmount(subscription.pricePerMonth)
-    const balance = balances[subscription.agentId]
-    if (requiredXlm > 0 && balance !== undefined && balance < requiredXlm) {
+    const balance = balances[subscription.agentId] ?? 0
+    if (requiredXlm > 0 && balance < requiredXlm) {
       subscription.status = now.getTime() <= new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS ? 'grace' : 'paused'
       subscription.active = subscription.status === 'grace'
       subscription.graceEndsAt = new Date(new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS).toISOString()

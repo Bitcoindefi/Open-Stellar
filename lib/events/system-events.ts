@@ -1,6 +1,7 @@
 import type { AgentStatus } from "@/lib/types"
 import type { X402Receipt } from "@/lib/protocols/x402"
 import type { BadgeRarity } from "@/lib/gamification/badge-catalog"
+import type { Quest } from "@/lib/quests/quest-store"
 
 export interface AgentTask {
   id: string
@@ -49,6 +50,8 @@ export type SystemEvent =
     reward?: QuestCompletionReward
   })
   | (BaseEvent & { type: "quest.expired"; agentId: string; questId: string; completedSubtasks: number; totalSubtasks: number })
+  | (BaseEvent & { type: "quest.expired"; questId: string; quest: Quest })
+  | (BaseEvent & { type: "quest.abandoned"; questId: string; quest: Quest })
   | (BaseEvent & { type: "quest.unlocked"; agentId: string; questId: string })
   | (BaseEvent & { type: "agent.xp"; agentId: string; xp: number; totalXp?: number; level: number; xpToNext?: number; reason?: string })
   | (BaseEvent & { type: "badge.unlocked"; agentId: string; badge: Badge })

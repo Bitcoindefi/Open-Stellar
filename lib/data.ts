@@ -38,7 +38,14 @@ const SKILL_POOL: Record<DistrictId, string[]> = {
   research: ["Hypothesis Testing", "Data Viz", "Paper Analysis", "Experiment Design", "Stats Modeling"],
 }
 
-function rand(min: number, max: number, random = Math.random) {
+function secureRandom(): number {
+  const array = new Uint32Array(1)
+  const c = typeof crypto !== "undefined" ? crypto : (globalThis as any).crypto
+  c.getRandomValues(array)
+  return array[0] / 4294967296
+}
+
+function rand(min: number, max: number, random = secureRandom) {
   return Math.floor(random() * (max - min + 1)) + min
 }
 
@@ -51,7 +58,7 @@ function createSeededRandom(seed: number) {
   }
 }
 
-function generateSkills(district: DistrictId, random = Math.random): Skill[] {
+function generateSkills(district: DistrictId, random = secureRandom): Skill[] {
   const pool = SKILL_POOL[district]
   const count = rand(2, 4, random)
   const shuffled = [...pool].sort(() => random() - 0.5)
@@ -124,7 +131,7 @@ export function generateChatMessage(agents: MoltbotAgent[]): ChatMessage | null 
   if (from.status === "error") category = "error"
   else if (from.status === "idle") category = "idle"
   else if (from.district !== to.district) category = "cross_district"
-  else if (Math.random() < 0.3) category = "social"
+  else if (secureRandom() < 0.3) category = "social"
   else category = "working"
 
   const templates = CHAT_TEMPLATES[category]
