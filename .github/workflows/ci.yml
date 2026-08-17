@@ -34,7 +34,7 @@ jobs:
       # linked from the local npm cache instead of re-downloaded from the registry.
       - name: Setup Node
         id: setup-node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
