@@ -420,7 +420,6 @@ export function checkX402Subscription(agentId: string, serviceId: string, option
   const subscription = subscriptionRegistry.get(subscriptionKey(agentId.trim(), serviceId.trim()))
   if (!subscription) return { active: false, callsRemaining: 0, renewsAt: '', status: 'missing' }
 
-  renewX402Subscriptions()
   if (!subscription.active) {
     return { active: false, callsRemaining: Math.max(0, (subscription.callsPerMonth ?? 0) - subscription.callsUsed), renewsAt: subscription.renewsAt, status: subscription.status, graceEndsAt: subscription.graceEndsAt, subscription }
   }

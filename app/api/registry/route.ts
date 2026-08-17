@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { listRegisteredAgents } from "@/lib/agent-registry"
 import { hasValidAdminToken } from "@/lib/admin-token"
+import { getAgentHealthSummary } from "@/lib/agents/agent-error-store"
 import { getAgentHealth } from "@/lib/agents/agent-health-store"
 import { getAgentXP } from "@/lib/gamification/xp"
 import { getReputation } from "@/lib/reputation/reputation-store"
