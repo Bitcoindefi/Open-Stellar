@@ -3,6 +3,7 @@ import { getAgentHealthSummary, recordAgentExecutionError, recordAgentExecutionS
 import { sendAgentMessage } from "@/lib/agent-runtime/messaging"
 import type { AgentConfig, AgentMetrics, AgentRuntimeContext, AgentMessage, MessageHandler, Task, TaskHandler, TaskResult } from "@/lib/agent-runtime/types"
 import { publishSystemEvent } from "@/lib/events/system-events"
+import { recordTaskCompletion } from "@/lib/reputation/reputation-store"
 import type { AgentStatus } from "@/lib/types"
 
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 15_000
@@ -144,6 +145,7 @@ export class Agent implements AgentRuntimeContext {
       this.status = "running"
       this.recordHeartbeat()
       writeTaskRecord(this.id, { task, result, status: "completed", updatedAt: completedAt })
+      recordTaskCompletion(this.id)
       publishSystemEvent({ type: "task.completed", agentId: this.id, taskId: task.id, result: { summary: result.summary, durationMs } })
       return result
     } catch (error) {

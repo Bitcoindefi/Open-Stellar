@@ -3,6 +3,7 @@ import { getCloudAgentConfig, provisionCloudAgent, updateCloudAgentResult } from
 import { recordAgentHeartbeat, HEARTBEAT_INTERVAL_MS } from "@/lib/agents/agent-health-store"
 import { getAgentHealthSummary, recordAgentExecutionError, recordAgentInvocation } from "@/lib/agents/agent-error-store"
 import { publishSystemEvent } from "@/lib/events/system-events"
+import { recordTaskCompletion } from "@/lib/reputation/reputation-store"
 import { isAuthorized } from "@/lib/auth"
 
 export const runtime = "nodejs"
@@ -56,11 +57,11 @@ export async function POST(req: Request, context: RouteContext) {
   publishSystemEvent({ type: "task.started", agentId: config.id, task: { id: taskId, title: task, district: config.district } })
 
   const started = Date.now()
-  try {
-    const summary = await reasonAboutTask(task, config.model)
-    updateCloudAgentResult(config.id, summary)
-    recordAgentHeartbeat(config.id, { status: getAgentHealthSummary(config.id).degraded ? "degraded" : "active", cpu: 8, memory: 24, currentTask: summary, autoRestart: true })
-    publishSystemEvent({ type: "task.completed", agentId: config.id, taskId, result: { summary, durationMs: Date.now() - started } })
+  const summary = await reasonAboutTask(task, config.model)
+  updateCloudAgentResult(config.id, summary)
+  recordAgentHeartbeat(config.id, { status: "active", cpu: 8, memory: 24, currentTask: summary, autoRestart: true })
+  recordTaskCompletion(config.id)
+  publishSystemEvent({ type: "task.completed", agentId: config.id, taskId, result: { summary, durationMs: Date.now() - started } })
 
     return NextResponse.json({ ok: true, agentId: config.id, taskId, result: { summary } }, { headers: { "Cache-Control": "no-store" } })
   } catch (error) {

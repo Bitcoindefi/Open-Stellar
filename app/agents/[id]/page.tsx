@@ -1,12 +1,12 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { CheckCircle2, ScrollText, Shield, Sparkles, Trophy } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { buildSevenDayXpSnapshots, getLevelProgress, type XpHistoryEventLike } from "@/lib/agents/xp-history-chart"
-import { getXpToNextLevel } from "@/lib/gamification/xp"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 import {
   AGENT_OG_SIZE,
@@ -19,6 +19,30 @@ import {
 
 type AgentPageProps = {
   params: Promise<{ id: string }>
+}
+
+type AgentBadge = {
+  type: string
+  name: string
+  description: string
+  icon: string
+  awardedAt: string
+}
+
+function badgeVisual(type: string) {
+  if (type === "first_task") {
+    return { icon: CheckCircle2, className: "text-emerald-300" }
+  }
+  if (type === "quest_master") {
+    return { icon: ScrollText, className: "text-cyan-300" }
+  }
+  if (type === "level_10") {
+    return { icon: Sparkles, className: "text-amber-300" }
+  }
+  if (type === "veteran") {
+    return { icon: Shield, className: "text-violet-300" }
+  }
+  return { icon: Trophy, className: "text-rose-300" }
 }
 
 function getBaseUrl(): string {
@@ -85,12 +109,12 @@ export default async function AgentPage({ params }: AgentPageProps) {
   const { id } = await params
   
   // Data loading as required by acceptance criteria
-  const [metaRes, healthRes, repRes, questRes, xpHistoryRes] = await Promise.all([
+  const [metaRes, healthRes, repRes, questRes, badgesRes] = await Promise.all([
     fetch(absoluteUrl(`/api/agents/${id}`), { cache: 'no-store' }),
     fetch(absoluteUrl(`/api/agents/${id}/health`), { cache: 'no-store' }),
     fetch(absoluteUrl(`/api/protocol/reputation?actorId=${id}`), { cache: 'no-store' }),
     fetch(absoluteUrl(`/api/agents/${id}/quest-recommendations`), { cache: 'no-store' }),
-    fetch(absoluteUrl(`/api/agents/${id}/xp/history?pageSize=100`), { cache: 'no-store' }),
+    fetch(absoluteUrl(`/api/agents/${id}/badges`), { cache: 'no-store' }),
   ])
 
   const localAgent = findAgentByLookup(id)
@@ -124,13 +148,27 @@ export default async function AgentPage({ params }: AgentPageProps) {
 
   // Parse Reputation
   let repScore = 0
-  let badges: any[] = []
+  let reputationBadges: any[] = []
   let infractions = 0
   if (repRes.ok) {
     const data = await repRes.json()
     repScore = data.reputation?.score || 0
-    badges = data.reputation?.badges || []
+    reputationBadges = data.reputation?.badges || []
     infractions = data.reputation?.history?.filter((h: any) => h.delta < 0).length || 0
+  }
+
+  let badges: AgentBadge[] = []
+  if (badgesRes.ok) {
+    const data = await badgesRes.json()
+    badges = data.badges || []
+  } else if (reputationBadges.length > 0) {
+    badges = reputationBadges.map((badge: any) => ({
+      type: badge.id,
+      name: badge.id,
+      description: "",
+      icon: "badge",
+      awardedAt: badge.awardedAt,
+    }))
   }
 
   // Parse Quests
@@ -271,8 +309,8 @@ export default async function AgentPage({ params }: AgentPageProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {capabilities.length > 0 ? capabilities.map((cap, i) => (
-                    <Badge key={i} variant="outline" className="bg-blue-900/20 text-blue-300 border-blue-800/50 hover:bg-blue-900/40 px-3 py-1 text-xs">
+                  {capabilities.length > 0 ? capabilities.map((cap) => (
+                    <Badge key={cap} variant="outline" className="bg-blue-900/20 text-blue-300 border-blue-800/50 hover:bg-blue-900/40 px-3 py-1 text-xs">
                       {cap}
                     </Badge>
                   )) : (
@@ -289,11 +327,36 @@ export default async function AgentPage({ params }: AgentPageProps) {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {badges.length > 0 ? badges.map((badge, i) => (
-                    <div key={i} className={`flex flex-col items-center justify-center p-3 rounded-lg border ${badge.rarity === 'legendary' ? 'border-purple-500/50 bg-purple-500/10 text-purple-300' : badge.rarity === 'rare' ? 'border-blue-500/50 bg-blue-500/10 text-blue-300' : 'border-slate-700 bg-slate-800/50 text-slate-300'}`}>
-                      <span className="font-pixel text-xs text-center leading-tight">{badge.name}</span>
-                    </div>
-                  )) : (
+                  {badges.length > 0 ? badges.map((badge) => {
+                    const visual = badgeVisual(badge.type)
+                    const Icon = visual.icon
+
+                    return (
+                      <Tooltip key={`${badge.type}:${badge.awardedAt}`}>
+                        <TooltipTrigger asChild>
+                          <div className="flex cursor-help flex-col items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-slate-300 transition hover:border-cyan-400/40 hover:bg-slate-800/80">
+                            <span className={`rounded-full border border-cyan-400/30 bg-cyan-400/10 p-3 ${visual.className}`}>
+                              <Icon className="h-5 w-5" />
+                            </span>
+                            <span className="font-pixel text-xs text-center leading-tight">{badge.name}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent sideOffset={8} className="max-w-56 border border-slate-700 bg-slate-950 text-slate-100">
+                          <div className="space-y-1">
+                            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-cyan-300">{badge.name}</p>
+                            <p className="font-mono text-xs leading-5 text-slate-300">{badge.description}</p>
+                            <p className="font-mono text-[11px] text-slate-500">
+                              Awarded {new Date(badge.awardedAt).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
+                            </p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    )
+                  }) : (
                     <div className="col-span-2 sm:col-span-3 text-center p-4">
                       <span className="text-sm text-slate-500 font-mono">No badges earned yet</span>
                     </div>
@@ -306,8 +369,8 @@ export default async function AgentPage({ params }: AgentPageProps) {
           {/* Active Quests (Sidebar) */}
           <div className="flex flex-col gap-4">
             <h3 className="font-mono uppercase tracking-wider text-sm text-slate-300 mb-1 md:ml-1">Active Quests</h3>
-            {quests.length > 0 ? quests.slice(0, 3).map((quest, i) => (
-              <Card key={i} className="bg-slate-950/80 border-slate-800 overflow-hidden relative">
+            {quests.length > 0 ? quests.slice(0, 3).map((quest) => (
+              <Card key={quest.id} className="bg-slate-950/80 border-slate-800 overflow-hidden relative">
                 <div className="absolute top-0 left-0 w-full h-1 bg-slate-800">
                   <div className="h-full bg-cyan-400" style={{ width: `${quest.progress || 0}%` }}></div>
                 </div>
@@ -333,46 +396,5 @@ export default async function AgentPage({ params }: AgentPageProps) {
         </div>
       </div>
     </main>
-  )
-}
-
-
-
-function XpSparkline({ snapshots }: { snapshots: ReturnType<typeof buildSevenDayXpSnapshots> }) {
-  const width = 560
-  const height = 120
-  const padding = 12
-  const maxXp = Math.max(1, ...snapshots.map((point) => point.xp))
-  const step = snapshots.length > 1 ? (width - padding * 2) / (snapshots.length - 1) : 0
-  const points = snapshots.map((point, index) => {
-    const x = padding + index * step
-    const y = height - padding - (point.xp / maxXp) * (height - padding * 2)
-    return { ...point, x, y }
-  })
-  const path = points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x},${point.y}`).join(" ")
-  const areaPath = `${path} L${width - padding},${height - padding} L${padding},${height - padding} Z`
-
-  return (
-    <div className="h-40 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
-      <svg className="h-28 w-full overflow-visible" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Seven-day XP earned sparkline" preserveAspectRatio="none">
-        <path d={areaPath} fill="rgba(34, 211, 238, 0.12)" />
-        <path d={path} fill="none" stroke="#22d3ee" strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" vectorEffect="non-scaling-stroke" />
-        {points.map((point) => (
-          <g key={point.date}>
-            <circle cx={point.x} cy={point.y} r="4" fill="#030712" stroke="#67e8f9" strokeWidth="2" vectorEffect="non-scaling-stroke">
-              <title>{`${point.label}: ${point.xp} XP`}</title>
-            </circle>
-          </g>
-        ))}
-      </svg>
-      <div className="grid grid-cols-7 gap-1 font-mono text-[10px] text-slate-500">
-        {snapshots.map((point) => (
-          <div key={point.date} className="min-w-0 text-center" title={`${point.label}: ${point.xp} XP`}>
-            <div className="truncate">{point.label}</div>
-            <div className="text-cyan-300">{point.xp}</div>
-          </div>
-        ))}
-      </div>
-    </div>
   )
 }
