@@ -381,19 +381,18 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
     const requiredXlm = parseXlmAmount(subscription.pricePerMonth)
     const balance = balances[subscription.agentId] ?? 0
     if (requiredXlm > 0 && balance < requiredXlm) {
-      subscription.status = now.getTime() <= new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS ? 'grace' : 'paused'
+      const graceEndTime = new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS
+      subscription.status = now.getTime() <= graceEndTime ? 'grace' : 'paused'
       subscription.active = subscription.status === 'grace'
       subscription.graceEndsAt = new Date(graceEndTime).toISOString()
       if (subscription.status === 'paused') subscription.pausedAt = now.toISOString()
-      if (hasExplicitBalanceFailure) {
-        subscription.billingEvents.unshift({
-          id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
-          type: 'renewal_failed',
-          amount: subscription.pricePerMonth,
-          at: now.toISOString(),
-          note: 'Insufficient Stellar wallet balance; subscription entered grace/paused state',
-        })
-      }
+      subscription.billingEvents.unshift({
+        id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
+        type: 'renewal_failed',
+        amount: subscription.pricePerMonth,
+        at: now.toISOString(),
+        note: 'Insufficient Stellar wallet balance; subscription entered grace/paused state',
+      })
       paused.push(subscription)
       continue
     }
