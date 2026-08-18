@@ -28,6 +28,13 @@ function nowTime() {
   })
 }
 
+function secureRandom(): number {
+  const array = new Uint32Array(1)
+  const c = typeof crypto !== "undefined" ? crypto : (globalThis as any).crypto
+  c.getRandomValues(array)
+  return array[0] / 4294967296
+}
+
 const ONBOARDING_STEPS = [
   {
     title: "Agent City",
@@ -347,7 +354,7 @@ export function OpenStellarHub() {
     setLogs((prev) => [
       ...prev.slice(-79),
       {
-        id: Date.now() + Math.floor(Math.random() * 1000),
+        id: Date.now() + Math.floor(secureRandom() * 1000),
         time: nowTime(),
         agent,
         message,
@@ -377,7 +384,7 @@ export function OpenStellarHub() {
     setTxAnimations((prev) => [
       ...prev,
       {
-        id: Date.now() + Math.floor(Math.random() * 1000),
+        id: Date.now() + Math.floor(secureRandom() * 1000),
         fromX: agent.pixelX + 8,
         fromY: agent.pixelY + 10,
         toX: district.x + district.w / 2,
@@ -392,7 +399,7 @@ export function OpenStellarHub() {
     setFloatingOverlays((prev) => [
       ...prev,
       {
-        id: Date.now() + Math.floor(Math.random() * 1000),
+        id: Date.now() + Math.floor(secureRandom() * 1000),
         x: agent.pixelX + 8,
         y: agent.pixelY,
         text,
@@ -408,7 +415,7 @@ export function OpenStellarHub() {
       setParticleTriggers((prev) => [
         ...prev,
         {
-          id: Date.now() + Math.floor(Math.random() * 1000),
+          id: Date.now() + Math.floor(secureRandom() * 1000),
           type,
           x,
           y,
@@ -858,7 +865,7 @@ export function OpenStellarHub() {
             }
           }
 
-          const progressDelta = Math.random() * 14
+          const progressDelta = secureRandom() * 14
           const taskProgress = Math.min(100, agent.taskProgress + progressDelta)
           const finishedTask = taskProgress >= 100
           const gainedXp = finishedTask ? XP_AWARDS.TASK_COMPLETED + (progressDelta >= 12 ? XP_AWARDS.FAST_TASK_BONUS : 0) : 0
@@ -866,10 +873,11 @@ export function OpenStellarHub() {
           const levelState = finishedTask ? checkLevelUp(nextXp, agent.level ?? 1) : null
           const skillId = agent.skills[0]?.id
 
-          if (finishedTask && levelState?.leveledUp) {
-            toast.success("Agent Level Up!", {
-              description: `${agent.name} reached Level ${levelState.level}!`,
-            })
+          let status: MoltbotAgent["status"] = "working"
+          if (finishedTask) {
+            status = "active"
+          } else if (secureRandom() < 0.04) {
+            status = "idle"
           }
 
           return {
@@ -878,13 +886,9 @@ export function OpenStellarHub() {
             level: levelState?.level ?? agent.level ?? 1,
             xpToNext: levelState?.xpToNext ?? agent.xpToNext ?? getXpToNextLevel(agent.level ?? 1),
             skills: finishedTask ? awardSkillXP(agent.skills, skillId, XP_AWARDS.TASK_COMPLETED) : agent.skills,
-            cpu: Math.max(10, Math.min(98, agent.cpu + (Math.random() - 0.5) * 10)),
-            memory: Math.max(20, Math.min(95, agent.memory + (Math.random() - 0.5) * 6)),
-            status: finishedTask
-              ? "active"
-              : Math.random() < 0.04
-              ? "idle"
-              : "working",
+            cpu: Math.max(10, Math.min(98, agent.cpu + (secureRandom() - 0.5) * 10)),
+            memory: Math.max(20, Math.min(95, agent.memory + (secureRandom() - 0.5) * 6)),
+            status,
             taskProgress: finishedTask ? 0 : taskProgress,
             tasksCompleted: finishedTask ? agent.tasksCompleted + 1 : agent.tasksCompleted,
             currentTask: finishedTask ? getRandomTask(agent.district) : agent.currentTask,
@@ -902,7 +906,7 @@ export function OpenStellarHub() {
         const next = generateChatMessage(agentsRef.current)
         if (!next) return prev
 
-        if (Math.random() < 0.5) {
+        if (secureRandom() < 0.5) {
           pushLog(`relay ${next.fromName} -> ${next.toName}: ${next.message}`, "info", next.fromName)
         }
 

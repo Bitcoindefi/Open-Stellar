@@ -379,16 +379,9 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
     if (now.getTime() < new Date(subscription.renewsAt).getTime()) continue
 
     const requiredXlm = parseXlmAmount(subscription.pricePerMonth)
-    const balance = balances[subscription.agentId]
-    const hasExplicitBalanceFailure = requiredXlm > 0 && balance !== undefined && balance < requiredXlm
-    const isUnfundedInGraceOrPaused = requiredXlm > 0 && balance === undefined && (subscription.status === 'grace' || subscription.status === 'paused')
-
-    if (hasExplicitBalanceFailure || isUnfundedInGraceOrPaused) {
-      const graceEndTime = subscription.graceEndsAt
-        ? new Date(subscription.graceEndsAt).getTime()
-        : new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS
-
-      subscription.status = now.getTime() <= graceEndTime ? 'grace' : 'paused'
+    const balance = balances[subscription.agentId] ?? 0
+    if (requiredXlm > 0 && balance < requiredXlm) {
+      subscription.status = now.getTime() <= new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS ? 'grace' : 'paused'
       subscription.active = subscription.status === 'grace'
       subscription.graceEndsAt = new Date(graceEndTime).toISOString()
       if (subscription.status === 'paused') subscription.pausedAt = now.toISOString()
