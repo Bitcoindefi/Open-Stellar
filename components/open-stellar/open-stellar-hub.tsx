@@ -1242,7 +1242,6 @@ function handleDistrictUnlockedEvent(
         if (secureRandom() < 0.5) {
           pushLog(`relay ${next.fromName} -> ${next.toName}: ${next.message}`, "info", next.fromName)
         }
-        }
 
         return [...prev.slice(-79), next];
       });
@@ -1348,20 +1347,6 @@ function handleDistrictUnlockedEvent(
     },
     [pushLog, showAgentOverlay],
   )
-
-      pushLog(
-        `${preview.result.skill.name} upgraded to level ${preview.result.skill.level}`,
-        "success",
-        preview.agent.name,
-      );
-      showAgentOverlay(
-        preview.agent,
-        `${preview.result.skill.name} Lv.${preview.result.skill.level}`,
-        preview.agent.color,
-      );
-    },
-    [pushLog, showAgentOverlay],
-  );
 
   const handleUpdateAgentAppearance = useCallback(
     (agentId: string, appearance: AgentAppearance) => {
