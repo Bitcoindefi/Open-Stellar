@@ -17,6 +17,12 @@ import {
   getAgentProfilePath,
 } from "@/lib/og-card-data"
 
+import { getAgentHealth } from "@/lib/agents/agent-health-store"
+import { getReputation } from "@/lib/reputation/reputation-store"
+import { getQuests } from "@/lib/gamification/quests"
+import { getAgentXpHistory } from "@/lib/agents/xp-decay"
+import { DISTRICTS } from "@/lib/data"
+
 type AgentPageProps = {
   params: Promise<{ id: string }>
 }
@@ -33,6 +39,19 @@ function getBaseUrl(): string {
 
 function absoluteUrl(path: string): string {
   return new URL(path, getBaseUrl()).toString()
+}
+
+function getBadgeRarityStyles(rarity?: string): string {
+  switch (rarity) {
+    case "legendary":
+      return "border-purple-500/50 bg-purple-500/10 text-purple-200"
+    case "epic":
+      return "border-amber-500/50 bg-amber-500/10 text-amber-200"
+    case "rare":
+      return "border-cyan-500/50 bg-cyan-500/10 text-cyan-200"
+    default:
+      return "border-slate-700 bg-slate-900/60 text-slate-300"
+  }
 }
 
 export async function generateMetadata({ params }: AgentPageProps): Promise<Metadata> {
@@ -81,63 +100,139 @@ export async function generateMetadata({ params }: AgentPageProps): Promise<Meta
   }
 }
 
+function getStatusBadgeStyle(status: string) {
+  switch (status) {
+    case 'active':
+    case 'healthy':
+      return "bg-emerald-500/20 text-emerald-400 border-emerald-500/50"
+    case 'idle':
+      return "bg-sky-500/20 text-sky-400 border-sky-500/50"
+    case 'running':
+      return "bg-blue-500/20 text-blue-400 border-blue-500/50"
+    case 'working':
+      return "bg-violet-500/20 text-violet-400 border-violet-500/50"
+    case 'error':
+      return "bg-rose-500/20 text-rose-400 border-rose-500/50"
+    case 'degraded':
+      return "bg-amber-500/20 text-amber-400 border-amber-500/50"
+    case 'stopped':
+      return "bg-orange-500/20 text-orange-400 border-orange-500/50"
+    default:
+      return "bg-slate-500/20 text-slate-400 border-slate-500/50"
+  }
+}
+
 export default async function AgentPage({ params }: AgentPageProps) {
   const { id } = await params
   
-  // Data loading as required by acceptance criteria
-  const [metaRes, healthRes, repRes, questRes, xpHistoryRes] = await Promise.all([
-    fetch(absoluteUrl(`/api/agents/${id}`), { cache: 'no-store' }),
-    fetch(absoluteUrl(`/api/agents/${id}/health`), { cache: 'no-store' }),
-    fetch(absoluteUrl(`/api/protocol/reputation?actorId=${id}`), { cache: 'no-store' }),
-    fetch(absoluteUrl(`/api/agents/${id}/quest-recommendations`), { cache: 'no-store' }),
-    fetch(absoluteUrl(`/api/agents/${id}/xp/history?pageSize=100`), { cache: 'no-store' }),
-  ])
+  let metaData: any = null
+  let healthData: any = null
+  let reputationData: any = null
+  let questsData: any = null
+  let xpHistoryData: any = null
+
+  try {
+    const res = await fetch(absoluteUrl(`/api/agents/${id}`), { cache: 'no-store' })
+    if (res.ok) metaData = await res.json()
+  } catch (e) {
+    console.warn(`Failed to fetch metadata for agent ${id}:`, e)
+  }
+
+  try {
+    const res = await fetch(absoluteUrl(`/api/agents/${id}/health`), { cache: 'no-store' })
+    if (res.ok) healthData = await res.json()
+  } catch (e) {
+    console.warn(`Failed to fetch health for agent ${id}:`, e)
+  }
+
+  try {
+    const res = await fetch(absoluteUrl(`/api/protocol/reputation?actorId=${id}`), { cache: 'no-store' })
+    if (res.ok) reputationData = await res.json()
+  } catch (e) {
+    console.warn(`Failed to fetch reputation for agent ${id}:`, e)
+  }
+
+  try {
+    const res = await fetch(absoluteUrl(`/api/agents/${id}/quest-recommendations`), { cache: 'no-store' })
+    if (res.ok) questsData = await res.json()
+  } catch (e) {
+    console.warn(`Failed to fetch quest recommendations for agent ${id}:`, e)
+  }
+
+  try {
+    const res = await fetch(absoluteUrl(`/api/agents/${id}/xp/history?pageSize=100`), { cache: 'no-store' })
+    if (res.ok) xpHistoryData = await res.json()
+  } catch (e) {
+    console.warn(`Failed to fetch XP history for agent ${id}:`, e)
+  }
 
   const localAgent = findAgentByLookup(id)
-  if (!metaRes.ok && !localAgent) {
+  if (!metaData && !localAgent) {
     notFound()
   }
 
   // Parse Metadata
   let agentMetadata: any = null
   let capabilities: string[] = []
-  if (metaRes.ok) {
-    const data = await metaRes.json()
-    agentMetadata = data.agent
+  if (metaData) {
+    agentMetadata = metaData.agent
     capabilities = agentMetadata.capabilities || []
-  } else {
+  } else if (localAgent) {
     agentMetadata = localAgent
-    capabilities = localAgent?.skills?.map((s: any) => s.name) || []
+    capabilities = localAgent.skills?.map((s: any) => s.name) || []
   }
 
   // Parse Health
   let isHealthy = false
   let uptime = "0s"
-  if (healthRes.ok) {
-    const data = await healthRes.json()
-    isHealthy = data.health?.status === 'healthy'
-    uptime = data.health?.uptime || "0s"
-  } else if (localAgent) {
-    isHealthy = true
-    uptime = `${getAgentCardStats(localAgent).uptime}%`
+  let runtimeStatus = "offline"
+  let currentTask = "No active task"
+
+  if (healthData) {
+    isHealthy = healthData.health?.status === 'healthy'
+    uptime = healthData.health?.uptime || "0s"
+    runtimeStatus = healthData.health?.runtimeStatus || healthData.health?.status || "offline"
+    currentTask = healthData.health?.currentTask || "No active task"
+  } else {
+    const health = getAgentHealth(id)
+    if (health) {
+      isHealthy = health.status === 'healthy'
+      uptime = health.uptime || "0s"
+      runtimeStatus = health.runtimeStatus || health.status || "offline"
+      currentTask = health.currentTask || "No active task"
+    } else if (localAgent) {
+      isHealthy = localAgent.status !== 'offline'
+      uptime = `${getAgentCardStats(localAgent).uptime}%`
+      runtimeStatus = localAgent.status || "active"
+      currentTask = localAgent.currentTask || "No active task"
+    }
   }
 
-  // Parse Reputation
+  // Parse Reputation & Badges
   let repScore = 0
   let badges: any[] = []
   let infractions = 0
-  if (repRes.ok) {
-    const data = await repRes.json()
-    repScore = data.reputation?.score || 0
-    badges = data.reputation?.badges || []
-    infractions = data.reputation?.history?.filter((h: any) => h.delta < 0).length || 0
+  if (reputationData) {
+    repScore = reputationData.reputation?.score || 0
+    badges = reputationData.reputation?.metrics?.badges || reputationData.reputation?.badges || []
+    infractions = reputationData.reputation?.metrics?.infractions || reputationData.reputation?.history?.filter((h: any) => h.delta < 0).length || 0
+  } else {
+    const reputation = getReputation(id)
+    if (reputation) {
+      repScore = reputation.score || 0
+      badges = reputation.metrics?.badges || []
+      infractions = reputation.metrics?.infractions || 0
+    }
   }
 
   // Parse Quests
   let quests: any[] = []
-  if (questRes.ok) {
-    const data = await questRes.json()
-    quests = data.quests || []
+  if (questsData) {
+    quests = questsData.quests || []
+  } else {
+    quests = getQuests()
+      .filter(q => q.status === "in_progress")
+      .slice(0, 5)
   }
 
   const agentName = agentMetadata.name || agentMetadata.agentId || 'Unknown Agent'
@@ -149,9 +244,10 @@ export default async function AgentPage({ params }: AgentPageProps) {
   const xpToNext = agentMetadata.xpToNext ?? getXpToNextLevel(level)
 
   let xpHistoryEvents: XpHistoryEventLike[] = []
-  if (xpHistoryRes.ok) {
-    const data = await xpHistoryRes.json()
-    xpHistoryEvents = Array.isArray(data.events) ? data.events : []
+  if (xpHistoryData) {
+    xpHistoryEvents = Array.isArray(xpHistoryData.events) ? xpHistoryData.events : []
+  } else {
+    xpHistoryEvents = getAgentXpHistory(id) as XpHistoryEventLike[]
   }
   const xpSnapshots = buildSevenDayXpSnapshots(xpHistoryEvents)
   const xpProgress = getLevelProgress(totalXp, level)
@@ -161,6 +257,10 @@ export default async function AgentPage({ params }: AgentPageProps) {
     districtName = typeof agentMetadata.district === 'string' ? agentMetadata.district : agentMetadata.district.name
   } else if (localAgent) {
     districtName = getAgentDistrict(localAgent).name
+  }
+  if (districtName === "Unknown" && agentMetadata.district) {
+    const distObj = DISTRICTS.find((d: any) => d.id === agentMetadata.district)
+    if (distObj) districtName = distObj.name
   }
 
   return (
@@ -183,11 +283,20 @@ export default async function AgentPage({ params }: AgentPageProps) {
             <div className="flex flex-col gap-2 items-center sm:items-start flex-1 text-center sm:text-left">
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 <h1 className="font-pixel text-2xl sm:text-3xl uppercase text-slate-100" style={{ color: localAgent?.color }}>{agentName}</h1>
-                <Badge variant={isHealthy ? "default" : "destructive"} className={isHealthy ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" : ""}>
-                  {isHealthy ? "Healthy" : "Offline"}
-                </Badge>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={isHealthy ? "default" : "destructive"} className={isHealthy ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" : ""}>
+                    {isHealthy ? "Healthy" : "Offline"}
+                  </Badge>
+                  <Badge variant="outline" className={getStatusBadgeStyle(runtimeStatus)}>
+                    {runtimeStatus.toUpperCase()}
+                  </Badge>
+                </div>
               </div>
               <p className="font-mono text-sm text-slate-400 mt-1">ID: {agentIdStr}</p>
+              {/* Current Task */}
+              <div className="mt-1 font-mono text-sm text-slate-300">
+                <span className="text-slate-500">Current Task:</span> <span className="text-cyan-300 font-semibold">{currentTask}</span>
+              </div>
               <div className="flex items-center gap-2 font-mono text-xs text-cyan-400/80 mt-2 bg-cyan-950/30 px-3 py-1.5 rounded-full border border-cyan-900/50">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 {districtName}
@@ -288,14 +397,23 @@ export default async function AgentPage({ params }: AgentPageProps) {
                 <CardTitle className="font-mono uppercase tracking-wider text-sm text-slate-300">Earned Badges</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {badges.length > 0 ? badges.map((badge, i) => (
-                    <div key={i} className={`flex flex-col items-center justify-center p-3 rounded-lg border ${badge.rarity === 'legendary' ? 'border-purple-500/50 bg-purple-500/10 text-purple-300' : badge.rarity === 'rare' ? 'border-blue-500/50 bg-blue-500/10 text-blue-300' : 'border-slate-700 bg-slate-800/50 text-slate-300'}`}>
-                      <span className="font-pixel text-xs text-center leading-tight">{badge.name}</span>
+                    <div key={i} className={`flex flex-col p-3 rounded-lg border gap-1.5 ${getBadgeRarityStyles(badge.rarity)}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="font-pixel text-xs leading-tight text-slate-100">{badge.name || badge.badgeId || badge.id}</span>
+                        <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 rounded border border-current opacity-80">{badge.rarity || 'common'}</span>
+                      </div>
+                      {badge.description && <p className="font-mono text-[11px] text-slate-400 leading-normal">{badge.description}</p>}
+                      {badge.earnedAt && (
+                        <span className="font-mono text-[9px] text-slate-500 mt-auto">
+                          Earned {new Date(badge.earnedAt).toLocaleDateString()}
+                        </span>
+                      )}
                     </div>
                   )) : (
-                    <div className="col-span-2 sm:col-span-3 text-center p-4">
-                      <span className="text-sm text-slate-500 font-mono">No badges earned yet</span>
+                    <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center p-4">
+                      <span className="text-sm text-slate-500 font-mono">No badges earned yet. Complete daily quests to earn badges!</span>
                     </div>
                   )}
                 </div>

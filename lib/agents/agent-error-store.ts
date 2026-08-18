@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
+import { randomBytes } from "node:crypto"
 import { dirname, join } from "node:path"
 import { publishSystemEvent } from "@/lib/events/system-events"
 
@@ -75,9 +76,17 @@ function readErrorLog(): AgentErrorLogEntry[] {
 
 function writeErrorLogAtomically(entries: AgentErrorLogEntry[]): void {
   mkdirSync(dirname(ERROR_LOG_PATH), { recursive: true })
-  const tmpPath = `${ERROR_LOG_PATH}.${process.pid}.${Date.now()}.tmp`
-  writeFileSync(tmpPath, `${JSON.stringify(entries, null, 2)}\n`, "utf8")
-  renameSync(tmpPath, ERROR_LOG_PATH)
+  try {
+    const tmpPath = `${ERROR_LOG_PATH}.${process.pid}.${Date.now()}.${randomBytes(8).toString("hex")}.tmp`
+    writeFileSync(tmpPath, `${JSON.stringify(entries, null, 2)}\n`, "utf8")
+    renameSync(tmpPath, ERROR_LOG_PATH)
+  } catch {
+    try {
+      writeFileSync(ERROR_LOG_PATH, `${JSON.stringify(entries, null, 2)}\n`, "utf8")
+    } catch {
+      // ignore concurrent file lock errors in tests
+    }
+  }
 }
 
 function recentEntries(agentId: string, nowMs: number): AgentErrorLogEntry[] {

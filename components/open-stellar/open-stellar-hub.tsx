@@ -72,6 +72,13 @@ function nowTime() {
   });
 }
 
+function secureRandom(): number {
+  const array = new Uint32Array(1)
+  const c = typeof crypto !== "undefined" ? crypto : (globalThis as any).crypto
+  c.getRandomValues(array)
+  return array[0] / 4294967296
+}
+
 const ONBOARDING_STEPS = [
   {
     title: "Agent City",
@@ -326,45 +333,34 @@ function OnboardingModal({ onDone }: { onDone: () => void }) {
 }
 
 export function OpenStellarHub() {
-  const [agents, setAgents] = useState<MoltbotAgent[]>(() => createAgents());
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
-  const [tick, setTick] = useState(0);
-  const [txAnimations, setTxAnimations] = useState<TxAnimation[]>([]);
-  const [floatingOverlays, setFloatingOverlays] = useState<FloatingOverlay[]>(
-    [],
-  );
-  const [particleTriggers, setParticleTriggers] = useState<ParticleTrigger[]>(
-    [],
-  );
-  const agentLevelsRef = useRef<Map<string, number>>(new Map());
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [agents, setAgents] = useState<MoltbotAgent[]>(() => createAgents())
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const [logs, setLogs] = useState<LogEntry[]>([])
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([])
+  const [tick, setTick] = useState(0)
+  const [txAnimations, setTxAnimations] = useState<TxAnimation[]>([])
+  const [floatingOverlays, setFloatingOverlays] = useState<FloatingOverlay[]>([])
+  const [particleTriggers, setParticleTriggers] = useState<ParticleTrigger[]>([])
+  const agentLevelsRef = useRef<Map<string, number>>(new Map())
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sidebarTab, setSidebarTab] = useState<SidebarTabId>(() => {
-    if (typeof window === "undefined") return "overview";
-    const storedTab = localStorage.getItem(
-      "sidebar-tab",
-    ) as SidebarTabId | null;
-    if (storedTab && SIDEBAR_TABS.some((tab) => tab.id === storedTab)) {
-      return storedTab;
-    }
-    return "overview";
-  });
-  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState<boolean | null>(null);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [colorBlindMode, setColorBlindMode] = useState(false);
-  const [reduceMotion, setReduceMotion] = useState(false);
-  const [eventStreamConnected, setEventStreamConnected] = useState(false);
-  const [hasRealtimeEvents, setHasRealtimeEvents] = useState(false);
-  const fallbackLoggedRef = useRef(false);
-  const positionStreamErrorLoggedRef = useRef(false);
-  const [audioEngine] = useState(() => new CityAudioEngine());
-  const [activeDistrictEvent, setActiveDistrictEvent] = useState(() =>
-    getActiveDistrictEvent(),
-  );
-  const lastLeadingDistrictRef = useRef<string | null>(null);
+    if (typeof window === "undefined") return "overview"
+    const stored = localStorage.getItem("sidebar-tab") as SidebarTabId | null
+    return stored && SIDEBAR_TABS.some((t) => t.id === stored) ? stored : "overview"
+  })
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState<boolean | null>(null)
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [colorBlindMode, setColorBlindMode] = useState(false)
+  const [reduceMotion, setReduceMotion] = useState(false)
+  const [eventStreamConnected, setEventStreamConnected] = useState(false)
+  const [hasRealtimeEvents, setHasRealtimeEvents] = useState(false)
+  const fallbackLoggedRef = useRef(false)
+  const positionStreamErrorLoggedRef = useRef(false)
+  const [audioEngine] = useState(() => new CityAudioEngine())
+  const [activeDistrictEvent, setActiveDistrictEvent] = useState(() => getActiveDistrictEvent())
+  const lastLeadingDistrictRef = useRef<string | null>(null)
 
   useEffect(() => {
     return () => audioEngine.dispose();
@@ -425,6 +421,7 @@ export function OpenStellarHub() {
     };
   }, []);
 
+  // Persist the active tab whenever it changes.
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("sidebar-tab", sidebarTab);
@@ -446,21 +443,18 @@ export function OpenStellarHub() {
     [agents, selectedAgentId],
   );
 
-  const pushLog = useCallback(
-    (message: string, type: LogEntry["type"] = "info", agent = "system") => {
-      setLogs((prev) => [
-        ...prev.slice(-79),
-        {
-          id: Date.now() + Math.floor(Math.random() * 1000),
-          time: nowTime(),
-          agent,
-          message,
-          type,
-        },
-      ]);
-    },
-    [],
-  );
+  const pushLog = useCallback((message: string, type: LogEntry["type"] = "info", agent = "system") => {
+    setLogs((prev) => [
+      ...prev.slice(-79),
+      {
+        id: Date.now() + Math.floor(secureRandom() * 1000),
+        time: nowTime(),
+        agent,
+        message,
+        type,
+      },
+    ])
+  }, [])
 
   const agentsRef = useRef(agents);
   useEffect(() => {
@@ -485,7 +479,7 @@ export function OpenStellarHub() {
     setTxAnimations((prev) => [
       ...prev,
       {
-        id: Date.now() + Math.floor(Math.random() * 1000),
+        id: Date.now() + Math.floor(secureRandom() * 1000),
         fromX: agent.pixelX + 8,
         fromY: agent.pixelY + 10,
         toX: district.x + district.w / 2,
@@ -496,23 +490,20 @@ export function OpenStellarHub() {
     ]);
   }, []);
 
-  const showAgentOverlay = useCallback(
-    (agent: MoltbotAgent, text: string, color = "#fbbf24") => {
-      setFloatingOverlays((prev) => [
-        ...prev,
-        {
-          id: Date.now() + Math.floor(Math.random() * 1000),
-          x: agent.pixelX + 8,
-          y: agent.pixelY,
-          text,
-          color,
-          startedAt: Date.now(),
-          duration: 2200,
-        },
-      ]);
-    },
-    [],
-  );
+  const showAgentOverlay = useCallback((agent: MoltbotAgent, text: string, color = "#fbbf24") => {
+    setFloatingOverlays((prev) => [
+      ...prev,
+      {
+        id: Date.now() + Math.floor(secureRandom() * 1000),
+        x: agent.pixelX + 8,
+        y: agent.pixelY,
+        text,
+        color,
+        startedAt: Date.now(),
+        duration: 2200,
+      },
+    ])
+  }, [])
 
   const spawnParticles = useCallback(
     (
@@ -524,7 +515,7 @@ export function OpenStellarHub() {
       setParticleTriggers((prev) => [
         ...prev,
         {
-          id: Date.now() + Math.floor(Math.random() * 1000),
+          id: Date.now() + Math.floor(secureRandom() * 1000),
           type,
           x,
           y,
@@ -1203,57 +1194,30 @@ function handleDistrictUnlockedEvent(
             };
           }
 
-          const rand1 = getSafeRandom();
-          const rand2 = getSafeRandom();
-          const rand3 = getSafeRandom();
-          const rand4 = getSafeRandom();
+          const progressDelta = secureRandom() * 14
+          const taskProgress = Math.min(100, agent.taskProgress + progressDelta)
+          const finishedTask = taskProgress >= 100
+          const gainedXp = finishedTask ? XP_AWARDS.TASK_COMPLETED + (progressDelta >= 12 ? XP_AWARDS.FAST_TASK_BONUS : 0) : 0
+          const nextXp = (agent.xp ?? 0) + gainedXp
+          const levelState = finishedTask ? checkLevelUp(nextXp, agent.level ?? 1) : null
+          const skillId = agent.skills[0]?.id
 
-          const progressDelta = rand1 * 14;
-          const taskProgress = Math.min(
-            100,
-            agent.taskProgress + progressDelta,
-          );
-          const finishedTask = taskProgress >= 100;
-          let bonusXp = 0;
-          if (progressDelta >= 12) {
-            bonusXp = XP_AWARDS.FAST_TASK_BONUS;
-          }
-          const gainedXp = finishedTask
-            ? XP_AWARDS.TASK_COMPLETED + bonusXp
-            : 0;
-          const nextXp = (agent.xp ?? 0) + gainedXp;
-          const levelState = finishedTask
-            ? checkLevelUp(nextXp, agent.level ?? 1)
-            : null;
-          const skillId = agent.skills[0]?.id;
-
-          let nextStatus: MoltbotAgent["status"] = "working";
+          let status: MoltbotAgent["status"] = "working"
           if (finishedTask) {
-            nextStatus = "active";
-          } else if (rand4 < 0.04) {
-            nextStatus = "idle";
+            status = "active"
+          } else if (secureRandom() < 0.04) {
+            status = "idle"
           }
 
           return {
             ...agent,
             xp: finishedTask ? nextXp : agent.xp,
             level: levelState?.level ?? agent.level ?? 1,
-            xpToNext:
-              levelState?.xpToNext ??
-              agent.xpToNext ??
-              getXpToNextLevel(agent.level ?? 1),
-            skills: finishedTask
-              ? awardSkillXP(agent.skills, skillId, XP_AWARDS.TASK_COMPLETED)
-              : agent.skills,
-            cpu: Math.max(
-              10,
-              Math.min(98, agent.cpu + (rand2 - 0.5) * 10),
-            ),
-            memory: Math.max(
-              20,
-              Math.min(95, agent.memory + (rand3 - 0.5) * 6),
-            ),
-            status: nextStatus,
+            xpToNext: levelState?.xpToNext ?? agent.xpToNext ?? getXpToNextLevel(agent.level ?? 1),
+            skills: finishedTask ? awardSkillXP(agent.skills, skillId, XP_AWARDS.TASK_COMPLETED) : agent.skills,
+            cpu: Math.max(10, Math.min(98, agent.cpu + (secureRandom() - 0.5) * 10)),
+            memory: Math.max(20, Math.min(95, agent.memory + (secureRandom() - 0.5) * 6)),
+            status,
             taskProgress: finishedTask ? 0 : taskProgress,
             tasksCompleted: finishedTask
               ? agent.tasksCompleted + 1
@@ -1275,12 +1239,9 @@ function handleDistrictUnlockedEvent(
         const next = generateChatMessage(agentsRef.current);
         if (!next) return prev;
 
-        if (Math.random() < 0.5) {
-          pushLog(
-            `relay ${next.fromName} -> ${next.toName}: ${next.message}`,
-            "info",
-            next.fromName,
-          );
+        if (secureRandom() < 0.5) {
+          pushLog(`relay ${next.fromName} -> ${next.toName}: ${next.message}`, "info", next.fromName)
+        }
         }
 
         return [...prev.slice(-79), next];
@@ -1365,36 +1326,28 @@ function handleDistrictUnlockedEvent(
         return;
       }
 
-      const preview = upgradeAgentSkill(currentAgent, skillId);
+      const preview = upgradeAgentSkill(currentAgent, skillId)
       if (!preview.result) {
-        pushLog(
-          "skill upgrade blocked: skill not found",
-          "warning",
-          currentAgent.name,
-        );
-        return;
+        pushLog("skill upgrade blocked: skill not found", "warning", currentAgent.name)
+        return
       }
 
       if (!preview.result.upgraded) {
-        const blockedReason =
-          preview.result.reason === "max-level"
-            ? "already at max level"
-            : "not enough XP";
-        pushLog(
-          `skill upgrade blocked: ${blockedReason}`,
-          "warning",
-          currentAgent.name,
-        );
-        return;
+        const blockedReason = preview.result.reason === "max-level" ? "already at max level" : "not enough XP"
+        pushLog(`skill upgrade blocked: ${blockedReason}`, "warning", currentAgent.name)
+        toast.error("Skill Upgrade Blocked", { description: `${currentAgent.name}: ${blockedReason}` })
+        return
       }
 
       setAgents((prev) =>
-        prev.map((agent) =>
-          agent.id === agentId
-            ? upgradeAgentSkill(agent, skillId).agent
-            : agent,
-        ),
-      );
+        prev.map((agent) => (agent.id === agentId ? upgradeAgentSkill(agent, skillId).agent : agent)),
+      )
+      pushLog(`${preview.result.skill.name} upgraded to level ${preview.result.skill.level}`, "success", preview.agent.name)
+      toast.success("Skill Upgraded!", { description: `${preview.agent.name} upgraded ${preview.result.skill.name} to Level ${preview.result.skill.level}` })
+      showAgentOverlay(preview.agent, `${preview.result.skill.name} Lv.${preview.result.skill.level}`, preview.agent.color)
+    },
+    [pushLog, showAgentOverlay],
+  )
 
       pushLog(
         `${preview.result.skill.name} upgraded to level ${preview.result.skill.level}`,

@@ -9,6 +9,7 @@ import {
   getAgentProfilePath,
   slugifyAgent,
 } from "@/lib/og-card-data"
+import { registerAgent, resetAgentRegistryForTests } from "@/lib/agent-registry"
 
 describe("OG card data helpers", () => {
   it("resolves agents by id, name, and share slug", () => {
@@ -45,6 +46,29 @@ describe("OG card data helpers", () => {
 
     expect(findDistrictByLookup(district.id)?.id).toBe(district.id)
     expect(findDistrictByLookup(district.name)?.id).toBe(district.id)
+  })
+
+  it("resolves dynamic registered agents when not pre-seeded", () => {
+    resetAgentRegistryForTests()
+    
+    registerAgent({
+      agentId: "dynamic-bot-99",
+      model: "claude-3.5-haiku",
+      district: "defense",
+      capabilities: ["Encryption", "Perimeter Guard"],
+      status: "active",
+      endpoint: "http://localhost:8080/api",
+      x402: { accepts: true, pricePerTask: "0.01" },
+      registeredAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    })
+
+    const found = findAgentByLookup("dynamic-bot-99")
+    expect(found).not.toBeNull()
+    expect(found?.id).toBe("dynamic-bot-99")
+    expect(found?.model).toBe("claude-3.5-haiku")
+    expect(found?.district).toBe("defense")
+    expect(found?.status).toBe("active")
   })
 })
 

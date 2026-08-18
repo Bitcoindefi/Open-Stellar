@@ -57,27 +57,17 @@ function readReceipts(): X402ExplorerReceipt[] {
 }
 
 function writeReceipts(receipts: X402ExplorerReceipt[]): void {
-  ensureDb();
-  const tmpPath = `${DB_PATH}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(tmpPath, `${JSON.stringify(receipts, null, 2)}\n`, "utf8");
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      renameSync(tmpPath, DB_PATH);
-      return;
-    } catch {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { copyFileSync, unlinkSync } = require("node:fs");
-        copyFileSync(tmpPath, DB_PATH);
-        try {
-          unlinkSync(tmpPath);
-        } catch {}
-        return;
-      } catch {
-        // Ignore and retry if file is temporarily busy on Windows
-      }
-    }
+  ensureDb()
+  const tmpPath = `${DB_PATH}.${process.pid}.tmp`
+  writeFileSync(tmpPath, `${JSON.stringify(receipts, null, 2)}\n`, 'utf8')
+  try {
+    renameSync(tmpPath, DB_PATH)
+  } catch {
+    // On Windows, renameSync can fail with EPERM when another process holds
+    // a lock on the target file (e.g. parallel Vitest workers). Fall back to
+    // a direct write so the data is not silently lost.
+    writeFileSync(DB_PATH, `${JSON.stringify(receipts, null, 2)}\n`, 'utf8')
+    try { renameSync(tmpPath, `${tmpPath}.done`) } catch { /* cleanup best-effort */ }
   }
 }
 

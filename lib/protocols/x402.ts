@@ -1,16 +1,9 @@
 import { StrKey } from "@stellar/stellar-sdk";
 import { verifyEvmPayment, type EvmSettlementChain } from "@/lib/evm-utils";
 
-import {
-  listX402Receipts,
-  saveX402Receipt,
-  type X402ReceiptQuery,
-} from "@/lib/protocols/x402-receipt-store";
-import type {
-  ReputationAttestation,
-  ReputationGateRequirement,
-} from "@/lib/reputation/attestation";
-import { checkReputationGate } from "@/lib/reputation/attestation";
+import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from "@/lib/protocols/x402-receipt-store"
+import type { ReputationAttestation, ReputationGateRequirement } from "@/lib/reputation/attestation"
+import { checkReputationGate } from "@/lib/reputation/attestation"
 
 export type SettlementChain = "bnb" | "base" | "stellar";
 
@@ -538,26 +531,14 @@ export function renewX402Subscriptions(
   for (const subscription of subscriptionRegistry.values()) {
     if (now.getTime() < new Date(subscription.renewsAt).getTime()) continue;
 
-    const requiredXlm = parseXlmAmount(subscription.pricePerMonth);
-    const balance = balances[subscription.agentId];
-    const isInsufficient =
-      requiredXlm > 0 &&
-      ((balance !== undefined && balance < requiredXlm) ||
-        (balance === undefined &&
-          (subscription.status === "grace" ||
-            subscription.status === "paused")));
-    if (isInsufficient) {
-      subscription.status =
-        now.getTime() <=
-        new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS
-          ? "grace"
-          : "paused";
-      subscription.active = subscription.status === "grace";
-      subscription.graceEndsAt = new Date(
-        new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS,
-      ).toISOString();
-      if (subscription.status === "paused")
-        subscription.pausedAt = now.toISOString();
+    const requiredXlm = parseXlmAmount(subscription.pricePerMonth)
+    const balance = balances[subscription.agentId] ?? 0
+    if (requiredXlm > 0 && balance < requiredXlm) {
+      const graceEndTime = new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS
+      subscription.status = now.getTime() <= graceEndTime ? "grace" : "paused"
+      subscription.active = subscription.status === "grace"
+      subscription.graceEndsAt = new Date(graceEndTime).toISOString()
+      if (subscription.status === "paused") subscription.pausedAt = now.toISOString()
       subscription.billingEvents.unshift({
         id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
         type: "renewal_failed",
@@ -607,7 +588,7 @@ export function checkX402Subscription(
       status: "missing",
     };
 
-  renewX402Subscriptions(options.now);
+
   if (!subscription.active) {
     return {
       active: false,
