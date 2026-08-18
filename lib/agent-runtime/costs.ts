@@ -26,7 +26,10 @@ const globalState = globalThis as typeof globalThis & {
 };
 
 function records(): ClaudeCostRecord[] {
-  return (globalState.__openStellarClaudeCostRecords__ ??= []);
+  if (!globalState.__openStellarClaudeCostRecords__) {
+    globalState.__openStellarClaudeCostRecords__ = [];
+  }
+  return globalState.__openStellarClaudeCostRecords__;
 }
 
 function priceForModel(model: string) {

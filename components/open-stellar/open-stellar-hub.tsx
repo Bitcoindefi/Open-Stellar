@@ -646,15 +646,6 @@ function getTabBadgeColor(tabId: SidebarTabId): string {
   return "#34d399";
 }
 
-function getSafeRandom(): number {
-  if (typeof window !== "undefined" && window.crypto) {
-    const arr = new Uint32Array(1);
-    window.crypto.getRandomValues(arr);
-    return arr[0] / (0xffffffff + 1);
-  }
-  return Math.random();
-}
-
 function handleTaskCompletedEvent(
   event: PublishedSystemEvent & { type: "task.completed" },
   agent: MoltbotAgent | null,
@@ -920,8 +911,8 @@ function handleDistrictUnlockedEvent(
       );
 
       const agent =
-        targetAgent ||
-        agentsRef.current.find((candidate) => candidate.id === event.agentId) ||
+        targetAgent ??
+        agentsRef.current.find((candidate) => candidate.id === event.agentId) ??
         null;
 
       handleSystemEventSideEffect(event, agent);
@@ -1405,7 +1396,7 @@ function handleDistrictUnlockedEvent(
   const walletAlert = agents.some(
     (agent) =>
       !agent.wallet ||
-      (agent.wallet.funded && parseFloat(agent.wallet.balance) < 10),
+      (agent.wallet.funded && Number.parseFloat(agent.wallet.balance) < 10),
   );
   const openOfferCount = MOCK_OFFERS.filter(
     (offer) => offer.status === "open",

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { recordAgentHeartbeat } from "@/lib/agents/agent-health-store";
 import {
   getAgentHealthSummary,
@@ -54,17 +55,17 @@ function normalizeTask(input: unknown): Task {
       : {};
   const randSuffix = globalThis.crypto?.randomUUID()
     ? globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 6)
-    : Math.random().toString(36).slice(2, 8);
+    : randomBytes(4).toString("hex").slice(0, 6);
   const idStr =
     typeof body.id === "string" && body.id
       ? body.id
       : `task_${Date.now()}_${randSuffix}`;
-  const rawTitle =
-    typeof body.title === "string" && body.title
-      ? body.title
-      : typeof body.description === "string" && body.description
-        ? body.description
-        : "Agent task";
+  let rawTitle = "Agent task";
+  if (typeof body.title === "string" && body.title) {
+    rawTitle = body.title;
+  } else if (typeof body.description === "string" && body.description) {
+    rawTitle = body.description;
+  }
   const title = String(rawTitle).trim();
   return {
     id: idStr,
