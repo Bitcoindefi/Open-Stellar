@@ -25,8 +25,7 @@ const globalErrors = globalThis as typeof globalThis & {
   __openStellarAgentErrorState__?: Map<string, { lastSeen: string | null; degraded: boolean; consecutiveErrors: number }>
 }
 
-const state = globalErrors.__openStellarAgentErrorState__ ?? new Map<string, { lastSeen: string | null; degraded: boolean; consecutiveErrors: number }>()
-if (!globalErrors.__openStellarAgentErrorState__) globalErrors.__openStellarAgentErrorState__ = state
+const state = (globalErrors.__openStellarAgentErrorState__ ??= new Map<string, { lastSeen: string | null; degraded: boolean; consecutiveErrors: number }>())
 
 function normalizeAgentId(agentId: string): string {
   const cleanId = agentId.trim()
@@ -36,6 +35,26 @@ function normalizeAgentId(agentId: string): string {
 
 function truncate(value: string, length: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, length)
+}
+
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === "string" && error.trim()) return error
+  if (typeof error === "number" || typeof error === "boolean" || typeof error === "bigint" || typeof error === "symbol") {
+    return String(error)
+  }
+  if (typeof error === "object" && error !== null) {
+    if ("message" in error && typeof (error as { message?: unknown }).message === "string") {
+      const msg = (error as { message: string }).message.trim()
+      if (msg) return msg
+    }
+    try {
+      return JSON.stringify(error)
+    } catch {
+      return "[Unserializable Object]"
+    }
+  }
+  return "Unknown error"
 }
 
 function readErrorLog(): AgentErrorLogEntry[] {
@@ -85,7 +104,7 @@ export function recordAgentExecutionError(input: { agentId: string; error: unkno
   const entry: AgentErrorLogEntry = {
     date: date.toISOString(),
     agentId: cleanId,
-    error: truncate(input.error instanceof Error ? input.error.message : String(input.error || "Unknown error"), 500),
+    error: truncate(formatErrorMessage(input.error), 500),
     taskExcerpt: truncate(input.taskExcerpt ?? "", 240),
   }
 
