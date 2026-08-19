@@ -6,7 +6,7 @@ export const mockPassport = {
       cap: amount || "1000000000",
       agentId,
       mock: true,
-    }
+    };
   },
 
   async getStatus(agentId: string) {
@@ -20,7 +20,6 @@ export const mockPassport = {
         ledger: 0,
       },
       mock: true,
-    }
+    };
   },
-}
-
+};

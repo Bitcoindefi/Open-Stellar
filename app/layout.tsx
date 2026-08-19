@@ -4,6 +4,8 @@ import { Analytics } from "@vercel/analytics/next";
 import { WalletProvider } from "@/components/wallet/wallet-provider";
 import { MockBanner } from "@/components/mock-banner";
 import { PwaRegister } from "@/components/pwa-register";
+import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeToggleNavbar } from "@/components/theme-toggle-navbar";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -21,7 +23,8 @@ const vt323 = VT323({
 
 export const metadata: Metadata = {
   title: "Open Stellar - Agent City",
-  description: "Open Stellar - multi-chain platform with AI agents and Web3 protocols",
+  description:
+    "Open Stellar - multi-chain platform with AI agents and Web3 protocols",
   generator: "v0.app",
   manifest: "/manifest.webmanifest",
   applicationName: "Open Stellar",
@@ -32,11 +35,21 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icon-light-32x32.png", sizes: "32x32", type: "image/png", media: "(prefers-color-scheme: light)" },
-      { url: "/icon-dark-32x32.png", sizes: "32x32", type: "image/png", media: "(prefers-color-scheme: dark)" },
+      {
+        url: "/icon-light-32x32.png",
+        sizes: "32x32",
+        type: "image/png",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        url: "/icon-dark-32x32.png",
+        sizes: "32x32",
+        type: "image/png",
+        media: "(prefers-color-scheme: dark)",
+      },
       { url: "/icon.svg", type: "image/svg+xml" },
     ],
-    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: 'image/png' }],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
@@ -45,9 +58,6 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
 };
-
-import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggleNavbar } from "@/components/theme-toggle-navbar";
 
 export default function RootLayout({
   children,
@@ -61,7 +71,6 @@ export default function RootLayout({
         className={`${pressStart2P.variable} ${vt323.variable} font-sans antialiased`}
       >
         <MockBanner />
-
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -74,7 +83,6 @@ export default function RootLayout({
           </div>
           <WalletProvider>{children}</WalletProvider>
         </ThemeProvider>
-
         <PwaRegister />
         <Analytics />
         <Toaster

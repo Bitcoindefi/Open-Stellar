@@ -1,8 +1,7 @@
-import { createSystemEventResponse } from "@/lib/events/event-stream"
+import { createSystemEventResponse } from "@/lib/events/event-stream";
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return createSystemEventResponse()
+  return createSystemEventResponse();
 }
-

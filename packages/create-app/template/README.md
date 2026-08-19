@@ -1,10 +1,10 @@
-# __PROJECT_NAME__
+# **PROJECT_NAME**
 
 Open Stellar node scaffolded with `create-open-stellar-app`.
 
-- **Node name:** __NODE_NAME__
-- **Network:** __NETWORK__
-- **Deploy target:** __DEPLOY_TARGET__
+- **Node name:** **NODE_NAME**
+- **Network:** **NETWORK**
+- **Deploy target:** **DEPLOY_TARGET**
 
 ## Quick start
 

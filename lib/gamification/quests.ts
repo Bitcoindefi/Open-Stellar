@@ -1,50 +1,50 @@
-import { addNotification } from "@/lib/notifications/notification-store"
-import { invalidateLeaderboardCache } from "./leaderboard-cache"
-import { listStoredQuests } from "./quest-store"
+import { addNotification } from "@/lib/notifications/notification-store";
+import { invalidateLeaderboardCache } from "./leaderboard-cache";
+import { listStoredQuests } from "./quest-store";
 
-export type QuestType = "daily" | "weekly" | "story"
+export type QuestType = "daily" | "weekly" | "story";
 
 export interface QuestReward {
-  xp: number
-  xlm?: string
-  badge?: string
-  title?: string
+  xp: number;
+  xlm?: string;
+  badge?: string;
+  title?: string;
 }
 
 export interface SubTask {
-  id: string
-  title: string
-  assignedAgentId?: string
-  dependsOn?: string[]
-  status: "pending" | "in_progress" | "done"
-  completedAt?: string
+  id: string;
+  title: string;
+  assignedAgentId?: string;
+  dependsOn?: string[];
+  status: "pending" | "in_progress" | "done";
+  completedAt?: string;
 }
 
 export interface Quest {
-  id: string
-  type: QuestType
-  title: string
-  description: string
-  reward: QuestReward
-  progress: number
-  unlocksQuestId?: string
-  minReputation?: number
-  completedAt?: string
-  expiresAt?: string
-  subTasks?: SubTask[]
-  status?: "in_progress" | "completed"
+  id: string;
+  type: QuestType;
+  title: string;
+  description: string;
+  reward: QuestReward;
+  progress: number;
+  unlocksQuestId?: string;
+  minReputation?: number;
+  completedAt?: string;
+  expiresAt?: string;
+  subTasks?: SubTask[];
+  status?: "in_progress" | "completed";
 }
 
 interface QuestDefinition {
-  id: string
-  type: QuestType
-  title: string
-  description: string
-  reward: QuestReward
-  goal: number
-  metric: QuestMetric
-  unlocksQuestId?: string
-  minReputation?: number
+  id: string;
+  type: QuestType;
+  title: string;
+  description: string;
+  reward: QuestReward;
+  goal: number;
+  metric: QuestMetric;
+  unlocksQuestId?: string;
+  minReputation?: number;
 }
 
 type QuestMetric =
@@ -58,20 +58,20 @@ type QuestMetric =
   | "marketplaceServicesWeek"
   | "zkPassportsMinted"
   | "crossDistrictDelegations"
-  | "subscriptionsAcquired"
+  | "subscriptionsAcquired";
 
 export interface QuestStats {
-  tasksCompletedToday: number
-  paymentsProcessedToday: number
-  uptimePercentToday: number
-  messagesSentToday: number
-  tasksCompletedWeek: number
-  xlmEarnedWeek: number
-  leaderboardRank: number | null
-  marketplaceServicesWeek: number
-  zkPassportsMinted: number
-  crossDistrictDelegations: number
-  subscriptionsAcquired: number
+  tasksCompletedToday: number;
+  paymentsProcessedToday: number;
+  uptimePercentToday: number;
+  messagesSentToday: number;
+  tasksCompletedWeek: number;
+  xlmEarnedWeek: number;
+  leaderboardRank: number | null;
+  marketplaceServicesWeek: number;
+  zkPassportsMinted: number;
+  crossDistrictDelegations: number;
+  subscriptionsAcquired: number;
 }
 
 const QUEST_DEFINITIONS: QuestDefinition[] = [
@@ -97,7 +97,8 @@ const QUEST_DEFINITIONS: QuestDefinition[] = [
     id: "daily-uptime-99",
     type: "daily",
     title: "Maintain 99% uptime for 24h",
-    description: "Keep the selected agent fleet healthy for a full daily window.",
+    description:
+      "Keep the selected agent fleet healthy for a full daily window.",
     reward: { xp: 20, badge: "Iron Badge progress" },
     goal: 99,
     metric: "uptimePercentToday",
@@ -175,130 +176,179 @@ const QUEST_DEFINITIONS: QuestDefinition[] = [
     goal: 1,
     metric: "subscriptionsAcquired",
   },
-]
+];
 
 export function getNextDailyReset(now: Date = new Date()): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0))
+  return new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + 1,
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
 }
 
 export function getNextWeeklyReset(now: Date = new Date()): Date {
-  const daysUntilSunday = (7 - now.getUTCDay()) % 7 || 7
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilSunday, 0, 0, 0, 0))
+  const daysUntilSunday = (7 - now.getUTCDay()) % 7 || 7;
+  return new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() + daysUntilSunday,
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
 }
 
-function getMetricValue(definition: QuestDefinition, stats: QuestStats): number {
+function getMetricValue(
+  definition: QuestDefinition,
+  stats: QuestStats,
+): number {
   if (definition.metric === "leaderboardRank") {
-    if (stats.leaderboardRank === null) return 0
-    return stats.leaderboardRank <= definition.goal ? definition.goal : 0
+    if (stats.leaderboardRank === null) return 0;
+    return stats.leaderboardRank <= definition.goal ? definition.goal : 0;
   }
 
-  return stats[definition.metric]
+  return stats[definition.metric];
 }
 
 function toProgress(value: number, goal: number): number {
-  if (goal <= 0) return 100
-  return Math.max(0, Math.min(100, Math.round((value / goal) * 100)))
+  if (goal <= 0) return 100;
+  return Math.max(0, Math.min(100, Math.round((value / goal) * 100)));
 }
 
-type SubTaskStore = Map<string, SubTask[]>
+type SubTaskStore = Map<string, SubTask[]>;
 
 const globalQuests = globalThis as typeof globalThis & {
-  __openStellarQuestSubTasks__?: SubTaskStore
-}
+  __openStellarQuestSubTasks__?: SubTaskStore;
+};
 
 function hydrateSubTasks(): SubTaskStore {
-  if (globalQuests.__openStellarQuestSubTasks__) return globalQuests.__openStellarQuestSubTasks__
-  const map: SubTaskStore = new Map()
-  
+  if (globalQuests.__openStellarQuestSubTasks__)
+    return globalQuests.__openStellarQuestSubTasks__;
+  const map: SubTaskStore = new Map();
+
   for (const q of listStoredQuests({ includeExpired: true })) {
     if (q.subTasks && q.subTasks.length > 0) {
-      map.set(q.id, q.subTasks)
+      map.set(q.id, q.subTasks);
     }
   }
 
-  globalQuests.__openStellarQuestSubTasks__ = map
-  return map
+  globalQuests.__openStellarQuestSubTasks__ = map;
+  return map;
 }
 
-const subtaskDb = hydrateSubTasks()
+const subtaskDb = hydrateSubTasks();
 
 export function getSubTasks(questId: string): SubTask[] {
-  return subtaskDb.get(questId) ?? []
+  return subtaskDb.get(questId) ?? [];
 }
 
 function generateId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID()
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
   }
-  return Math.random().toString(36).substring(2, 15)
+  return Math.random().toString(36).substring(2, 15);
 }
 
-export function addSubTask(questId: string, title: string, assignedAgentId?: string, dependsOn?: string[]): SubTask {
-  const subtasks = getSubTasks(questId)
+export function addSubTask(
+  questId: string,
+  title: string,
+  assignedAgentId?: string,
+  dependsOn?: string[],
+): SubTask {
+  const subtasks = getSubTasks(questId);
   const newSubTask: SubTask = {
     id: generateId(),
     title,
     assignedAgentId,
     ...(dependsOn !== undefined ? { dependsOn } : {}),
     status: "pending",
-  }
-  subtasks.push(newSubTask)
-  subtaskDb.set(questId, subtasks)
+  };
+  subtasks.push(newSubTask);
+  subtaskDb.set(questId, subtasks);
 
-  return newSubTask
+  return newSubTask;
 }
 
 export function updateSubTask(
   questId: string,
   subTaskId: string,
-  updates: Partial<Omit<SubTask, "id">>
+  updates: Partial<Omit<SubTask, "id">>,
 ): SubTask | null {
-  const subtasks = getSubTasks(questId)
-  const index = subtasks.findIndex((st) => st.id === subTaskId)
-  if (index === -1) return null
+  const subtasks = getSubTasks(questId);
+  const index = subtasks.findIndex((st) => st.id === subTaskId);
+  if (index === -1) return null;
 
-  const existing = subtasks[index]
+  const existing = subtasks[index];
   const updated: SubTask = {
     ...existing,
     ...updates,
-  }
+  };
 
   if (updates.status === "done" && existing.status !== "done") {
-    updated.completedAt = new Date().toISOString()
+    updated.completedAt = new Date().toISOString();
   } else if (updates.status && updates.status !== "done") {
-    delete updated.completedAt
+    delete updated.completedAt;
   }
 
-  subtasks[index] = updated
-  subtaskDb.set(questId, subtasks)
+  subtasks[index] = updated;
+  subtaskDb.set(questId, subtasks);
 
-  return updated
+  return updated;
 }
 
-export function buildQuests(stats: QuestStats, now: Date = new Date()): Quest[] {
-  const completedAt = now.toISOString()
-  const dailyReset = getNextDailyReset(now).toISOString()
-  const weeklyReset = getNextWeeklyReset(now).toISOString()
+export function buildQuests(
+  stats: QuestStats,
+  now: Date = new Date(),
+): Quest[] {
+  const completedAt = now.toISOString();
+  const dailyReset = getNextDailyReset(now).toISOString();
+  const weeklyReset = getNextWeeklyReset(now).toISOString();
 
   return QUEST_DEFINITIONS.map((definition) => {
-    const subTasks = getSubTasks(definition.id)
-    const expiresAt = definition.type === "daily" ? dailyReset : definition.type === "weekly" ? weeklyReset : undefined
+    const subTasks = getSubTasks(definition.id);
+    const expiresAt =
+      definition.type === "daily"
+        ? dailyReset
+        : definition.type === "weekly"
+          ? weeklyReset
+          : undefined;
 
     if (subTasks.length > 0) {
-      const doneCount = subTasks.filter((st) => st.status === "done").length
-      const calculatedProgress = Math.round((doneCount / subTasks.length) * 100)
-      const progress = (calculatedProgress === 100 && doneCount < subTasks.length) ? 99 : calculatedProgress
+      const doneCount = subTasks.filter((st) => st.status === "done").length;
+      const calculatedProgress = Math.round(
+        (doneCount / subTasks.length) * 100,
+      );
+      const progress =
+        calculatedProgress === 100 && doneCount < subTasks.length
+          ? 99
+          : calculatedProgress;
 
-      const isAllDone = doneCount === subTasks.length
-      const questStatus = isAllDone ? "completed" : "in_progress"
+      const isAllDone = doneCount === subTasks.length;
+      const questStatus = isAllDone ? "completed" : "in_progress";
 
-      let questCompletedAt: string | undefined = undefined
+      let questCompletedAt: string | undefined = undefined;
       if (isAllDone) {
-        const completedAts = subTasks.map((st) => st.completedAt).filter(Boolean) as string[]
+        const completedAts = subTasks
+          .map((st) => st.completedAt)
+          .filter(Boolean) as string[];
         if (completedAts.length > 0) {
-          questCompletedAt = completedAts.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+          questCompletedAt = completedAts.sort(
+            (a, b) => new Date(b).getTime() - new Date(a).getTime(),
+          )[0];
         } else {
-          questCompletedAt = completedAt
+          questCompletedAt = completedAt;
         }
       }
 
@@ -311,14 +361,21 @@ export function buildQuests(stats: QuestStats, now: Date = new Date()): Quest[] 
         progress,
         subTasks,
         status: questStatus,
-        ...(definition.unlocksQuestId ? { unlocksQuestId: definition.unlocksQuestId } : {}),
-        ...(definition.minReputation !== undefined ? { minReputation: definition.minReputation } : {}),
+        ...(definition.unlocksQuestId
+          ? { unlocksQuestId: definition.unlocksQuestId }
+          : {}),
+        ...(definition.minReputation !== undefined
+          ? { minReputation: definition.minReputation }
+          : {}),
         ...(isAllDone ? { completedAt: questCompletedAt } : {}),
         ...(expiresAt ? { expiresAt } : {}),
-      }
+      };
     } else {
-      const progress = toProgress(getMetricValue(definition, stats), definition.goal)
-      const questStatus = progress >= 100 ? "completed" : "in_progress"
+      const progress = toProgress(
+        getMetricValue(definition, stats),
+        definition.goal,
+      );
+      const questStatus = progress >= 100 ? "completed" : "in_progress";
 
       return {
         id: definition.id,
@@ -328,17 +385,21 @@ export function buildQuests(stats: QuestStats, now: Date = new Date()): Quest[] 
         reward: definition.reward,
         progress,
         status: questStatus,
-        ...(definition.unlocksQuestId ? { unlocksQuestId: definition.unlocksQuestId } : {}),
-        ...(definition.minReputation !== undefined ? { minReputation: definition.minReputation } : {}),
+        ...(definition.unlocksQuestId
+          ? { unlocksQuestId: definition.unlocksQuestId }
+          : {}),
+        ...(definition.minReputation !== undefined
+          ? { minReputation: definition.minReputation }
+          : {}),
         ...(progress >= 100 ? { completedAt } : {}),
         ...(expiresAt ? { expiresAt } : {}),
-      }
+      };
     }
-  })
+  });
 }
 
 export function getMockQuestStats(now: Date = new Date()): QuestStats {
-  const daySeed = now.getUTCDate()
+  const daySeed = now.getUTCDate();
 
   return {
     tasksCompletedToday: (daySeed % 6) + 2,
@@ -352,26 +413,29 @@ export function getMockQuestStats(now: Date = new Date()): QuestStats {
     zkPassportsMinted: 1,
     crossDistrictDelegations: daySeed % 2,
     subscriptionsAcquired: 0,
-  }
+  };
 }
 
 export function getQuests(now: Date = new Date()): Quest[] {
-  return buildQuests(getMockQuestStats(now), now)
+  return buildQuests(getMockQuestStats(now), now);
 }
 
 export function getQuestById(id: string, now: Date = new Date()): Quest | null {
-  return getQuests(now).find((quest) => quest.id === id) ?? null
+  return getQuests(now).find((quest) => quest.id === id) ?? null;
 }
 
-export function recordCompletedQuestNotifications(agentId: string, quests: Quest[]): void {
-  const cleanId = agentId.trim()
-  if (!cleanId) return
+export function recordCompletedQuestNotifications(
+  agentId: string,
+  quests: Quest[],
+): void {
+  const cleanId = agentId.trim();
+  if (!cleanId) return;
 
-  let anyCompleted = false
+  let anyCompleted = false;
 
   for (const quest of quests) {
-    if (!quest.completedAt) continue
-    anyCompleted = true
+    if (!quest.completedAt) continue;
+    anyCompleted = true;
 
     addNotification({
       agentId: cleanId,
@@ -382,11 +446,11 @@ export function recordCompletedQuestNotifications(agentId: string, quests: Quest
       resourceLabel: quest.title,
       createdAt: quest.completedAt,
       dedupeKey: `quest_completed:${cleanId}:${quest.id}:${quest.completedAt}`,
-    })
+    });
   }
 
   // Invalidate cache when any quest is completed so next read reflects latest state
   if (anyCompleted) {
-    invalidateLeaderboardCache()
+    invalidateLeaderboardCache();
   }
 }

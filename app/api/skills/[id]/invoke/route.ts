@@ -3,7 +3,7 @@ import { getSkill } from "@/lib/skills/skill-store";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: skillId } = await params;
@@ -18,7 +18,7 @@ export async function POST(
           skillId,
           version: version ?? "latest",
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -34,7 +34,7 @@ export async function POST(
     console.error("[skills/invoke]", err);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

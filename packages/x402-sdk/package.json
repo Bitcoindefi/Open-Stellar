@@ -1,0 +1,11 @@
+{
+  "name": "@open-stellar/x402",
+  "version": "0.1.0",
+  "description": "Production-grade HTTP 402 payment gate SDK for Next.js and Node.js",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "license": "MIT",
+  "peerDependencies": {
+    "next": "*"
+  }
+}

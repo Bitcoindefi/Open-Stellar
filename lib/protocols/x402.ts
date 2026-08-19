@@ -1,7 +1,9 @@
 import { StrKey } from '@stellar/stellar-sdk'
 import { verifyEvmPayment, type EvmSettlementChain } from '@/lib/evm-utils'
 
-import { getX402Receipt, listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
+import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
+import { getX402SubscriptionStore, resetX402SubscriptionStoreForTests, saveX402SubscriptionStore } from '@/lib/protocols/x402-subscription-store'
+import { dispatchX402Webhooks } from '@/lib/protocols/x402-webhook-store'
 import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
 import { checkReputationGate } from '@/lib/reputation/attestation'
 
@@ -242,6 +244,7 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
 
   quoteRegistry.delete(paymentRef)
   quoteRegistry.delete(quote.quoteId)
+  void dispatchX402Webhooks(storedReceipt)
   return { ok: true, receipt: storedReceipt }
 }
 
@@ -368,6 +371,7 @@ export function createX402Subscription(input: X402SubscriptionRequest): X402Subs
   }
 
   subscriptionRegistry.set(subscriptionKey(agentId, serviceId), subscription)
+  saveX402SubscriptionStore(subscription)
   return subscription
 }
 
@@ -413,14 +417,26 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
     renewed.push(subscription)
   }
 
+  for (const sub of subscriptionRegistry.values()) {
+    saveX402SubscriptionStore(sub)
+  }
+
   return { renewed, paused }
 }
 
 export function checkX402Subscription(agentId: string, serviceId: string, options: { consumeCall?: boolean } = {}): X402SubscriptionAccess {
-  const subscription = subscriptionRegistry.get(subscriptionKey(agentId.trim(), serviceId.trim()))
+  const key = subscriptionKey(agentId.trim(), serviceId.trim())
+  let subscription = subscriptionRegistry.get(key)
+  if (!subscription) {
+    const stored = getX402SubscriptionStore(agentId, serviceId)
+    if (stored) {
+      subscriptionRegistry.set(key, stored)
+      subscription = stored
+    }
+  }
+
   if (!subscription) return { active: false, callsRemaining: 0, renewsAt: '', status: 'missing' }
 
-  renewX402Subscriptions()
   if (!subscription.active) {
     return { active: false, callsRemaining: Math.max(0, (subscription.callsPerMonth ?? 0) - subscription.callsUsed), renewsAt: subscription.renewsAt, status: subscription.status, graceEndsAt: subscription.graceEndsAt, subscription }
   }
@@ -432,7 +448,10 @@ export function checkX402Subscription(agentId: string, serviceId: string, option
     return { active: false, callsRemaining: 0, renewsAt: subscription.renewsAt, status: 'exhausted', subscription }
   }
 
-  if (options.consumeCall && monthlyCallLimit !== null) subscription.callsUsed += 1
+  if (options.consumeCall && monthlyCallLimit !== null) {
+    subscription.callsUsed += 1
+    saveX402SubscriptionStore(subscription)
+  }
   return {
     active: true,
     callsRemaining: monthlyCallLimit === null ? null : Math.max(0, monthlyCallLimit - subscription.callsUsed),
@@ -466,4 +485,5 @@ export function listX402Subscriptions() {
 
 export function resetX402SubscriptionsForTests() {
   subscriptionRegistry.clear()
+  resetX402SubscriptionStoreForTests()
 }

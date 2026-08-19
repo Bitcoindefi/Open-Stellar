@@ -1,31 +1,45 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useState } from "react"
-import { FeedItem } from "@/components/feed/feed-item"
-import type { FeedEvent } from "@/lib/feed/activity-feed"
+import { useEffect, useMemo, useState } from "react";
+import { FeedItem } from "@/components/feed/feed-item";
+import type { FeedEvent } from "@/lib/feed/activity-feed";
 
-export function LiveFeed({ initialEvents, streamPath }: { initialEvents: FeedEvent[]; streamPath: string }) {
-  const [events, setEvents] = useState(initialEvents)
-  const [isLive, setIsLive] = useState(false)
+export function LiveFeed({
+  initialEvents,
+  streamPath,
+}: {
+  initialEvents: FeedEvent[];
+  streamPath: string;
+}) {
+  const [events, setEvents] = useState(initialEvents);
+  const [isLive, setIsLive] = useState(false);
 
   useEffect(() => {
-    const source = new EventSource(streamPath)
+    const source = new EventSource(streamPath);
 
-    source.onopen = () => setIsLive(true)
-    source.onerror = () => setIsLive(false)
+    source.onopen = () => setIsLive(true);
+    source.onerror = () => setIsLive(false);
     source.addEventListener("feed.event", (message) => {
       try {
-        const event = JSON.parse((message as MessageEvent).data) as FeedEvent
-        setEvents((current) => [event, ...current.filter((item) => item.id !== event.id)].slice(0, 25))
+        const event = JSON.parse((message as MessageEvent).data) as FeedEvent;
+        setEvents((current) =>
+          [event, ...current.filter((item) => item.id !== event.id)].slice(
+            0,
+            25,
+          ),
+        );
       } catch {
-        setIsLive(false)
+        setIsLive(false);
       }
-    })
+    });
 
-    return () => source.close()
-  }, [streamPath])
+    return () => source.close();
+  }, [streamPath]);
 
-  const label = useMemo(() => (isLive ? "Live updates connected" : "Waiting for live updates"), [isLive])
+  const label = useMemo(
+    () => (isLive ? "Live updates connected" : "Waiting for live updates"),
+    [isLive],
+  );
 
   return (
     <section style={{ display: "grid", gap: 10 }} aria-label="Live feed events">
@@ -71,5 +85,5 @@ export function LiveFeed({ initialEvents, streamPath }: { initialEvents: FeedEve
         }
       `}</style>
     </section>
-  )
+  );
 }

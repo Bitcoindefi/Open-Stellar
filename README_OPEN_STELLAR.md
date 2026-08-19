@@ -122,21 +122,21 @@ Your worker will be available at `https://your-worker.your-subdomain.workers.dev
 
 ### Required
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `OPENAI_API_KEY` | Your Groq API key | `gsk_...` |
-| `OPENAI_BASE_URL` | Groq API endpoint | `https://api.groq.com/openai/v1` |
-| `MOLTBOT_GATEWAY_TOKEN` | Gateway authentication token | Same as API key |
+| Variable                | Description                  | Example                          |
+| ----------------------- | ---------------------------- | -------------------------------- |
+| `OPENAI_API_KEY`        | Your Groq API key            | `gsk_...`                        |
+| `OPENAI_BASE_URL`       | Groq API endpoint            | `https://api.groq.com/openai/v1` |
+| `MOLTBOT_GATEWAY_TOKEN` | Gateway authentication token | Same as API key                  |
 
 ### Optional
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DEV_MODE` | Skip authentication checks | `false` |
-| `DEBUG_ROUTES` | Enable `/debug/*` endpoints | `false` |
-| `R2_ACCESS_KEY_ID` | R2 storage access key | - |
-| `R2_SECRET_ACCESS_KEY` | R2 storage secret | - |
-| `CF_ACCOUNT_ID` | Cloudflare account ID | - |
+| Variable               | Description                 | Default |
+| ---------------------- | --------------------------- | ------- |
+| `DEV_MODE`             | Skip authentication checks  | `false` |
+| `DEBUG_ROUTES`         | Enable `/debug/*` endpoints | `false` |
+| `R2_ACCESS_KEY_ID`     | R2 storage access key       | -       |
+| `R2_SECRET_ACCESS_KEY` | R2 storage secret           | -       |
+| `CF_ACCOUNT_ID`        | Cloudflare account ID       | -       |
 
 ## 🤝 Contributing
 

@@ -2,6 +2,7 @@
 title: x402
 description: How Open Stellar gates API responses with payment-required receipts.
 ---
+
 # x402
 
 x402 is the payment-required flow for agent services. A provider returns a quote instead of the protected payload. The caller signs or settles the quote, then retries or submits the receipt to unlock the response.
@@ -16,9 +17,12 @@ x402 is the payment-required flow for agent services. A provider returns a quote
 ## Minimal handler
 
 ```ts
-import { gateWithX402 } from "@open-stellar/sdk/server"
+import { gateWithX402 } from "@open-stellar/sdk/server";
 
-export const GET = gateWithX402({ serviceId: "weather.v1", amount: "0.25" }, async () => {
-  return Response.json({ forecast: "clear skies" })
-})
+export const GET = gateWithX402(
+  { serviceId: "weather.v1", amount: "0.25" },
+  async () => {
+    return Response.json({ forecast: "clear skies" });
+  },
+);
 ```

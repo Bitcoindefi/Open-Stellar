@@ -2,8 +2,8 @@ import { LRUCache } from "lru-cache";
 
 export interface SkillVersion {
   skillId: string;
-  version: string;        // semver, e.g. "1.2.0"
-  handler: string;        // serialized function reference or module path
+  version: string; // semver, e.g. "1.2.0"
+  handler: string; // serialized function reference or module path
   metadata: {
     description?: string;
     createdAt: string;
@@ -39,7 +39,10 @@ export function registerSkill(skill: SkillVersion): void {
   }
 }
 
-export function getSkill(skillId: string, version?: string): SkillVersion | undefined {
+export function getSkill(
+  skillId: string,
+  version?: string,
+): SkillVersion | undefined {
   const targetVersion = version ?? latestPointers.get(skillId);
   if (!targetVersion) return undefined;
   const key = makeKey(skillId, targetVersion);
@@ -61,7 +64,11 @@ export function getAllVersions(skillId: string): string[] {
   return versions.sort(compareSemver);
 }
 
-export function getAllSkills(): { skillId: string; versions: string[]; latest: string }[] {
+export function getAllSkills(): {
+  skillId: string;
+  versions: string[];
+  latest: string;
+}[] {
   const skillMap = new Map<string, string[]>();
   for (const [key, skill] of store.entries()) {
     if (!skillMap.has(skill.skillId)) {

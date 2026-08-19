@@ -6,9 +6,9 @@ export const XP_AWARDS = {
   ZK_PASSPORT_MINTED: 100,
   UPTIME_24H_NO_ERRORS: 30,
   QUEST_COMPLETED: 200,
-} as const
+} as const;
 
-export const AGENT_LEVEL_CAP = 50
-export const FIRST_LEVEL_XP_THRESHOLD = 100
-export const LEVEL_XP_MULTIPLIER = 1.5
-export const FAST_TASK_MAX_DURATION_MS = 30_000
+export const AGENT_LEVEL_CAP = 50;
+export const FIRST_LEVEL_XP_THRESHOLD = 100;
+export const LEVEL_XP_MULTIPLIER = 1.5;
+export const FAST_TASK_MAX_DURATION_MS = 30_000;

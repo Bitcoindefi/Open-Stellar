@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest"
-import { getTaskOfferCounts, type TaskOffer } from "@/components/task-board"
+import { describe, expect, it } from "vitest";
+import { getTaskOfferCounts, type TaskOffer } from "@/components/task-board";
 
 describe("getTaskOfferCounts", () => {
   it("counts posted offers and completed filled offers for an agent", () => {
@@ -39,11 +39,11 @@ describe("getTaskOfferCounts", () => {
         workerAgentId: "bot-1",
         payload: {},
       },
-    ]
+    ];
 
     expect(getTaskOfferCounts("bot-1", offers)).toEqual({
       posted: 1,
       filled: 1,
-    })
-  })
-})
+    });
+  });
+});

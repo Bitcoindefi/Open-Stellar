@@ -1,85 +1,97 @@
-import { createHmac } from "node:crypto"
-import { listPublishedSystemEvents, subscribeToSystemEvents, type PublishedSystemEvent } from "@/lib/events/system-events"
-import { appendWebhookDeliveryAttempt } from "@/lib/webhooks/delivery-log"
+import { createHmac } from "node:crypto";
+import {
+  listPublishedSystemEvents,
+  subscribeToSystemEvents,
+  type PublishedSystemEvent,
+} from "@/lib/events/system-events";
+import { appendWebhookDeliveryAttempt } from "@/lib/webhooks/delivery-log";
 import {
   enqueueWebhookRetry,
   getDueWebhookRetryEntries,
   recordWebhookRetryFailure,
   removeWebhookRetryEntry,
-} from "@/lib/webhooks/retry-store"
-import { listWebhooksWithSecrets, type WebhookRegistration } from "@/lib/webhooks/store"
-import { evaluateFilters } from "@/lib/webhooks/filter"
+} from "@/lib/webhooks/retry-store";
+import {
+  listWebhooksWithSecrets,
+  type WebhookRegistration,
+} from "@/lib/webhooks/store";
+import { evaluateFilters } from "@/lib/webhooks/filter";
 
-const WEBHOOK_TIMEOUT_MS = 5_000
-const RETRY_DELAYS_MS = [5_000, 30_000, 120_000]
+const WEBHOOK_TIMEOUT_MS = 5_000;
+const RETRY_DELAYS_MS = [5_000, 30_000, 120_000];
 
 export interface WebhookPayload {
-  type: PublishedSystemEvent["type"]
-  payload: PublishedSystemEvent
+  type: PublishedSystemEvent["type"];
+  payload: PublishedSystemEvent;
 }
 
-let retryDelaysMs = [...RETRY_DELAYS_MS]
+let retryDelaysMs = [...RETRY_DELAYS_MS];
 
 const globalState = globalThis as typeof globalThis & {
-  __openStellarWebhookDeliveryRegistered__?: boolean
-}
+  __openStellarWebhookDeliveryRegistered__?: boolean;
+};
 
 type PendingRetry = {
-  timeout: ReturnType<typeof setTimeout>
-  resolve: (cancelled: boolean) => void
-}
+  timeout: ReturnType<typeof setTimeout>;
+  resolve: (cancelled: boolean) => void;
+};
 
-const pendingRetriesByWebhookId = new Map<string, Set<PendingRetry>>()
+const pendingRetriesByWebhookId = new Map<string, Set<PendingRetry>>();
 
 interface WebhookPostResult {
-  durationMs: number
-  responseStatus: number | null
-  ok: boolean
-  lastError?: string
+  durationMs: number;
+  responseStatus: number | null;
+  ok: boolean;
+  lastError?: string;
 }
 
 function waitForPendingRetry(webhookId: string, ms: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const pendingRetries = pendingRetriesByWebhookId.get(webhookId) ?? new Set<PendingRetry>()
+    const pendingRetries =
+      pendingRetriesByWebhookId.get(webhookId) ?? new Set<PendingRetry>();
     const pendingRetry: PendingRetry = {
       timeout: setTimeout(() => {
-        pendingRetries.delete(pendingRetry)
+        pendingRetries.delete(pendingRetry);
         if (pendingRetries.size === 0) {
-          pendingRetriesByWebhookId.delete(webhookId)
+          pendingRetriesByWebhookId.delete(webhookId);
         }
-        resolve(false)
+        resolve(false);
       }, ms),
       resolve,
-    }
-    pendingRetries.add(pendingRetry)
-    pendingRetriesByWebhookId.set(webhookId, pendingRetries)
-  })
+    };
+    pendingRetries.add(pendingRetry);
+    pendingRetriesByWebhookId.set(webhookId, pendingRetries);
+  });
 }
 
 export function cancelPendingWebhookRetries(webhookId: string): number {
-  const cleanWebhookId = webhookId.trim()
-  const pendingRetries = pendingRetriesByWebhookId.get(cleanWebhookId)
-  if (!pendingRetries) return 0
+  const cleanWebhookId = webhookId.trim();
+  const pendingRetries = pendingRetriesByWebhookId.get(cleanWebhookId);
+  if (!pendingRetries) return 0;
 
-  const cancelledRetries = pendingRetries.size
+  const cancelledRetries = pendingRetries.size;
   for (const pendingRetry of pendingRetries) {
-    clearTimeout(pendingRetry.timeout)
-    pendingRetry.resolve(true)
+    clearTimeout(pendingRetry.timeout);
+    pendingRetry.resolve(true);
   }
-  pendingRetriesByWebhookId.delete(cleanWebhookId)
-  return cancelledRetries
+  pendingRetriesByWebhookId.delete(cleanWebhookId);
+  return cancelledRetries;
 }
 
 export function signWebhookBody(body: string, secret: string): string {
-  return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`
+  return `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
 }
 
-async function postWebhook(url: string, body: string, secret: string): Promise<WebhookPostResult> {
-  const controller = new AbortController()
-  const startedAt = Date.now()
+async function postWebhook(
+  url: string,
+  body: string,
+  secret: string,
+): Promise<WebhookPostResult> {
+  const controller = new AbortController();
+  const startedAt = Date.now();
   const timeout = setTimeout(() => {
-    controller.abort()
-  }, WEBHOOK_TIMEOUT_MS)
+    controller.abort();
+  }, WEBHOOK_TIMEOUT_MS);
 
   try {
     const response = await fetch(url, {
@@ -90,22 +102,23 @@ async function postWebhook(url: string, body: string, secret: string): Promise<W
       },
       body,
       signal: controller.signal,
-    })
+    });
     return {
       durationMs: Date.now() - startedAt,
       responseStatus: response.status,
       ok: response.ok,
       ...(response.ok ? {} : { lastError: `HTTP ${response.status}` }),
-    }
+    };
   } catch (error) {
     return {
       durationMs: Date.now() - startedAt,
       responseStatus: null,
       ok: false,
-      lastError: error instanceof Error ? error.message : "Webhook request failed",
-    }
+      lastError:
+        error instanceof Error ? error.message : "Webhook request failed",
+    };
   } finally {
-    clearTimeout(timeout)
+    clearTimeout(timeout);
   }
 }
 
@@ -128,7 +141,7 @@ function recordDeliveryAttempt(
       retried,
       attempt,
       status,
-    })
+    });
   } catch {
     // Delivery should not depend on local log persistence.
   }
@@ -140,14 +153,17 @@ async function deliverRetryAttempts(
   body: string,
   initialError: string,
 ): Promise<void> {
-  let lastError = initialError
+  let lastError = initialError;
 
   for (let retryIndex = 0; retryIndex < retryDelaysMs.length; retryIndex += 1) {
-    const cancelled = await waitForPendingRetry(webhook.id, retryDelaysMs[retryIndex])
-    if (cancelled) return
+    const cancelled = await waitForPendingRetry(
+      webhook.id,
+      retryDelaysMs[retryIndex],
+    );
+    if (cancelled) return;
 
-    const attempt = retryIndex + 2
-    const result = await postWebhook(webhook.url, body, webhook.secret)
+    const attempt = retryIndex + 2;
+    const result = await postWebhook(webhook.url, body, webhook.secret);
     recordDeliveryAttempt(
       webhook,
       payload.type,
@@ -155,17 +171,20 @@ async function deliverRetryAttempts(
       true,
       attempt,
       result.ok ? "success" : "failed",
-    )
-    if (result.ok) return
-    lastError = result.lastError ?? lastError
+    );
+    if (result.ok) return;
+    lastError = result.lastError ?? lastError;
   }
 
-  enqueueWebhookRetry(webhook.id, payload, lastError)
+  enqueueWebhookRetry(webhook.id, payload, lastError);
 }
 
-async function deliverToWebhook(webhook: WebhookRegistration, payload: WebhookPayload): Promise<void> {
+async function deliverToWebhook(
+  webhook: WebhookRegistration,
+  payload: WebhookPayload,
+): Promise<void> {
   // ─── FILTER GATE ──────────────────────────────────────────────────
-  const passes = evaluateFilters(webhook.filters, payload.payload)
+  const passes = evaluateFilters(webhook.filters, payload.payload);
 
   if (!passes) {
     recordDeliveryAttempt(
@@ -175,13 +194,13 @@ async function deliverToWebhook(webhook: WebhookRegistration, payload: WebhookPa
       false,
       1,
       "filtered",
-    )
-    return
+    );
+    return;
   }
   // ────────────────────────────────────────────────────────────────────
 
-  const body = JSON.stringify(payload)
-  const result = await postWebhook(webhook.url, body, webhook.secret)
+  const body = JSON.stringify(payload);
+  const result = await postWebhook(webhook.url, body, webhook.secret);
   recordDeliveryAttempt(
     webhook,
     payload.type,
@@ -189,80 +208,108 @@ async function deliverToWebhook(webhook: WebhookRegistration, payload: WebhookPa
     false,
     1,
     result.ok ? "success" : "failed",
-  )
-  if (result.ok) return
+  );
+  if (result.ok) return;
 
   void deliverRetryAttempts(
     webhook,
     payload,
     body,
     result.lastError ?? "Webhook delivery failed",
-  ).catch(() => undefined)
+  ).catch(() => undefined);
 }
 
-export async function deliverWebhookEvent(event: PublishedSystemEvent): Promise<void> {
-  const matchingWebhooks = listWebhooksWithSecrets().filter((webhook) => webhook.events.includes(event.type))
-  if (matchingWebhooks.length === 0) return
+export async function deliverWebhookEvent(
+  event: PublishedSystemEvent,
+): Promise<void> {
+  const matchingWebhooks = listWebhooksWithSecrets().filter((webhook) =>
+    webhook.events.includes(event.type),
+  );
+  if (matchingWebhooks.length === 0) return;
 
   const payload: WebhookPayload = {
     type: event.type,
     payload: event,
-  }
-  await Promise.all(matchingWebhooks.map((webhook) => deliverToWebhook(webhook, payload)))
+  };
+  await Promise.all(
+    matchingWebhooks.map((webhook) => deliverToWebhook(webhook, payload)),
+  );
 }
 
-export async function replayEventsToWebhook(webhookId: string, from: Date, to: Date = new Date()): Promise<number | null> {
-  const cleanWebhookId = webhookId.trim()
-  const webhook = listWebhooksWithSecrets().find((candidate) => candidate.id === cleanWebhookId)
-  if (!webhook) return null
+export async function replayEventsToWebhook(
+  webhookId: string,
+  from: Date,
+  to: Date = new Date(),
+): Promise<number | null> {
+  const cleanWebhookId = webhookId.trim();
+  const webhook = listWebhooksWithSecrets().find(
+    (candidate) => candidate.id === cleanWebhookId,
+  );
+  if (!webhook) return null;
 
-  const fromMs = from.getTime()
-  const toMs = to.getTime()
+  const fromMs = from.getTime();
+  const toMs = to.getTime();
   const events = listPublishedSystemEvents().filter((event) => {
-    const occurredAtMs = Date.parse(event.occurredAt)
+    const occurredAtMs = Date.parse(event.occurredAt);
     return (
       Number.isFinite(occurredAtMs) &&
       occurredAtMs >= fromMs &&
       occurredAtMs <= toMs &&
       webhook.events.includes(event.type)
-    )
-  })
+    );
+  });
 
-  await Promise.all(events.map((event) => deliverToWebhook(webhook, { type: event.type, payload: event })))
-  return events.length
+  await Promise.all(
+    events.map((event) =>
+      deliverToWebhook(webhook, { type: event.type, payload: event }),
+    ),
+  );
+  return events.length;
 }
 
 export interface WebhookRetrySummary {
-  ok: true
-  processed: number
-  succeeded: number
-  failed: number
-  dead: number
+  ok: true;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  dead: number;
 }
 
-export async function processDueWebhookRetries(now = Date.now()): Promise<WebhookRetrySummary> {
-  const entries = getDueWebhookRetryEntries(now)
-  const webhooks = listWebhooksWithSecrets()
+export async function processDueWebhookRetries(
+  now = Date.now(),
+): Promise<WebhookRetrySummary> {
+  const entries = getDueWebhookRetryEntries(now);
+  const webhooks = listWebhooksWithSecrets();
   const summary: WebhookRetrySummary = {
     ok: true,
     processed: 0,
     succeeded: 0,
     failed: 0,
     dead: 0,
-  }
+  };
 
   for (const entry of entries) {
-    summary.processed += 1
-    const webhook = webhooks.find((candidate) => candidate.id === entry.webhookId)
+    summary.processed += 1;
+    const webhook = webhooks.find(
+      (candidate) => candidate.id === entry.webhookId,
+    );
 
     if (!webhook) {
-      const updated = recordWebhookRetryFailure(entry.id, "Webhook not found", now)
-      summary.failed += 1
-      if (updated?.status === "dead") summary.dead += 1
-      continue
+      const updated = recordWebhookRetryFailure(
+        entry.id,
+        "Webhook not found",
+        now,
+      );
+      summary.failed += 1;
+      if (updated?.status === "dead") summary.dead += 1;
+      continue;
     }
 
-    const result = await postWebhook(webhook.url, JSON.stringify(entry.payload), webhook.secret)
+    const result = await postWebhook(
+      webhook.url,
+      JSON.stringify(entry.payload),
+      webhook.secret,
+    );
     recordDeliveryAttempt(
       webhook,
       entry.payload.type,
@@ -270,55 +317,55 @@ export async function processDueWebhookRetries(now = Date.now()): Promise<Webhoo
       true,
       entry.attempts + 1,
       result.ok ? "success" : "failed",
-    )
+    );
 
     if (result.ok) {
-      removeWebhookRetryEntry(entry.id)
-      summary.succeeded += 1
-      continue
+      removeWebhookRetryEntry(entry.id);
+      summary.succeeded += 1;
+      continue;
     }
 
     const updated = recordWebhookRetryFailure(
       entry.id,
       result.lastError ?? "Webhook delivery failed",
       now,
-    )
-    summary.failed += 1
-    if (updated?.status === "dead") summary.dead += 1
+    );
+    summary.failed += 1;
+    if (updated?.status === "dead") summary.dead += 1;
   }
 
-  return summary
+  return summary;
 }
 
 export function registerWebhookDeliveryListener(): void {
-  if (globalState.__openStellarWebhookDeliveryRegistered__) return
-  globalState.__openStellarWebhookDeliveryRegistered__ = true
+  if (globalState.__openStellarWebhookDeliveryRegistered__) return;
+  globalState.__openStellarWebhookDeliveryRegistered__ = true;
 
   subscribeToSystemEvents((event) => {
-    void deliverWebhookEvent(event).catch(() => undefined)
-  })
+    void deliverWebhookEvent(event).catch(() => undefined);
+  });
 }
 
-registerWebhookDeliveryListener()
+registerWebhookDeliveryListener();
 
 export function setWebhookRetryDelayForTests(ms: number): void {
-  retryDelaysMs = RETRY_DELAYS_MS.map(() => ms)
+  retryDelaysMs = RETRY_DELAYS_MS.map(() => ms);
 }
 
 export function setWebhookRetryDelaysForTests(delaysMs: number[]): void {
-  retryDelaysMs = [...delaysMs]
+  retryDelaysMs = [...delaysMs];
 }
 
 export function resetWebhookRetryDelayForTests(): void {
-  retryDelaysMs = [...RETRY_DELAYS_MS]
+  retryDelaysMs = [...RETRY_DELAYS_MS];
 }
 
 export function resetWebhookRetryCancellationForTests(): void {
   for (const pendingRetries of pendingRetriesByWebhookId.values()) {
     for (const pendingRetry of pendingRetries) {
-      clearTimeout(pendingRetry.timeout)
-      pendingRetry.resolve(true)
+      clearTimeout(pendingRetry.timeout);
+      pendingRetry.resolve(true);
     }
   }
-  pendingRetriesByWebhookId.clear()
+  pendingRetriesByWebhookId.clear();
 }

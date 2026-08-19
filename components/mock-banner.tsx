@@ -1,5 +1,5 @@
 export function MockBanner() {
-  if (process.env.NEXT_PUBLIC_MOCK_MODE !== "true") return null
+  if (process.env.NEXT_PUBLIC_MOCK_MODE !== "true") return null;
 
   return (
     <div
@@ -21,8 +21,8 @@ export function MockBanner() {
         textAlign: "center",
       }}
     >
-      MOCK MODE - no real transactions. Set NEXT_PUBLIC_MOCK_MODE=false for live Stellar and passport calls.
+      MOCK MODE - no real transactions. Set NEXT_PUBLIC_MOCK_MODE=false for live
+      Stellar and passport calls.
     </div>
-  )
+  );
 }
-

@@ -71,7 +71,9 @@ Script de referencia:
 
 1. Actualizar addresses/contract IDs en configuración.
 2. Probar transacciones en UI:
+
 - Escrow create/release/dispute
 - x402 quote/settle
 - Track 8004 fallback de reputación en Stellar
+
 3. Validar logs y explorers.

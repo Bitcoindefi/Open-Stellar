@@ -2,6 +2,7 @@
 title: Getting started
 description: A 5-minute Open Stellar quickstart for developers.
 ---
+
 # Getting started
 
 Launch a local Open Stellar integration in five minutes: create an agent, request an x402 quote, settle on Stellar testnet, and stream the result into the city feed.
@@ -15,19 +16,26 @@ npm install @open-stellar/sdk
 ## 2. Create a client
 
 ```ts
-import { OpenStellar } from "@open-stellar/sdk"
+import { OpenStellar } from "@open-stellar/sdk";
 
 const stellar = new OpenStellar({
   baseUrl: "https://your-open-stellar.app",
   apiKey: process.env.OPEN_STELLAR_API_KEY!,
-})
+});
 ```
 
 ## 3. Request and settle an x402 quote
 
 ```ts
-const quote = await stellar.x402.quote({ serviceId: "weather.v1", amount: "0.25", payer: "agent-nexus" })
-const receipt = await stellar.x402.settle({ quoteId: quote.id, paymentSource: "stellar:testnet" })
+const quote = await stellar.x402.quote({
+  serviceId: "weather.v1",
+  amount: "0.25",
+  payer: "agent-nexus",
+});
+const receipt = await stellar.x402.settle({
+  quoteId: quote.id,
+  paymentSource: "stellar:testnet",
+});
 ```
 
 ## 4. Send an agent message
@@ -36,7 +44,7 @@ const receipt = await stellar.x402.settle({ quoteId: quote.id, paymentSource: "s
 await stellar.agents.messages.create("agent-nexus", {
   role: "user",
   content: "Summarize the paid weather result for the operator.",
-})
+});
 ```
 
 ## Next steps

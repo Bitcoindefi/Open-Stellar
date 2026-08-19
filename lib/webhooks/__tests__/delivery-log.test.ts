@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest"
-import { mkdtempSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   appendWebhookDeliveryAttempt,
   getWebhookDeliveryStats,
@@ -9,24 +9,24 @@ import {
   resetWebhookDeliveryLogForTests,
   setWebhookDeliveryLogPathForTests,
   resetWebhookDeliveryLogPathForTests,
-} from "../delivery-log"
+} from "../delivery-log";
 
-let testDir: string
+let testDir: string;
 
 beforeEach(() => {
-  testDir = mkdtempSync(join(tmpdir(), "webhook-test-"))
-  setWebhookDeliveryLogPathForTests(join(testDir, "delivery-log.jsonl"))
-})
+  testDir = mkdtempSync(join(tmpdir(), "webhook-test-"));
+  setWebhookDeliveryLogPathForTests(join(testDir, "delivery-log.jsonl"));
+});
 
 afterEach(() => {
-  resetWebhookDeliveryLogForTests()
-  resetWebhookDeliveryLogPathForTests()
-  rmSync(testDir, { recursive: true, force: true })
-})
+  resetWebhookDeliveryLogForTests();
+  resetWebhookDeliveryLogPathForTests();
+  rmSync(testDir, { recursive: true, force: true });
+});
 
 describe("getWebhookDeliveryStats", () => {
   it("returns zeroed stats for unknown webhook", () => {
-    const stats = getWebhookDeliveryStats("wh_unknown")
+    const stats = getWebhookDeliveryStats("wh_unknown");
     expect(stats).toEqual({
       webhookId: "wh_unknown",
       totalDeliveries: 0,
@@ -36,11 +36,11 @@ describe("getWebhookDeliveryStats", () => {
       lastDeliveryAt: null,
       lastSuccessAt: null,
       avgLatencyMs: 0,
-    })
-  })
+    });
+  });
 
   it("computes correct stats for mixed deliveries", () => {
-    const webhookId = "wh_test123"
+    const webhookId = "wh_test123";
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -52,7 +52,7 @@ describe("getWebhookDeliveryStats", () => {
       retried: false,
       attempt: 1,
       status: "success",
-    })
+    });
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -64,7 +64,7 @@ describe("getWebhookDeliveryStats", () => {
       retried: false,
       attempt: 1,
       status: "failed",
-    })
+    });
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -76,18 +76,18 @@ describe("getWebhookDeliveryStats", () => {
       retried: false,
       attempt: 1,
       status: "success",
-    })
+    });
 
-    const stats = getWebhookDeliveryStats(webhookId)
+    const stats = getWebhookDeliveryStats(webhookId);
 
-    expect(stats.totalDeliveries).toBe(3)
-    expect(stats.successCount).toBe(2)
-    expect(stats.failureCount).toBe(1)
-    expect(stats.successRate).toBe(0.667)
-    expect(stats.lastDeliveryAt).toBe("2024-01-15T10:10:00.000Z")
-    expect(stats.lastSuccessAt).toBe("2024-01-15T10:10:00.000Z")
-    expect(stats.avgLatencyMs).toBe(1767) // (100 + 5000 + 200) / 3 = 1766.67 → 1767
-  })
+    expect(stats.totalDeliveries).toBe(3);
+    expect(stats.successCount).toBe(2);
+    expect(stats.failureCount).toBe(1);
+    expect(stats.successRate).toBe(0.667);
+    expect(stats.lastDeliveryAt).toBe("2024-01-15T10:10:00.000Z");
+    expect(stats.lastSuccessAt).toBe("2024-01-15T10:10:00.000Z");
+    expect(stats.avgLatencyMs).toBe(1767); // (100 + 5000 + 200) / 3 = 1766.67 → 1767
+  });
 
   it("ignores deliveries for other webhooks", () => {
     appendWebhookDeliveryAttempt({
@@ -100,14 +100,14 @@ describe("getWebhookDeliveryStats", () => {
       retried: false,
       attempt: 1,
       status: "success",
-    })
+    });
 
-    const stats = getWebhookDeliveryStats("wh_target")
-    expect(stats.totalDeliveries).toBe(0)
-  })
+    const stats = getWebhookDeliveryStats("wh_target");
+    expect(stats.totalDeliveries).toBe(0);
+  });
 
   it("computes correct lastSuccessAt when most recent is a failure", () => {
-    const webhookId = "wh_last_fail"
+    const webhookId = "wh_last_fail";
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -119,7 +119,7 @@ describe("getWebhookDeliveryStats", () => {
       retried: false,
       attempt: 1,
       status: "success",
-    })
+    });
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -131,17 +131,17 @@ describe("getWebhookDeliveryStats", () => {
       retried: false,
       attempt: 1,
       status: "failed",
-    })
+    });
 
-    const stats = getWebhookDeliveryStats(webhookId)
-    expect(stats.lastDeliveryAt).toBe("2024-01-15T10:05:00.000Z")
-    expect(stats.lastSuccessAt).toBe("2024-01-15T10:00:00.000Z")
-  })
-})
+    const stats = getWebhookDeliveryStats(webhookId);
+    expect(stats.lastDeliveryAt).toBe("2024-01-15T10:05:00.000Z");
+    expect(stats.lastSuccessAt).toBe("2024-01-15T10:00:00.000Z");
+  });
+});
 
 describe("listWebhookDeliveries", () => {
   it("returns newest first by default", () => {
-    const webhookId = "wh_order"
+    const webhookId = "wh_order";
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -153,7 +153,7 @@ describe("listWebhookDeliveries", () => {
       retried: false,
       attempt: 1,
       status: "success",
-    })
+    });
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -165,15 +165,15 @@ describe("listWebhookDeliveries", () => {
       retried: false,
       attempt: 1,
       status: "success",
-    })
+    });
 
-    const deliveries = listWebhookDeliveries(webhookId)
-    expect(deliveries[0].timestamp).toBe("2024-01-15T10:00:00.000Z")
-    expect(deliveries[1].timestamp).toBe("2024-01-15T09:00:00.000Z")
-  })
+    const deliveries = listWebhookDeliveries(webhookId);
+    expect(deliveries[0].timestamp).toBe("2024-01-15T10:00:00.000Z");
+    expect(deliveries[1].timestamp).toBe("2024-01-15T09:00:00.000Z");
+  });
 
   it("filters by status=success", () => {
-    const webhookId = "wh_filter"
+    const webhookId = "wh_filter";
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -185,7 +185,7 @@ describe("listWebhookDeliveries", () => {
       retried: false,
       attempt: 1,
       status: "success",
-    })
+    });
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -197,19 +197,19 @@ describe("listWebhookDeliveries", () => {
       retried: false,
       attempt: 1,
       status: "failed",
-    })
+    });
 
-    const successOnly = listWebhookDeliveries(webhookId, { status: "success" })
-    expect(successOnly).toHaveLength(1)
-    expect(successOnly[0].status).toBe("success")
+    const successOnly = listWebhookDeliveries(webhookId, { status: "success" });
+    expect(successOnly).toHaveLength(1);
+    expect(successOnly[0].status).toBe("success");
 
-    const failureOnly = listWebhookDeliveries(webhookId, { status: "failure" })
-    expect(failureOnly).toHaveLength(1)
-    expect(failureOnly[0].status).toBe("failure")
-  })
+    const failureOnly = listWebhookDeliveries(webhookId, { status: "failure" });
+    expect(failureOnly).toHaveLength(1);
+    expect(failureOnly[0].status).toBe("failure");
+  });
 
   it("caps limit at 100", () => {
-    const webhookId = "wh_limit"
+    const webhookId = "wh_limit";
 
     for (let i = 0; i < 150; i++) {
       appendWebhookDeliveryAttempt({
@@ -222,15 +222,15 @@ describe("listWebhookDeliveries", () => {
         retried: false,
         attempt: 1,
         status: "success",
-      })
+      });
     }
 
-    const deliveries = listWebhookDeliveries(webhookId, { limit: 200 })
-    expect(deliveries).toHaveLength(100)
-  })
+    const deliveries = listWebhookDeliveries(webhookId, { limit: 200 });
+    expect(deliveries).toHaveLength(100);
+  });
 
   it("defaults limit to 20", () => {
-    const webhookId = "wh_default"
+    const webhookId = "wh_default";
 
     for (let i = 0; i < 30; i++) {
       appendWebhookDeliveryAttempt({
@@ -243,15 +243,15 @@ describe("listWebhookDeliveries", () => {
         retried: false,
         attempt: 1,
         status: "success",
-      })
+      });
     }
 
-    const deliveries = listWebhookDeliveries(webhookId)
-    expect(deliveries).toHaveLength(20)
-  })
+    const deliveries = listWebhookDeliveries(webhookId);
+    expect(deliveries).toHaveLength(20);
+  });
 
   it("maps error correctly for timeout vs HTTP status", () => {
-    const webhookId = "wh_errors"
+    const webhookId = "wh_errors";
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -263,7 +263,7 @@ describe("listWebhookDeliveries", () => {
       retried: false,
       attempt: 1,
       status: "failed",
-    })
+    });
 
     appendWebhookDeliveryAttempt({
       webhookId,
@@ -275,15 +275,15 @@ describe("listWebhookDeliveries", () => {
       retried: false,
       attempt: 1,
       status: "failed",
-    })
+    });
 
-    const deliveries = listWebhookDeliveries(webhookId, { status: "failure" })
-    expect(deliveries[0].error).toBe("HTTP 503")
-    expect(deliveries[1].error).toBe("timeout")
-  })
+    const deliveries = listWebhookDeliveries(webhookId, { status: "failure" });
+    expect(deliveries[0].error).toBe("HTTP 503");
+    expect(deliveries[1].error).toBe("timeout");
+  });
 
   it("returns empty array for webhook with no attempts", () => {
-    const deliveries = listWebhookDeliveries("wh_empty")
-    expect(deliveries).toEqual([])
-  })
-})
+    const deliveries = listWebhookDeliveries("wh_empty");
+    expect(deliveries).toEqual([]);
+  });
+});

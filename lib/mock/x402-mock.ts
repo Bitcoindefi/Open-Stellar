@@ -1,17 +1,26 @@
-import type { SettlementChain, X402Quote, X402Receipt } from "@/lib/protocols/x402"
+import type {
+  SettlementChain,
+  X402Quote,
+  X402Receipt,
+} from "@/lib/protocols/x402";
 
 export function createMockX402Quote(input: {
-  serviceId: string
-  chain: SettlementChain
-  payer: string
-  units: number
-  unitPriceUsd: number
-  ttlSeconds?: number
+  serviceId: string;
+  chain: SettlementChain;
+  payer: string;
+  units: number;
+  unitPriceUsd: number;
+  ttlSeconds?: number;
 }): X402Quote & { mock: true } {
-  const ttlSeconds = input.ttlSeconds ?? 300
-  const amountUsd = Number((input.units * input.unitPriceUsd).toFixed(6))
-  const paymentRef = `mock:${input.serviceId}:${input.chain}:${Date.now()}`
-  const option = { chain: input.chain, amount: `${amountUsd} MOCK`, amountUnits: String(Math.round(amountUsd * 10_000_000)), address: 'mock-address' }
+  const ttlSeconds = input.ttlSeconds ?? 300;
+  const amountUsd = Number((input.units * input.unitPriceUsd).toFixed(6));
+  const paymentRef = `mock:${input.serviceId}:${input.chain}:${Date.now()}`;
+  const option = {
+    chain: input.chain,
+    amount: `${amountUsd} MOCK`,
+    amountUnits: String(Math.round(amountUsd * 10_000_000)),
+    address: "mock-address",
+  };
 
   return {
     code: 402,
@@ -28,13 +37,13 @@ export function createMockX402Quote(input: {
     paymentRef,
     memo: `mock-x402/${input.serviceId}/${input.chain}`,
     mock: true,
-  }
+  };
 }
 
 export function settleMockX402(input: {
-  paymentRef: string
-  chain: SettlementChain
-  txHash?: string
+  paymentRef: string;
+  chain: SettlementChain;
+  txHash?: string;
 }): X402Receipt & { mock: true } {
   return {
     accepted: true,
@@ -43,6 +52,5 @@ export function settleMockX402(input: {
     txHash: input.txHash || `MOCK_X402_TX_${Date.now()}`,
     chain: input.chain,
     mock: true,
-  }
+  };
 }
-

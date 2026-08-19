@@ -27,6 +27,7 @@ Implemented drain and purge endpoints for agent task queues, complementing the e
 Process pending tasks in FIFO order up to a configurable maximum.
 
 **Request Body:**
+
 ```json
 {
   "maxItems": 10
@@ -34,6 +35,7 @@ Process pending tasks in FIFO order up to a configurable maximum.
 ```
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -45,11 +47,13 @@ Process pending tasks in FIFO order up to a configurable maximum.
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `409` - Drain already in progress for this agent
 - `500` - Server error
 
 **Features:**
+
 - Default maxItems: 50
 - Maximum maxItems: 200
 - Concurrent drain protection
@@ -61,6 +65,7 @@ Process pending tasks in FIFO order up to a configurable maximum.
 Purge all pending tasks without processing.
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -69,19 +74,23 @@ Purge all pending tasks without processing.
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid request
 
 ## Implementation Files
 
 ### Core Library (lib/agents/)
+
 - `task-queue.ts` - Added `drainAgentTasks()` and `purgeAgentTasks()` functions
 
 ### API Routes (app/api/agents/[id]/tasks/)
+
 - `drain/route.ts` - POST endpoint for drain
 - `route.ts` - Updated with DELETE endpoint for purge
 
-### Tests (tests/lib/agents/ & __tests__/api/agents/)
+### Tests (tests/lib/agents/ & **tests**/api/agents/)
+
 - `task-drain.test.ts` - 24 unit tests for drain and purge logic
 - `tasks-drain.test.ts` - 15 integration tests for API endpoints
 
@@ -91,30 +100,32 @@ Purge all pending tasks without processing.
 
 ```typescript
 interface DrainOptions {
-  maxItems?: number           // Max tasks to process (default: 50, cap: 200)
-  processor?: (task: AgentTask) => Promise<void>  // Custom processor
+  maxItems?: number; // Max tasks to process (default: 50, cap: 200)
+  processor?: (task: AgentTask) => Promise<void>; // Custom processor
 }
 
 interface DrainResult {
-  processed: number           // Successfully processed tasks
-  skipped: number            // Tasks skipped (always 0 currently)
-  errors: Array<{            // Failed tasks with error details
-    taskId: string
-    error: string
-  }>
-  durationMs: number         // Total processing time
+  processed: number; // Successfully processed tasks
+  skipped: number; // Tasks skipped (always 0 currently)
+  errors: Array<{
+    // Failed tasks with error details
+    taskId: string;
+    error: string;
+  }>;
+  durationMs: number; // Total processing time
 }
 
 function drainAgentTasks(
   agentId: string,
-  options?: DrainOptions
-): { 
-  result: DrainResult | null  // null if already draining
-  alreadyDraining: boolean    // true if concurrent drain detected
-}
+  options?: DrainOptions,
+): {
+  result: DrainResult | null; // null if already draining
+  alreadyDraining: boolean; // true if concurrent drain detected
+};
 ```
 
 **Features:**
+
 - FIFO processing order
 - Concurrent drain protection per agent
 - Automatic task completion/failure tracking
@@ -124,12 +135,13 @@ function drainAgentTasks(
 ### purgeAgentTasks(agentId)
 
 ```typescript
-function purgeAgentTasks(agentId: string): number
+function purgeAgentTasks(agentId: string): number;
 ```
 
 **Returns:** Count of purged tasks
 
 **Features:**
+
 - Removes all pending tasks
 - Preserves running/completed/failed tasks
 - Cleans up agent queue entry if empty
@@ -139,6 +151,7 @@ function purgeAgentTasks(agentId: string): number
 ### Unit Tests (tests/lib/agents/task-drain.test.ts)
 
 **drainAgentTasks:**
+
 - ✅ Processes tasks in FIFO order
 - ✅ Returns empty result when queue is empty
 - ✅ Respects maxItems limit
@@ -151,6 +164,7 @@ function purgeAgentTasks(agentId: string): number
 - ✅ Records accurate durationMs
 
 **purgeAgentTasks:**
+
 - ✅ Purges all pending tasks
 - ✅ Returns 0 when queue is empty
 - ✅ Does not purge running tasks
@@ -159,12 +173,14 @@ function purgeAgentTasks(agentId: string): number
 - ✅ Handles partial purge correctly
 
 **Integration:**
+
 - ✅ Purge after partial drain
 - ✅ Drain after purge returns empty
 
-### API Integration Tests (__tests__/api/agents/tasks-drain.test.ts)
+### API Integration Tests (**tests**/api/agents/tasks-drain.test.ts)
 
 **POST /api/agents/:id/tasks/drain:**
+
 - ✅ Processes all pending tasks
 - ✅ Returns empty result when queue is empty
 - ✅ Respects maxItems parameter
@@ -174,11 +190,13 @@ function purgeAgentTasks(agentId: string): number
 - ✅ Isolates drain between agents
 
 **DELETE /api/agents/:id/tasks:**
+
 - ✅ Purges all pending tasks
 - ✅ Returns 0 when queue is empty
 - ✅ Isolates purge between agents
 
 **Integration:**
+
 - ✅ Purge after partial drain
 - ✅ Drain after purge returns empty
 
@@ -274,14 +292,17 @@ curl -X POST http://localhost:3000/api/agents/agent-001/tasks/drain
 ## Use Cases
 
 ### Testing
+
 - Drain all tasks before test teardown
 - Purge queue to reset state between tests
 
 ### Graceful Shutdown
+
 - Drain pending tasks before stopping agent
 - Process critical tasks before maintenance
 
 ### Admin Operations
+
 - Clear stuck queues
 - Force-process accumulated tasks
 - Debug queue state

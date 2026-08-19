@@ -12,10 +12,12 @@ const RegisterSchema = z.object({
     .optional()
     .default("1.0.0"),
   handler: z.string().min(1),
-  metadata: z.object({
-    description: z.string().optional(),
-    author: z.string().optional(),
-  }).optional(),
+  metadata: z
+    .object({
+      description: z.string().optional(),
+      author: z.string().optional(),
+    })
+    .optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -25,7 +27,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid request body", details: parsed.error.flatten() },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -36,7 +38,7 @@ export async function POST(req: NextRequest) {
     if (existing) {
       return NextResponse.json(
         { error: "Skill version already exists", skillId, version },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -53,13 +55,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       { skillId, version, status: "registered" },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (err) {
     console.error("[skills/register]", err);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

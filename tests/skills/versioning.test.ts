@@ -19,7 +19,10 @@ describe("Skill Versioning", () => {
         skillId: "translate",
         version: "1.2.0",
         handler: "lib/skills/translate@v1.2.0",
-        metadata: { description: "Translation skill", createdAt: "2024-01-01T00:00:00Z" },
+        metadata: {
+          description: "Translation skill",
+          createdAt: "2024-01-01T00:00:00Z",
+        },
       });
 
       const skill = getSkill("translate", "1.2.0");
@@ -33,7 +36,10 @@ describe("Skill Versioning", () => {
         skillId: "summarize",
         version: "1.0.0",
         handler: "lib/skills/summarize",
-        metadata: { description: "Summarization skill", createdAt: "2024-01-01T00:00:00Z" },
+        metadata: {
+          description: "Summarization skill",
+          createdAt: "2024-01-01T00:00:00Z",
+        },
       });
 
       const skill = getSkill("summarize");
@@ -55,7 +61,7 @@ describe("Skill Versioning", () => {
           version: "1.0.0",
           handler: "lib/skills/translate@v1-dup",
           metadata: { description: "Dup", createdAt: "2024-01-01T00:00:00Z" },
-        })
+        }),
       ).toThrow("Skill version already exists");
     });
 

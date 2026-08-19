@@ -1,1 +1,1 @@
-export { GET } from "../expire-quests/route"
+export { GET } from "../expire-quests/route";

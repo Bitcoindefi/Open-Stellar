@@ -1,56 +1,56 @@
-import { XP_DECAY_CONFIG } from "./xp-decay-config"
-import { getAgentXP, awardXP, type AgentXPRecord } from "@/lib/gamification/xp"
-import { publishSystemEvent } from "@/lib/events/system-events"
+import { XP_DECAY_CONFIG } from "./xp-decay-config";
+import { getAgentXP, awardXP, type AgentXPRecord } from "@/lib/gamification/xp";
+import { publishSystemEvent } from "@/lib/events/system-events";
 
 export interface XpHistoryEvent {
-  type: "earned" | "decayed"
-  delta: number
-  reason: string
-  timestamp: string
+  type: "earned" | "decayed";
+  delta: number;
+  reason: string;
+  timestamp: string;
 }
 
 export interface XpDecayAuditEntry {
-  action: "xp_decayed"
-  agentId: string
-  before: number
-  after: number
-  daysSinceLastEvent: number
-  timestamp: string
+  action: "xp_decayed";
+  agentId: string;
+  before: number;
+  after: number;
+  daysSinceLastEvent: number;
+  timestamp: string;
 }
 
 interface AgentXpHistoryDb {
-  events: XpHistoryEvent[]
-  lastXpEventAt: string | null
+  events: XpHistoryEvent[];
+  lastXpEventAt: string | null;
 }
 
-type XpDecayAuditDb = XpDecayAuditEntry[]
+type XpDecayAuditDb = XpDecayAuditEntry[];
 
 const globalState = globalThis as typeof globalThis & {
-  __openStellarAgentXpHistory__?: Map<string, AgentXpHistoryDb>
-  __openStellarXpDecayAudit__?: XpDecayAuditDb
-}
+  __openStellarAgentXpHistory__?: Map<string, AgentXpHistoryDb>;
+  __openStellarXpDecayAudit__?: XpDecayAuditDb;
+};
 
 function getHistoryDb(): Map<string, AgentXpHistoryDb> {
   if (!globalState.__openStellarAgentXpHistory__) {
-    globalState.__openStellarAgentXpHistory__ = new Map()
+    globalState.__openStellarAgentXpHistory__ = new Map();
   }
-  return globalState.__openStellarAgentXpHistory__
+  return globalState.__openStellarAgentXpHistory__;
 }
 
 function getAuditDb(): XpDecayAuditDb {
   if (!globalState.__openStellarXpDecayAudit__) {
-    globalState.__openStellarXpDecayAudit__ = []
+    globalState.__openStellarXpDecayAudit__ = [];
   }
-  return globalState.__openStellarXpDecayAudit__
+  return globalState.__openStellarXpDecayAudit__;
 }
 
 function getOrCreateHistory(agentId: string): AgentXpHistoryDb {
-  const db = getHistoryDb()
-  const existing = db.get(agentId)
-  if (existing) return existing
-  const fresh: AgentXpHistoryDb = { events: [], lastXpEventAt: null }
-  db.set(agentId, fresh)
-  return fresh
+  const db = getHistoryDb();
+  const existing = db.get(agentId);
+  if (existing) return existing;
+  const fresh: AgentXpHistoryDb = { events: [], lastXpEventAt: null };
+  db.set(agentId, fresh);
+  return fresh;
 }
 
 export function recordXpEarnedEvent(
@@ -59,9 +59,9 @@ export function recordXpEarnedEvent(
   reason: string,
   timestamp: string = new Date().toISOString(),
 ): void {
-  const history = getOrCreateHistory(agentId)
-  history.events.push({ type: "earned", delta, reason, timestamp })
-  history.lastXpEventAt = timestamp
+  const history = getOrCreateHistory(agentId);
+  history.events.push({ type: "earned", delta, reason, timestamp });
+  history.lastXpEventAt = timestamp;
 }
 
 export function recordXpDecayEvent(
@@ -70,20 +70,20 @@ export function recordXpDecayEvent(
   reason: string,
   timestamp: string = new Date().toISOString(),
 ): void {
-  const history = getOrCreateHistory(agentId)
-  history.events.push({ type: "decayed", delta, reason, timestamp })
+  const history = getOrCreateHistory(agentId);
+  history.events.push({ type: "decayed", delta, reason, timestamp });
 }
 
 export function getAgentXpHistory(agentId: string): XpHistoryEvent[] {
-  const history = getHistoryDb().get(agentId)
-  if (!history) return []
-  return [...history.events]
+  const history = getHistoryDb().get(agentId);
+  if (!history) return [];
+  return [...history.events];
 }
 
 export function getLastXpEventAt(agentId: string): Date | null {
-  const history = getHistoryDb().get(agentId)
-  if (!history?.lastXpEventAt) return null
-  return new Date(history.lastXpEventAt)
+  const history = getHistoryDb().get(agentId);
+  if (!history?.lastXpEventAt) return null;
+  return new Date(history.lastXpEventAt);
 }
 
 export function computeDecayAmount(
@@ -92,31 +92,31 @@ export function computeDecayAmount(
   halfLifeDays: number = XP_DECAY_CONFIG.halfLifeDays,
   minimumXp: number = XP_DECAY_CONFIG.minimumXp,
 ): number {
-  if (currentXp <= minimumXp) return 0
-  if (daysSinceLastEvent <= 0) return 0
+  if (currentXp <= minimumXp) return 0;
+  if (daysSinceLastEvent <= 0) return 0;
 
-  const decayFactor = Math.pow(0.5, daysSinceLastEvent / halfLifeDays)
-  const newXp = Math.max(minimumXp, currentXp * decayFactor)
-  const decayAmount = currentXp - newXp
+  const decayFactor = Math.pow(0.5, daysSinceLastEvent / halfLifeDays);
+  const newXp = Math.max(minimumXp, currentXp * decayFactor);
+  const decayAmount = currentXp - newXp;
 
-  return Math.round(decayAmount)
+  return Math.round(decayAmount);
 }
 
 export interface DecayResult {
-  agentId: string
-  decayed: boolean
-  before: number
-  after: number
-  decayAmount: number
-  daysSinceLastEvent: number
+  agentId: string;
+  decayed: boolean;
+  before: number;
+  after: number;
+  decayAmount: number;
+  daysSinceLastEvent: number;
 }
 
 export function applyXpDecayToAgent(
   agentId: string,
   now: Date = new Date(),
 ): DecayResult {
-  const agent = getAgentXP(agentId)
-  const lastEvent = getLastXpEventAt(agentId)
+  const agent = getAgentXP(agentId);
+  const lastEvent = getLastXpEventAt(agentId);
 
   const result: DecayResult = {
     agentId,
@@ -125,26 +125,26 @@ export function applyXpDecayToAgent(
     after: agent.xp,
     decayAmount: 0,
     daysSinceLastEvent: 0,
-  }
+  };
 
-  if (agent.xp <= XP_DECAY_CONFIG.minimumXp) return result
-  if (!lastEvent) return result
+  if (agent.xp <= XP_DECAY_CONFIG.minimumXp) return result;
+  if (!lastEvent) return result;
 
-  const msSinceLastEvent = now.getTime() - lastEvent.getTime()
-  const daysSinceLastEvent = msSinceLastEvent / (1000 * 60 * 60 * 24)
+  const msSinceLastEvent = now.getTime() - lastEvent.getTime();
+  const daysSinceLastEvent = msSinceLastEvent / (1000 * 60 * 60 * 24);
 
-  if (daysSinceLastEvent <= XP_DECAY_CONFIG.gracePeriodDays) return result
+  if (daysSinceLastEvent <= XP_DECAY_CONFIG.gracePeriodDays) return result;
 
-  const decayAmount = computeDecayAmount(agent.xp, daysSinceLastEvent)
-  if (decayAmount <= 0) return result
+  const decayAmount = computeDecayAmount(agent.xp, daysSinceLastEvent);
+  if (decayAmount <= 0) return result;
 
-  const newXp = Math.max(XP_DECAY_CONFIG.minimumXp, agent.xp - decayAmount)
+  const newXp = Math.max(XP_DECAY_CONFIG.minimumXp, agent.xp - decayAmount);
 
   // Use awardXP with negative amount to update the record properly
-  awardXP(agentId, -decayAmount, "task.completed")
+  awardXP(agentId, -decayAmount, "task.completed");
 
-  const timestamp = now.toISOString()
-  recordXpDecayEvent(agentId, -decayAmount, "xp_decayed", timestamp)
+  const timestamp = now.toISOString();
+  recordXpDecayEvent(agentId, -decayAmount, "xp_decayed", timestamp);
 
   const audit: XpDecayAuditEntry = {
     action: "xp_decayed",
@@ -153,8 +153,8 @@ export function applyXpDecayToAgent(
     after: newXp,
     daysSinceLastEvent: Math.floor(daysSinceLastEvent),
     timestamp,
-  }
-  getAuditDb().push(audit)
+  };
+  getAuditDb().push(audit);
 
   return {
     agentId,
@@ -163,31 +163,33 @@ export function applyXpDecayToAgent(
     after: newXp,
     decayAmount,
     daysSinceLastEvent: Math.floor(daysSinceLastEvent),
-  }
+  };
 }
 
 export function runXpDecayCron(now: Date = new Date()): {
-  processed: number
-  decayed: number
-  skipped: number
-  agents: DecayResult[]
+  processed: number;
+  decayed: number;
+  skipped: number;
+  agents: DecayResult[];
 } {
-  const db = (globalThis as typeof globalThis & {
-    __openStellarAgentXpDb__?: Map<string, AgentXPRecord>
-  }).__openStellarAgentXpDb__
+  const db = (
+    globalThis as typeof globalThis & {
+      __openStellarAgentXpDb__?: Map<string, AgentXPRecord>;
+    }
+  ).__openStellarAgentXpDb__;
 
-  const agentIds = db ? Array.from(db.keys()) : []
-  const results: DecayResult[] = []
-  let decayedCount = 0
-  let skippedCount = 0
+  const agentIds = db ? Array.from(db.keys()) : [];
+  const results: DecayResult[] = [];
+  let decayedCount = 0;
+  let skippedCount = 0;
 
   for (const agentId of agentIds) {
-    const result = applyXpDecayToAgent(agentId, now)
-    results.push(result)
+    const result = applyXpDecayToAgent(agentId, now);
+    results.push(result);
     if (result.decayed) {
-      decayedCount += 1
+      decayedCount += 1;
     } else {
-      skippedCount += 1
+      skippedCount += 1;
     }
   }
 
@@ -196,14 +198,14 @@ export function runXpDecayCron(now: Date = new Date()): {
     decayed: decayedCount,
     skipped: skippedCount,
     agents: results,
-  }
+  };
 }
 
 export function getXpDecayAudit(): XpDecayAuditEntry[] {
-  return [...getAuditDb()]
+  return [...getAuditDb()];
 }
 
 export function resetXpDecayStore(): void {
-  getHistoryDb().clear()
-  getAuditDb().splice(0, getAuditDb().length)
+  getHistoryDb().clear();
+  getAuditDb().splice(0, getAuditDb().length);
 }

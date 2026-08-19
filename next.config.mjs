@@ -1,12 +1,15 @@
-import webpack from 'webpack'
-import { withLogtail } from '@logtail/next'
+import webpack from "webpack";
+import { withLogtail } from "@logtail/next";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
     return [
-      { source: "/agents/:id(cloud-[^/]+)", destination: "/agent-functions/:id" },
-    ]
+      {
+        source: "/agents/:id(cloud-[^/]+)",
+        destination: "/agent-functions/:id",
+      },
+    ];
   },
   images: {
     unoptimized: true,
@@ -23,15 +26,15 @@ const nextConfig = {
         crypto: false,
         readline: false,
         worker_threads: false,
-      }
+      };
       config.plugins.push(
         new webpack.ProvidePlugin({
-          Buffer: ['buffer', 'Buffer'],
+          Buffer: ["buffer", "Buffer"],
         }),
-      )
+      );
     }
-    return config
+    return config;
   },
-}
+};
 
-export default withLogtail(nextConfig)
+export default withLogtail(nextConfig);

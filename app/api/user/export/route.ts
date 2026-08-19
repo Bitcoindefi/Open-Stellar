@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
 
 export async function GET() {
-  const exportedAt = new Date().toISOString()
+  const exportedAt = new Date().toISOString();
 
   return NextResponse.json(
     {
@@ -28,5 +28,5 @@ export async function GET() {
         "Content-Disposition": `attachment; filename="open-stellar-export-${exportedAt.slice(0, 10)}.json"`,
       },
     },
-  )
+  );
 }

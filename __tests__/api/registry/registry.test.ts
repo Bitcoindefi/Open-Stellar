@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it } from "vitest"
-import { GET } from "@/app/api/registry/route"
-import { POST } from "@/app/api/agents/route"
-import { resetAgentRegistryForTests } from "@/lib/agent-registry"
+import { beforeEach, describe, expect, it } from "vitest";
+import { GET } from "@/app/api/registry/route";
+import { POST } from "@/app/api/agents/route";
+import { resetAgentRegistryForTests } from "@/lib/agent-registry";
 
 const agentA = {
   agentId: "alpha-1",
@@ -11,7 +11,7 @@ const agentA = {
   x402: { accepts: true },
   status: "active",
   endpoint: "https://example.com/alpha-1",
-}
+};
 
 const agentB = {
   agentId: "beta-2",
@@ -21,54 +21,102 @@ const agentB = {
   x402: { accepts: false },
   status: "idle",
   endpoint: "https://example.com/beta-2",
-}
+};
 
 beforeEach(() => {
-  resetAgentRegistryForTests()
-})
+  resetAgentRegistryForTests();
+});
 
 describe("GET /api/registry", () => {
   it("returns all agents when no capability filter is given", async () => {
-    await POST(new Request("http://localhost/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agentA) }))
-    await POST(new Request("http://localhost/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agentB) }))
+    await POST(
+      new Request("http://localhost/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(agentA),
+      }),
+    );
+    await POST(
+      new Request("http://localhost/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(agentB),
+      }),
+    );
 
-    const res = await GET(new Request("http://localhost/api/registry"))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.ok).toBe(true)
-    expect(body.agents).toHaveLength(2)
-  })
+    const res = await GET(new Request("http://localhost/api/registry"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.agents).toHaveLength(2);
+  });
 
   it("filters agents by capability (exact match, case-insensitive)", async () => {
-    await POST(new Request("http://localhost/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agentA) }))
-    await POST(new Request("http://localhost/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agentB) }))
+    await POST(
+      new Request("http://localhost/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(agentA),
+      }),
+    );
+    await POST(
+      new Request("http://localhost/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(agentB),
+      }),
+    );
 
-    const res = await GET(new Request("http://localhost/api/registry?capability=Payment"))
-    const body = await res.json()
-    expect(body.agents).toHaveLength(1)
-    expect(body.agents[0].agentId).toBe("alpha-1")
-  })
+    const res = await GET(
+      new Request("http://localhost/api/registry?capability=Payment"),
+    );
+    const body = await res.json();
+    expect(body.agents).toHaveLength(1);
+    expect(body.agents[0].agentId).toBe("alpha-1");
+  });
 
   it("returns agents matching a shared capability", async () => {
-    await POST(new Request("http://localhost/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agentA) }))
-    await POST(new Request("http://localhost/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agentB) }))
+    await POST(
+      new Request("http://localhost/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(agentA),
+      }),
+    );
+    await POST(
+      new Request("http://localhost/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(agentB),
+      }),
+    );
 
-    const res = await GET(new Request("http://localhost/api/registry?capability=ANALYTICS"))
-    const body = await res.json()
-    expect(body.agents).toHaveLength(2)
-  })
+    const res = await GET(
+      new Request("http://localhost/api/registry?capability=ANALYTICS"),
+    );
+    const body = await res.json();
+    expect(body.agents).toHaveLength(2);
+  });
 
   it("returns empty array when no agents match", async () => {
-    await POST(new Request("http://localhost/api/agents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(agentA) }))
+    await POST(
+      new Request("http://localhost/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(agentA),
+      }),
+    );
 
-    const res = await GET(new Request("http://localhost/api/registry?capability=unknown"))
-    const body = await res.json()
-    expect(body.agents).toHaveLength(0)
-  })
+    const res = await GET(
+      new Request("http://localhost/api/registry?capability=unknown"),
+    );
+    const body = await res.json();
+    expect(body.agents).toHaveLength(0);
+  });
 
   it("returns empty array when registry is empty", async () => {
-    const res = await GET(new Request("http://localhost/api/registry"))
-    const body = await res.json()
-    expect(body.agents).toHaveLength(0)
-  })
-})
+    const res = await GET(new Request("http://localhost/api/registry"));
+    const body = await res.json();
+    expect(body.agents).toHaveLength(0);
+  });
+});

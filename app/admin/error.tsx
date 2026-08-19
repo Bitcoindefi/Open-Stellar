@@ -7,7 +7,10 @@ type RouteErrorProps = {
   reset: () => void;
 };
 
-export default function AdminError({ error, reset }: Readonly<RouteErrorProps>) {
+export default function AdminError({
+  error,
+  reset,
+}: Readonly<RouteErrorProps>) {
   return (
     <RouteErrorCard
       route="/admin"

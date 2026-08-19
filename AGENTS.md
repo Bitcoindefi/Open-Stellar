@@ -5,6 +5,7 @@ Guidelines for AI agents working on this codebase.
 ## Project Overview
 
 This is a Cloudflare Worker that runs [Moltbot](https://molt.bot/) in a Cloudflare Sandbox container. It provides:
+
 - Proxying to the Moltbot gateway (web UI + WebSocket)
 - Admin UI at `/_admin/` for device management
 - API endpoints at `/api/*` for device pairing
@@ -51,8 +52,9 @@ src/
 
 When calling the moltbot CLI from the worker, always include `--url ws://localhost:18789`.
 Note: The CLI is still named `clawdbot` until upstream renames it:
+
 ```typescript
-sandbox.startProcess('clawdbot devices list --json --url ws://localhost:18789')
+sandbox.startProcess("clawdbot devices list --json --url ws://localhost:18789");
 ```
 
 CLI commands take 10-15 seconds due to WebSocket connection overhead. Use `waitForProcess()` helper in `src/routes/api.ts`.
@@ -60,8 +62,9 @@ CLI commands take 10-15 seconds due to WebSocket connection overhead. Use `waitF
 ### Success Detection
 
 The CLI outputs "Approved" (capital A). Use case-insensitive checks:
+
 ```typescript
-stdout.toLowerCase().includes('approved')
+stdout.toLowerCase().includes("approved");
 ```
 
 ## Commands
@@ -81,6 +84,7 @@ npm run typecheck     # TypeScript check
 Tests use Vitest. Test files are colocated with source files (`*.test.ts`).
 
 Current test coverage:
+
 - `auth/jwt.test.ts` - JWT decoding and validation
 - `auth/jwks.test.ts` - JWKS fetching and caching
 - `auth/middleware.test.ts` - Auth middleware behavior
@@ -133,13 +137,13 @@ Browser
 
 ### Key Files
 
-| File | Purpose |
-|------|---------|
-| `src/index.ts` | Worker that manages sandbox lifecycle and proxies requests |
-| `Dockerfile` | Container image based on `cloudflare/sandbox` with Node 22 + Moltbot |
-| `start-moltbot.sh` | Startup script that configures moltbot from env vars and launches gateway |
-| `moltbot.json.template` | Default Moltbot configuration template |
-| `wrangler.jsonc` | Cloudflare Worker + Container configuration |
+| File                    | Purpose                                                                   |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `src/index.ts`          | Worker that manages sandbox lifecycle and proxies requests                |
+| `Dockerfile`            | Container image based on `cloudflare/sandbox` with Node 22 + Moltbot      |
+| `start-moltbot.sh`      | Startup script that configures moltbot from env vars and launches gateway |
+| `moltbot.json.template` | Default Moltbot configuration template                                    |
+| `wrangler.jsonc`        | Cloudflare Worker + Container configuration                               |
 
 ## Local Development
 
@@ -184,15 +188,15 @@ Moltbot configuration is built at container startup:
 
 These are the env vars passed TO the container (internal names):
 
-| Variable | Config Path | Notes |
-|----------|-------------|-------|
-| `ANTHROPIC_API_KEY` | (env var) | Moltbot reads directly from env |
-| `CLAWDBOT_GATEWAY_TOKEN` | `--token` flag | Mapped from `MOLTBOT_GATEWAY_TOKEN` |
-| `CLAWDBOT_DEV_MODE` | `controlUi.allowInsecureAuth` | Mapped from `DEV_MODE` |
-| `TELEGRAM_BOT_TOKEN` | `channels.telegram.botToken` | |
-| `DISCORD_BOT_TOKEN` | `channels.discord.token` | |
-| `SLACK_BOT_TOKEN` | `channels.slack.botToken` | |
-| `SLACK_APP_TOKEN` | `channels.slack.appToken` | |
+| Variable                 | Config Path                   | Notes                               |
+| ------------------------ | ----------------------------- | ----------------------------------- |
+| `ANTHROPIC_API_KEY`      | (env var)                     | Moltbot reads directly from env     |
+| `CLAWDBOT_GATEWAY_TOKEN` | `--token` flag                | Mapped from `MOLTBOT_GATEWAY_TOKEN` |
+| `CLAWDBOT_DEV_MODE`      | `controlUi.allowInsecureAuth` | Mapped from `DEV_MODE`              |
+| `TELEGRAM_BOT_TOKEN`     | `channels.telegram.botToken`  |                                     |
+| `DISCORD_BOT_TOKEN`      | `channels.discord.token`      |                                     |
+| `SLACK_BOT_TOKEN`        | `channels.slack.botToken`     |                                     |
+| `SLACK_APP_TOKEN`        | `channels.slack.appToken`     |                                     |
 
 ## Moltbot Config Schema
 
