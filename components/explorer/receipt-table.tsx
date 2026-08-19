@@ -75,6 +75,7 @@ export function ReceiptTable({ initialData }: { initialData: ReceiptExplorerPayl
           <option value="all">All chains</option>
           <option value="stellar">Stellar</option>
           <option value="bnb">BNB</option>
+          <option value="base">Base</option>
         </select>
       </div>
 
@@ -110,7 +111,21 @@ export function ReceiptTable({ initialData }: { initialData: ReceiptExplorerPayl
                   <td className="px-4 py-3">{receipt.serviceId}</td>
                   <td className="px-4 py-3 font-mono">{formatUsd(receipt.amountUsd)}</td>
                   <td className="px-4 py-3 uppercase">{receipt.chain}</td>
-                  <td className="px-4 py-3 font-mono text-slate-400">{shortHash(receipt.txHash)}</td>
+                  <td className="px-4 py-3 font-mono text-slate-400">
+                    {receipt.explorerUrl ? (
+                      <a
+                        href={receipt.explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-cyan-400 underline-offset-2 hover:underline"
+                      >
+                        {shortHash(receipt.txHash)}
+                      </a>
+                    ) : (
+                      shortHash(receipt.txHash)
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-slate-400">{new Date(receipt.settledAt).toLocaleString()}</td>
                 </tr>
               ))
@@ -123,13 +138,25 @@ export function ReceiptTable({ initialData }: { initialData: ReceiptExplorerPayl
         <div className="rounded-2xl border border-cyan-500/30 bg-slate-950 p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="font-mono text-sm uppercase tracking-[0.24em] text-cyan-200">Receipt JSON</h2>
-            <button
-              type="button"
-              onClick={() => setSelected(null)}
-              className="rounded border border-slate-700 px-2 py-1 font-mono text-xs uppercase text-slate-300"
-            >
-              Close
-            </button>
+            <div className="flex items-center gap-2">
+              {selected.explorerUrl && (
+                <a
+                  href={selected.explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded border border-cyan-700 px-2 py-1 font-mono text-xs uppercase text-cyan-300 transition hover:border-cyan-400 hover:text-cyan-100"
+                >
+                  View on explorer ↗
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="rounded border border-slate-700 px-2 py-1 font-mono text-xs uppercase text-slate-300"
+              >
+                Close
+              </button>
+            </div>
           </div>
           <pre className="max-h-80 overflow-auto rounded-xl bg-slate-900 p-4 text-xs text-slate-200">
             {JSON.stringify(selected, null, 2)}

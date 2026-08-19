@@ -1,4 +1,4 @@
-import type { SettlementChain, X402Quote, X402Receipt } from "@/lib/protocols/x402"
+import { getExplorerUrl, type SettlementChain, type X402Quote, type X402Receipt } from "@/lib/protocols/x402"
 
 export function createMockX402Quote(input: {
   serviceId: string
@@ -36,12 +36,14 @@ export function settleMockX402(input: {
   chain: SettlementChain
   txHash?: string
 }): X402Receipt & { mock: true } {
+  const txHash = input.txHash || `MOCK_X402_TX_${Date.now()}`
   return {
     accepted: true,
     paymentRef: input.paymentRef || `mock:settle:${Date.now()}`,
     settledAt: new Date().toISOString(),
-    txHash: input.txHash || `MOCK_X402_TX_${Date.now()}`,
+    txHash,
     chain: input.chain,
+    explorerUrl: getExplorerUrl(input.chain, txHash),
     mock: true,
   }
 }
