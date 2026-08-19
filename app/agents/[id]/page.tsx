@@ -119,6 +119,91 @@ function getStatusBadgeStyle(status: string) {
   }
 }
 
+function getBadgeClass(rarity?: string): string {
+  if (rarity === "legendary") return "border-purple-500/50 bg-purple-500/10 text-purple-300";
+  if (rarity === "rare") return "border-blue-500/50 bg-blue-500/10 text-blue-300";
+  return "border-slate-700 bg-slate-800/50 text-slate-300";
+}
+
+async function parseAgentMetadata(metaRes: Response | null, localAgent: any) {
+  if (metaRes?.ok) {
+    const data = await metaRes.json();
+    return {
+      agentMetadata: data.agent,
+      capabilities: (data.agent.capabilities || []) as string[],
+    };
+  }
+  return {
+    agentMetadata: localAgent,
+    capabilities: (localAgent?.skills?.map((s: any) => s.name) || []) as string[],
+  };
+}
+
+async function parseAgentHealth(healthRes: Response | null, agentMetadata: any, localAgent: any) {
+  let isHealthy = false;
+  let uptime = "0s";
+  let runtimeStatus = agentMetadata?.status || localAgent?.status || "offline";
+  let currentTask = agentMetadata?.currentTask || localAgent?.currentTask || "Idle";
+
+  if (healthRes?.ok) {
+    const data = await healthRes.json();
+    isHealthy = data.health?.status === "healthy";
+    uptime = data.health?.uptime || "0s";
+    if (data.health?.status) runtimeStatus = data.health.status;
+    if (data.health?.currentTask) currentTask = data.health.currentTask;
+  } else if (localAgent) {
+    isHealthy = true;
+    uptime = `${getAgentCardStats(localAgent).uptime}%`;
+  }
+
+  return { isHealthy, uptime, runtimeStatus, currentTask };
+}
+
+async function parseAgentReputation(repRes: Response | null) {
+  if (repRes?.ok) {
+    const data = await repRes.json();
+    return {
+      repScore: data.reputation?.score || 0,
+      badges: (data.reputation?.badges || []) as any[],
+      infractions: data.reputation?.history?.filter((h: any) => h.delta < 0).length || 0,
+    };
+  }
+  return { repScore: 0, badges: [], infractions: 0 };
+}
+
+async function parseAgentQuests(questRes: Response | null) {
+  if (questRes?.ok) {
+    const data = await questRes.json();
+    return (data.quests || []) as any[];
+  }
+  return getQuests().filter((q) => q.status === "in_progress").slice(0, 5);
+}
+
+async function parseAgentXpHistory(xpHistoryRes: Response | null, id: string) {
+  if (xpHistoryRes?.ok) {
+    const data = await xpHistoryRes.json();
+    return (Array.isArray(data.events) ? data.events : []) as XpHistoryEventLike[];
+  }
+  return getAgentXpHistory(id) as XpHistoryEventLike[];
+}
+
+function resolveDistrictName(agentMetadata: any, localAgent: any): string {
+  let districtName = "Unknown";
+  if (agentMetadata?.district) {
+    districtName =
+      typeof agentMetadata.district === "string"
+        ? agentMetadata.district
+        : agentMetadata.district.name;
+  } else if (localAgent) {
+    districtName = getAgentDistrict(localAgent).name;
+  }
+  if (districtName === "Unknown" && agentMetadata?.district) {
+    const distObj = DISTRICTS.find((d: any) => d.id === agentMetadata.district);
+    if (distObj) districtName = distObj.name;
+  }
+  return districtName;
+}
+
 export default async function AgentPage({ params }: AgentPageProps) {
   const { id } = await params;
 
@@ -132,94 +217,27 @@ export default async function AgentPage({ params }: AgentPageProps) {
     ]);
 
   const localAgent = findAgentByLookup(id);
-  if ((!metaRes || !metaRes.ok) && !localAgent) {
+  if (!metaRes?.ok && !localAgent) {
     notFound();
   }
 
-  // Parse Metadata
-  let agentMetadata: any = null;
-  let capabilities: string[] = [];
-  if (metaRes && metaRes.ok) {
-    const data = await metaRes.json();
-    agentMetadata = data.agent;
-    capabilities = agentMetadata.capabilities || [];
-  } else {
-    agentMetadata = localAgent;
-    capabilities = localAgent?.skills?.map((s: any) => s.name) || [];
-  }
+  const { agentMetadata, capabilities } = await parseAgentMetadata(metaRes, localAgent);
+  const { isHealthy, uptime, runtimeStatus, currentTask } = await parseAgentHealth(healthRes, agentMetadata, localAgent);
+  const { repScore, badges, infractions } = await parseAgentReputation(repRes);
+  const quests = await parseAgentQuests(questRes);
+  const xpHistoryEvents = await parseAgentXpHistory(xpHistoryRes, id);
 
-  // Parse Health
-  let isHealthy = false;
-  let uptime = "0s";
-  let runtimeStatus = agentMetadata?.status || localAgent?.status || "offline";
-  let currentTask = agentMetadata?.currentTask || localAgent?.currentTask || "Idle";
-  if (healthRes && healthRes.ok) {
-    const data = await healthRes.json();
-    isHealthy = data.health?.status === "healthy";
-    uptime = data.health?.uptime || "0s";
-    if (data.health?.status) runtimeStatus = data.health.status;
-    if (data.health?.currentTask) currentTask = data.health.currentTask;
-  } else if (localAgent) {
-    isHealthy = true;
-    uptime = `${getAgentCardStats(localAgent).uptime}%`;
-  }
-
-  // Parse Reputation
-  let repScore = 0;
-  let badges: any[] = [];
-  let infractions = 0;
-  if (repRes && repRes.ok) {
-    const data = await repRes.json();
-    repScore = data.reputation?.score || 0;
-    badges = data.reputation?.badges || [];
-    infractions =
-      data.reputation?.history?.filter((h: any) => h.delta < 0).length || 0;
-  }
-
-  // Parse Quests
-  let quests: any[] = [];
-  if (questRes && questRes.ok) {
-    const data = await questRes.json();
-    quests = data.quests || [];
-  } else {
-    quests = getQuests()
-      .filter((q) => q.status === "in_progress")
-      .slice(0, 5);
-  }
-
-  const agentName =
-    agentMetadata.name || agentMetadata.agentId || "Unknown Agent";
+  const agentName = agentMetadata.name || agentMetadata.agentId || "Unknown Agent";
   const initials = agentName.substring(0, 2).toUpperCase();
   const agentIdStr = agentMetadata.agentId || agentMetadata.id || id;
-  const tasksCompleted =
-    agentMetadata.tasksCompleted ?? localAgent?.tasksCompleted ?? 0;
+  const tasksCompleted = agentMetadata.tasksCompleted ?? localAgent?.tasksCompleted ?? 0;
   const totalXp = agentMetadata.xp ?? localAgent?.xp ?? 0;
   const level = agentMetadata.level ?? localAgent?.level ?? 1;
   const xpToNext = agentMetadata.xpToNext ?? getXpToNextLevel(level);
 
-  let xpHistoryEvents: XpHistoryEventLike[] = [];
-  if (xpHistoryRes && xpHistoryRes.ok) {
-    const data = await xpHistoryRes.json();
-    xpHistoryEvents = Array.isArray(data.events) ? data.events : [];
-  } else {
-    xpHistoryEvents = getAgentXpHistory(id) as XpHistoryEventLike[];
-  }
   const xpSnapshots = buildSevenDayXpSnapshots(xpHistoryEvents);
   const xpProgress = getLevelProgress(totalXp, level);
-
-  let districtName = "Unknown";
-  if (agentMetadata.district) {
-    districtName =
-      typeof agentMetadata.district === "string"
-        ? agentMetadata.district
-        : agentMetadata.district.name;
-  } else if (localAgent) {
-    districtName = getAgentDistrict(localAgent).name;
-  }
-  if (districtName === "Unknown" && agentMetadata.district) {
-    const distObj = DISTRICTS.find((d: any) => d.id === agentMetadata.district)
-    if (distObj) districtName = distObj.name
-  }
+  const districtName = resolveDistrictName(agentMetadata, localAgent);
 
   return (
     <main className="min-h-screen bg-[#030712] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
@@ -400,9 +418,9 @@ export default async function AgentPage({ params }: AgentPageProps) {
               <CardContent>
                 <div className="flex flex-wrap gap-2">
                   {capabilities.length > 0 ? (
-                    capabilities.map((cap, i) => (
+                    capabilities.map((cap) => (
                       <Badge
-                        key={i}
+                        key={cap}
                         variant="outline"
                         className="bg-blue-900/20 text-blue-300 border-blue-800/50 hover:bg-blue-900/40 px-3 py-1 text-xs"
                       >
@@ -430,8 +448,8 @@ export default async function AgentPage({ params }: AgentPageProps) {
                   {badges.length > 0 ? (
                     badges.map((badge, i) => (
                       <div
-                        key={i}
-                        className={`flex flex-col items-center justify-center p-3 rounded-lg border ${badge.rarity === "legendary" ? "border-purple-500/50 bg-purple-500/10 text-purple-300" : badge.rarity === "rare" ? "border-blue-500/50 bg-blue-500/10 text-blue-300" : "border-slate-700 bg-slate-800/50 text-slate-300"}`}
+                        key={badge.id || badge.name || `badge-${i}`}
+                        className={`flex flex-col items-center justify-center p-3 rounded-lg border ${getBadgeClass(badge.rarity)}`}
                       >
                         <span className="font-pixel text-xs text-center leading-tight">
                           {badge.name}
@@ -458,7 +476,7 @@ export default async function AgentPage({ params }: AgentPageProps) {
             {quests.length > 0 ? (
               quests.slice(0, 3).map((quest, i) => (
                 <Card
-                  key={i}
+                  key={quest.id || quest.title || `quest-${i}`}
                   className="bg-slate-950/80 border-slate-800 overflow-hidden relative"
                 >
                   <div className="absolute top-0 left-0 w-full h-1 bg-slate-800">
@@ -505,9 +523,9 @@ export default async function AgentPage({ params }: AgentPageProps) {
 
 function XpSparkline({
   snapshots,
-}: {
+}: Readonly<{
   snapshots: ReturnType<typeof buildSevenDayXpSnapshots>;
-}) {
+}>) {
   const width = 560;
   const height = 120;
   const padding = 12;
