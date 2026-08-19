@@ -3,6 +3,7 @@ import {
   checkX402Subscription,
   peekX402Quote,
   settleX402,
+  verifyX402Settlement,
   type SettlementChain,
   type X402Quote,
   type X402Receipt,
@@ -65,18 +66,31 @@ export async function gateX402Request(req: Request, config: X402RouteConfig): Pr
     }
   }
 
-  // 2. Check for Payment Settlement
+  // 2. Check for Payment Settlement with On-Chain Verification
   if (paymentRef && txHash) {
     const quote = peekX402Quote(paymentRef)
     if (quote) {
-      const settled = settleX402({
-        paymentRef,
-        chain,
-        txHash,
-        paidBy: agentId || config.payer || 'anonymous',
-      })
-      if (settled.ok && settled.receipt) {
-        return { authorized: true, receipt: settled.receipt }
+      const verified = await verifyX402Settlement(
+        {
+          quoteId: quote.quoteId,
+          paymentRef,
+          chain,
+          txHash,
+          paidBy: agentId || config.payer || 'anonymous',
+        },
+        quote,
+      )
+
+      if (verified.accepted) {
+        const settled = settleX402({
+          paymentRef,
+          chain,
+          txHash,
+          paidBy: agentId || config.payer || 'anonymous',
+        })
+        if (settled.ok && settled.receipt) {
+          return { authorized: true, receipt: settled.receipt }
+        }
       }
     }
   }

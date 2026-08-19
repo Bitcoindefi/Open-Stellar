@@ -16,6 +16,17 @@ function ensureDb(): void {
   }
 }
 
+let writeLock: Promise<void> = Promise.resolve()
+
+function serializeWrite<T>(task: () => T | Promise<T>): Promise<T> {
+  const next = writeLock.then(() => task())
+  writeLock = next.then(
+    () => undefined,
+    () => undefined,
+  )
+  return next
+}
+
 export function readSubscriptions(): X402Subscription[] {
   ensureDb()
   try {
@@ -28,9 +39,10 @@ export function readSubscriptions(): X402Subscription[] {
   }
 }
 
-export function writeSubscriptions(subscriptions: X402Subscription[]): void {
+export function writeSubscriptionsSync(subscriptions: X402Subscription[]): void {
   ensureDb()
-  const tmpPath = `${DB_PATH}.${process.pid}.tmp`
+  const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  const tmpPath = `${DB_PATH}.${process.pid}.${uniqueId}.tmp`
   writeFileSync(tmpPath, `${JSON.stringify(subscriptions, null, 2)}\n`, 'utf8')
   try {
     renameSync(tmpPath, DB_PATH)
@@ -44,15 +56,70 @@ export function writeSubscriptions(subscriptions: X402Subscription[]): void {
   }
 }
 
-export function saveX402SubscriptionStoreRecord(subscription: X402Subscription): X402Subscription {
-  const subscriptions = readSubscriptions()
+export async function writeSubscriptions(subscriptions: X402Subscription[]): Promise<void> {
+  return serializeWrite(() => {
+    writeSubscriptionsSync(subscriptions)
+  })
+}
+
+export async function saveX402SubscriptionStoreRecord(
+  subscription: X402Subscription,
+): Promise<X402Subscription> {
+  return serializeWrite(() => {
+    const subscriptions = readSubscriptions()
+    const key = `${subscription.agentId}:${subscription.serviceId}`
+    const filtered = subscriptions.filter((item) => `${item.agentId}:${item.serviceId}` !== key)
+    const next = [subscription, ...filtered]
+    writeSubscriptionsSync(next)
+    return subscription
+  })
+}
+
+// ─── DEBOUNCED / BATCHED PERSISTENCE ENGINE FOR HOT PATHS ────────────
+const dirtySubscriptions = new Map<string, X402Subscription>()
+let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+export function scheduleSubscriptionFlush(subscription: X402Subscription): void {
   const key = `${subscription.agentId}:${subscription.serviceId}`
-  const filtered = subscriptions.filter((item) => `${item.agentId}:${item.serviceId}` !== key)
-  const next = [subscription, ...filtered]
-  writeSubscriptions(next)
-  return subscription
+  dirtySubscriptions.set(key, subscription)
+
+  if (!flushTimer) {
+    flushTimer = setTimeout(() => {
+      flushTimer = null
+      void flushSubscriptionsToDisk()
+    }, 1000)
+  }
+}
+
+export async function flushSubscriptionsToDisk(): Promise<void> {
+  if (dirtySubscriptions.size === 0) return
+
+  if (flushTimer) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+
+  const toPersist = Array.from(dirtySubscriptions.values())
+  dirtySubscriptions.clear()
+
+  await serializeWrite(() => {
+    const existing = readSubscriptions()
+    const map = new Map<string, X402Subscription>()
+    for (const sub of existing) {
+      map.set(`${sub.agentId}:${sub.serviceId}`, sub)
+    }
+    for (const sub of toPersist) {
+      map.set(`${sub.agentId}:${sub.serviceId}`, sub)
+    }
+    writeSubscriptionsSync(Array.from(map.values()))
+  })
 }
 
 export function resetX402SubscriptionStoreForTests(): void {
-  writeSubscriptions([])
+  if (flushTimer) {
+    clearTimeout(flushTimer)
+    flushTimer = null
+  }
+  dirtySubscriptions.clear()
+  writeSubscriptionsSync([])
 }

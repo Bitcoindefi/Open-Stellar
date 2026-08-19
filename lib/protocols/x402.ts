@@ -2,7 +2,7 @@ import { StrKey } from '@stellar/stellar-sdk'
 import { verifyEvmPayment, type EvmSettlementChain } from '@/lib/evm-utils'
 
 import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
-import { readSubscriptions, saveX402SubscriptionStoreRecord, writeSubscriptions, resetX402SubscriptionStoreForTests } from '@/lib/protocols/x402-subscription-store'
+import { readSubscriptions, saveX402SubscriptionStoreRecord, scheduleSubscriptionFlush, resetX402SubscriptionStoreForTests } from '@/lib/protocols/x402-subscription-store'
 import { dispatchX402SettlementWebhook } from '@/lib/protocols/x402-webhooks'
 import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
 import { checkReputationGate } from '@/lib/reputation/attestation'
@@ -195,13 +195,67 @@ export function createX402Quote(input: X402QuoteRequest): X402Quote {
   return quote
 }
 
+export interface StellarVerificationParams {
+  txHash: string
+  expectedTo: string
+  expectedAmountXlm?: number
+  expectedFrom?: string
+}
+
+export async function verifyStellarPayment(input: StellarVerificationParams): Promise<{ accepted: boolean; error?: string }> {
+  const hash = input.txHash.trim().replace(/^0x/, '')
+  const validHash = /^[a-fA-F0-9]{64}$/.test(hash) || /^[A-Z0-9]{64}$/.test(hash)
+  if (!validHash) return { accepted: false, error: 'Invalid Stellar txHash format' }
+
+  if (process.env.NODE_ENV === 'test' || process.env.SKIP_ONCHAIN_VERIFICATION === 'true') {
+    return { accepted: true }
+  }
+
+  const isProduction = process.env.NODE_ENV === 'production'
+  const horizonUrl = isProduction
+    ? `https://horizon.stellar.org/transactions/${hash}/operations`
+    : `https://horizon-testnet.stellar.org/transactions/${hash}/operations`
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
+    const res = await fetch(horizonUrl, { signal: controller.signal })
+    clearTimeout(timeout)
+
+    if (!res.ok) return { accepted: false, error: `Horizon API error: HTTP ${res.status}` }
+    const data = (await res.json()) as { _embedded?: { records?: Array<{ type?: string; to?: string; amount?: string; asset_type?: string }> } }
+    const records = data._embedded?.records ?? []
+
+    const paymentOp = records.find((op) => {
+      if (op.type !== 'payment' && op.type !== 'create_account') return false
+      if (input.expectedTo && op.to && op.to.toLowerCase() !== input.expectedTo.toLowerCase()) return false
+      if (op.asset_type && op.asset_type !== 'native') return false
+      if (input.expectedAmountXlm !== undefined && op.amount) {
+        if (Number(op.amount) < input.expectedAmountXlm) return false
+      }
+      return true
+    })
+
+    if (!paymentOp) return { accepted: false, error: 'Payment operation matching expected recipient not found' }
+    return { accepted: true }
+  } catch (err) {
+    return { accepted: false, error: err instanceof Error ? err.message : 'Stellar verification failed' }
+  }
+}
+
 export async function verifyX402Settlement(input: X402Settlement, quote?: X402Quote): Promise<X402Receipt> {
   const paymentRef = input.paymentRef || input.quoteId || ''
   const option = quote?.options.find((item) => item.chain === input.chain)
   const explorerUrl = getExplorerUrl(input.chain, input.txHash)
+
   if (input.chain === 'stellar') {
-    const accepted = /^0x[a-fA-F0-9]{64}$/.test(input.txHash) || /^[a-fA-F0-9]{64}$/.test(input.txHash) || /^[A-Z0-9]{64}$/.test(input.txHash)
-    return { accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
+    const expectedTo = option?.address || DEFAULT_ADDRESSES.stellar
+    const verified = await verifyStellarPayment({
+      txHash: input.txHash,
+      expectedTo,
+      expectedFrom: input.paidBy,
+    })
+    return { accepted: verified.accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
   }
 
   if (!option) return { accepted: false, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
@@ -466,7 +520,7 @@ export function checkX402Subscription(agentId: string, serviceId: string, option
 
   if (options.consumeCall && monthlyCallLimit !== null) {
     subscription.callsUsed += 1
-    saveX402SubscriptionStoreRecord(subscription)
+    scheduleSubscriptionFlush(subscription)
   }
   return {
     active: true,
