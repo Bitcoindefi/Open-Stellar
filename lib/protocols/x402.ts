@@ -223,17 +223,58 @@ export async function verifyStellarPayment(input: StellarVerificationParams): Pr
     clearTimeout(timeout)
 
     if (!res.ok) return { accepted: false, error: `Horizon API error: HTTP ${res.status}` }
-    const data = (await res.json()) as { _embedded?: { records?: Array<{ type?: string; to?: string; from?: string; amount?: string; asset_type?: string }> } }
+    const data = (await res.json()) as {
+      _embedded?: {
+        records?: Array<{
+          type?: string
+          to?: string
+          from?: string
+          amount?: string
+          asset_type?: string
+          account?: string
+          funder?: string
+          starting_balance?: string
+        }>
+      }
+    }
     const records = data._embedded?.records ?? []
 
     const hasMatchingPayment = records.some((op) => {
-      if (op.type !== 'payment' && op.type !== 'create_account') return false
-      if (input.expectedTo && op.to && op.to.toLowerCase() !== input.expectedTo.toLowerCase()) return false
-      if (input.expectedFrom && op.from && op.from.toLowerCase() !== input.expectedFrom.toLowerCase()) return false
-      if (op.asset_type && op.asset_type !== 'native') return false
-      if (input.expectedAmountXlm !== undefined && op.amount) {
-        if (Number(op.amount) < input.expectedAmountXlm) return false
+      let recipient: string | undefined
+      let sender: string | undefined
+      let amountStr: string | undefined
+      let isNativeAsset = false
+
+      if (op.type === 'payment') {
+        recipient = op.to
+        sender = op.from
+        amountStr = op.amount
+        isNativeAsset = !op.asset_type || op.asset_type === 'native'
+      } else if (op.type === 'create_account') {
+        recipient = op.account
+        sender = op.funder
+        amountStr = op.starting_balance
+        isNativeAsset = true
+      } else {
+        return false
       }
+
+      if (!isNativeAsset) return false
+
+      if (input.expectedTo && (!recipient || recipient.toLowerCase() !== input.expectedTo.toLowerCase())) {
+        return false
+      }
+
+      if (input.expectedFrom && (!sender || sender.toLowerCase() !== input.expectedFrom.toLowerCase())) {
+        return false
+      }
+
+      if (input.expectedAmountXlm !== undefined) {
+        if (!amountStr) return false
+        const amt = Number(amountStr)
+        if (!Number.isFinite(amt) || amt < input.expectedAmountXlm) return false
+      }
+
       return true
     })
 

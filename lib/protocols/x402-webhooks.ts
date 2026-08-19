@@ -144,6 +144,7 @@ async function sendWebhookHttpRequest(
   try {
     const res = await fetch(targetUrl, {
       method: 'POST',
+      redirect: 'manual',
       headers: {
         'Content-Type': 'application/json',
         'X-402-Event': 'x402.settlement',
@@ -152,6 +153,11 @@ async function sendWebhookHttpRequest(
       body: JSON.stringify(payload),
       signal: controller.signal,
     })
+
+    if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+      return { ok: false, status: res.status || 302, error: 'Webhook redirects not allowed (SSRF protection)' }
+    }
+
     return { ok: res.ok, status: res.status, error: res.ok ? undefined : `HTTP ${res.status}` }
   } catch (err) {
     return { ok: false, status: 0, error: err instanceof Error ? err.message : 'Fetch failed' }
