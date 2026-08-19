@@ -140,7 +140,7 @@ describe("agent position store", () => {
     });
   });
 
-  it("keeps history bounded to the latest 1000 entries", () => {
+  it("keeps history bounded to the latest 1000 entries", { timeout: 20000 }, () => {
     for (let index = 0; index < 1005; index += 1) {
       moveAgentPosition("bot-1", { dx: 1, dy: 0 });
     }
@@ -152,6 +152,11 @@ describe("agent position store", () => {
     expect(records.at(-1)).toMatchObject({ pixelX: 1015 });
     expect(listAgentPositionHistory("bot-1", 1000)).toHaveLength(1000);
   }, 30000);
+    expect(records).toHaveLength(1000)
+    expect(records[0]).toMatchObject({ pixelX: 16 })
+    expect(records.at(-1)).toMatchObject({ pixelX: 1015 })
+    expect(listAgentPositionHistory("bot-1", 1000)).toHaveLength(1000)
+  })
 
   it("accepts a 500-char agentId but stores it with a 200-char key", () => {
     const hugeId = "A".repeat(500);

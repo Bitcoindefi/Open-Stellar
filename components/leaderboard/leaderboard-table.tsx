@@ -82,7 +82,7 @@ export function LeaderboardTable({
                 🤖
               </div>
               <div>
-                <div className="flex items-center gap-2 font-pixel text-lg uppercase text-slate-100">
+                <div className="flex flex-wrap items-center gap-2 font-pixel text-lg uppercase text-slate-100">
                   {agent.name}
                   {agent.globalRank <= 3 && (
                     <span aria-label="top-three crown">🏆</span>
@@ -90,6 +90,12 @@ export function LeaderboardTable({
                 </div>
                 <div className="mt-1 font-mono text-xs text-slate-500">
                   Sprite #{agent.spriteId + 1}
+                  {agent.globalRank <= 3 && <span aria-label="top-three crown">🏆</span>}
+                  {agent.attestationHash && (
+                    <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] uppercase text-emerald-400 border border-emerald-500/30" title={`Soroban Attestation Hash: ${agent.attestationHash}`}>
+                      🛡️ Soroban Verified
+                    </span>
+                  )}
                 </div>
               </div>
               <div
@@ -121,6 +127,15 @@ export function LeaderboardTable({
                 >
                   {delta > 0 ? "▲" : delta < 0 ? "▼" : "—"}
                 </span>
+                <div className="flex items-center gap-1.5">
+                  <span>{agent.badges.join(" ")}</span>
+                  {agent.earnedBadges && agent.earnedBadges.length > 0 && (
+                    <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-bold text-purple-300 border border-purple-500/30">
+                      {agent.earnedBadges.length} 🎖️
+                    </span>
+                  )}
+                </div>
+                <span className={delta > 0 ? "text-emerald-300" : delta < 0 ? "text-rose-300" : "text-slate-500"}>{delta > 0 ? "▲" : delta < 0 ? "▼" : "—"}</span>
               </div>
             </Link>
           );

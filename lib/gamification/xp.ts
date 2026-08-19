@@ -127,6 +127,7 @@ export function awardXP(
   }
 
   return result;
+  return result
 }
 
 export function awardTaskXP(input: TaskXpInput): XPAwardResult[] {

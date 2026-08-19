@@ -32,6 +32,22 @@ export type SidebarTabId =
   | "quests"
   | "wallet"
   | "appearance";
+"use client"
+
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
+import { Bell, CheckCheck, Copy, Download, Share2 } from "lucide-react"
+import { toast } from "sonner"
+import type { AgentAppearance, MoltbotAgent, LogEntry, ChatMessage, WalletTransaction } from "@/lib/types"
+import { DISTRICTS } from "@/lib/data"
+import { formatAgentShareText, getAgentOgPath, getAgentProfilePath, slugifyAgent } from "@/lib/og-card-data"
+import { ChatPanel } from "./chat-panel"
+import { SkillsPanel } from "./skills-panel"
+import { WalletPanel } from "./wallet-panel"
+import { AppearancePanel } from "./appearance-panel"
+import { QuestsPanel } from "./quests-panel"
+import { MOCK_OFFERS, TaskBoard, getTaskOfferCounts } from "./task-board"
+
+export type SidebarTabId = "overview" | "chat" | "offers" | "skills" | "quests" | "wallet" | "appearance"
 
 interface NotificationItem {
   id: string;
@@ -1225,10 +1241,36 @@ export function SidebarPanel({
     (tab: SidebarTabId) => {
       setUncontrolledActiveTab(tab);
       onActiveTabChange?.(tab);
+  // Start with null to avoid SSR/client hydration mismatch.
+  // The server always renders 'overview' (null resolves to it), and after
+  // mount we synchronously read localStorage and correct the tab if needed.
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<SidebarTabId | null>(null)
+  const hydratedRef = useRef(false)
+
+  // On mount: restore persisted tab from localStorage (client-only).
+  useEffect(() => {
+    if (hydratedRef.current) return
+    hydratedRef.current = true
+    const storedTab = localStorage.getItem("sidebar-tab") as SidebarTabId | null
+    if (storedTab && SIDEBAR_TABS.some((tab) => tab.id === storedTab)) {
+      setUncontrolledActiveTab(storedTab)
+    } else {
+      setUncontrolledActiveTab("overview")
+    }
+  }, [])
+
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab ?? "overview"
+
+  const setActiveTab = useCallback(
+    (tab: SidebarTabId) => {
+      setUncontrolledActiveTab(tab)
+      localStorage.setItem("sidebar-tab", tab)
+      onActiveTabChange?.(tab)
     },
     [onActiveTabChange],
   );
 
+  // Persist whenever activeTab changes (handles controlled-mode changes too).
   useEffect(() => {
     try {
       localStorage.setItem("sidebar-tab", activeTab);
@@ -1236,6 +1278,9 @@ export function SidebarPanel({
       // ignore
     }
   }, [activeTab]);
+    if (!hydratedRef.current) return
+    localStorage.setItem("sidebar-tab", activeTab)
+  }, [activeTab])
 
   const chatCount = chatMessages.length;
   const errorCount = agents.filter((a) => a.status === "error").length;
@@ -1275,6 +1320,7 @@ export function SidebarPanel({
               onClick={() => setActiveTab(tab.id)}
               aria-pressed={activeTab === tab.id}
               aria-label={`${tab.label} tab`}
+              suppressHydrationWarning
               style={{
                 flex: 1,
                 minHeight: variant === "mobile" ? 46 : undefined,

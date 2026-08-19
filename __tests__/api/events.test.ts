@@ -153,3 +153,15 @@ describe("x402 settlement event publishing", () => {
     expect(events.join("")).toContain('"agentId":"bot-2"');
   });
 });
+    })
+
+    const settleRes = await postSettle(settleReq)
+    const second = await reader.read()
+    await reader.cancel()
+    events.push(new TextDecoder().decode(second.value))
+
+    expect(settleRes.status).toBe(200)
+    expect(events.join("")).toContain("event: payment.received")
+    expect(events.join("")).toContain('"agentId":"bot-2"')
+  }, 15000)
+})

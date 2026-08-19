@@ -40,6 +40,9 @@ describe("GET /api/protocol/x402/receipts", () => {
       passportVerified: true,
     });
   });
+    })
+    expect(data.receipts[0].explorerUrl).toMatch(/stellar\.expert\/explorer\/(mainnet|testnet)\/tx\//)
+  })
 
   it("returns a single receipt by id", async () => {
     const listRes = await listReceipts(

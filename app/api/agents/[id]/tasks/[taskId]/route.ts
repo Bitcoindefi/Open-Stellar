@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { updateTask, getTask } from "@/lib/agents/task-queue";
 import { awardTaskXP } from "@/lib/gamification/xp";
+import { NextResponse } from "next/server"
+import { updateTask, getTask } from "@/lib/agents/task-queue"
+import { awardTaskXP } from "@/lib/gamification/xp"
+import { applyReputationAction } from "@/lib/reputation/reputation-store"
 
 interface RouteContext {
   params: Promise<{ id: string; taskId: string }>;
@@ -43,6 +47,11 @@ export async function PATCH(req: Request, context: RouteContext) {
             ? task.completedAt - task.startedAt
             : undefined,
       });
+        durationMs: task.startedAt && task.completedAt
+          ? task.completedAt - task.startedAt
+          : undefined,
+      })
+      applyReputationAction({ actorId: agentId, delta: 1, reason: "task-completed", scope: "service" })
     }
 
     return NextResponse.json(

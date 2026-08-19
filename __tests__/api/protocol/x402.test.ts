@@ -83,6 +83,12 @@ describe("POST /api/protocol/x402/settle", () => {
     expect(data.receipt.accepted).toBe(true);
     expect(data.receipt.txHash).toBe(mockTxHash);
   });
+    expect(res.status).toBe(200)
+    expect(data.ok).toBe(true)
+    expect(data.receipt.accepted).toBe(true)
+    expect(data.receipt.txHash).toBe(mockTxHash)
+    expect(data.receipt.explorerUrl).toMatch(/stellar\.expert\/explorer\/(mainnet|testnet)\/tx\//)
+  })
 
   it("rejects unknown paymentRef", async () => {
     const req = new Request("http://localhost/api/protocol/x402/settle", {

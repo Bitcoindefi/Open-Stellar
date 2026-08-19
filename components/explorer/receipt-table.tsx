@@ -140,6 +140,21 @@ export function ReceiptTable({
                   <td className="px-4 py-3 text-slate-400">
                     {new Date(receipt.settledAt).toLocaleString()}
                   </td>
+                    {receipt.explorerUrl ? (
+                      <a
+                        href={receipt.explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-cyan-400 underline-offset-2 hover:underline"
+                      >
+                        {shortHash(receipt.txHash)}
+                      </a>
+                    ) : (
+                      shortHash(receipt.txHash)
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-slate-400">{new Date(receipt.settledAt).toLocaleString()}</td>
                 </tr>
               ))
             )}
@@ -160,6 +175,26 @@ export function ReceiptTable({
             >
               Close
             </button>
+            <h2 className="font-mono text-sm uppercase tracking-[0.24em] text-cyan-200">Receipt JSON</h2>
+            <div className="flex items-center gap-2">
+              {selected.explorerUrl && (
+                <a
+                  href={selected.explorerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded border border-cyan-700 px-2 py-1 font-mono text-xs uppercase text-cyan-300 transition hover:border-cyan-400 hover:text-cyan-100"
+                >
+                  View on explorer ↗
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="rounded border border-slate-700 px-2 py-1 font-mono text-xs uppercase text-slate-300"
+              >
+                Close
+              </button>
+            </div>
           </div>
           <pre className="max-h-80 overflow-auto rounded-xl bg-slate-900 p-4 text-xs text-slate-200">
             {JSON.stringify(selected, null, 2)}

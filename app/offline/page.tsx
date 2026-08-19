@@ -5,6 +5,7 @@ export default function OfflinePage() {
       <p className="text-slate-400 text-sm">
         Open Stellar will reconnect when your network is back.
       </p>
+      <p className="text-slate-400 text-sm">Open Stellar will reconnect when your network is back.</p>
     </main>
   );
 }

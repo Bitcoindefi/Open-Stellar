@@ -8,6 +8,13 @@ import {
   markQuestClaimed,
 } from "@/lib/gamification/quest-completions";
 import { publishSystemEvent } from "@/lib/events/system-events";
+import { NextResponse } from "next/server"
+import { getQuestById } from "@/lib/gamification/quests"
+import { getReputationByActorId, awardBadgeToAgent } from "@/lib/reputation/reputation-store"
+import { awardXP } from "@/lib/gamification/xp"
+import { isAuthorized } from "@/lib/auth"
+import { hasClaimedQuest, markQuestClaimed } from "@/lib/gamification/quest-completions"
+import { publishSystemEvent } from "@/lib/events/system-events"
 
 type QuestApplyContext = {
   params: Promise<{ id: string }>;
@@ -100,6 +107,13 @@ export async function POST(req: Request, context: QuestApplyContext) {
   }
 
   markQuestClaimed(quest.id, actorId);
+  markQuestClaimed(quest.id, actorId)
+  if (quest.reward?.xp) {
+    awardXP(actorId, quest.reward.xp, "quest.completed")
+  }
+  const badgeId = (quest as any).badgeId || "first-quest"
+  awardBadgeToAgent(actorId, badgeId, "common")
+
   publishSystemEvent({
     type: "quest.completed",
     agentId: actorId,
@@ -112,4 +126,5 @@ export async function POST(req: Request, context: QuestApplyContext) {
   });
 
   return NextResponse.json({ ok: true, quest, actorId });
+  return NextResponse.json({ ok: true, quest, actorId, awardedBadgeId: badgeId })
 }

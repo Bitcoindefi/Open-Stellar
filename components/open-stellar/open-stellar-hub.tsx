@@ -253,7 +253,14 @@ export function OpenStellarHub() {
   const [particleTriggers, setParticleTriggers] = useState<ParticleTrigger[]>([])
   const agentLevelsRef = useRef<Map<string, number>>(new Map())
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [sidebarTab, setSidebarTab] = useState<SidebarTabId>("overview")
+  // `open-stellar-hub.tsx` is a 'use client' component — the lazy useState
+  // initializer runs ONLY on the client, never during SSR, so reading
+  // localStorage here is safe and race-condition-free.
+  const [sidebarTab, setSidebarTab] = useState<SidebarTabId>(() => {
+    if (typeof window === "undefined") return "overview"
+    const stored = localStorage.getItem("sidebar-tab") as SidebarTabId | null
+    return stored && SIDEBAR_TABS.some((t) => t.id === stored) ? stored : "overview"
+  })
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false)
   const [isMobile, setIsMobile] = useState<boolean | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -321,6 +328,7 @@ export function OpenStellarHub() {
     }
   }, [])
 
+  // Persist the active tab whenever it changes.
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("sidebar-tab", sidebarTab)
@@ -974,6 +982,7 @@ export function OpenStellarHub() {
     if (!preview.result.upgraded) {
       const blockedReason = preview.result.reason === "max-level" ? "already at max level" : "not enough XP"
       pushLog(`skill upgrade blocked: ${blockedReason}`, "warning", currentAgent.name)
+      toast.error("Skill Upgrade Blocked", { description: `${currentAgent.name}: ${blockedReason}` })
       return
     }
 
@@ -982,6 +991,7 @@ export function OpenStellarHub() {
     )
 
     pushLog(`${preview.result.skill.name} upgraded to level ${preview.result.skill.level}`, "success", preview.agent.name)
+    toast.success("Skill Upgraded!", { description: `${preview.agent.name} upgraded ${preview.result.skill.name} to Level ${preview.result.skill.level}` })
     showAgentOverlay(preview.agent, `${preview.result.skill.name} Lv.${preview.result.skill.level}`, preview.agent.color)
   }, [pushLog, showAgentOverlay])
 

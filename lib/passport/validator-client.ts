@@ -28,6 +28,9 @@ export * as rpc from "@stellar/stellar-sdk/rpc";
 if (typeof window !== "undefined") {
   const win = window as unknown as { Buffer?: typeof Buffer };
   win.Buffer = win.Buffer || Buffer;
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore Buffer exists
+  window.Buffer = window.Buffer || Buffer;
 }
 
 export type StellarNetwork = "testnet" | "mainnet";

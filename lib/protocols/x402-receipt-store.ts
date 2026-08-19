@@ -28,6 +28,41 @@ export interface X402ReceiptPage {
 
 const DB_PATH = process.env.X402_RECEIPT_DB_PATH ?? join(cwd(), '.data', 'x402-receipts.json')
 const store = makeJsonStore<X402ExplorerReceipt>(DB_PATH)
+const DEFAULT_DB_PATH = join(cwd(), '.data', 'x402-receipts.json')
+const DB_PATH = process.env.X402_RECEIPT_DB_PATH || DEFAULT_DB_PATH
+
+function ensureDb(): void {
+  const dir = dirname(DB_PATH)
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true })
+  }
+  if (!existsSync(DB_PATH)) {
+    writeFileSync(DB_PATH, '[]\n', 'utf8')
+  }
+}
+
+function readReceipts(): X402ExplorerReceipt[] {
+  ensureDb()
+  const raw = readFileSync(DB_PATH, 'utf8').trim()
+  if (!raw) return []
+  const parsed = JSON.parse(raw) as X402ExplorerReceipt[]
+  return Array.isArray(parsed) ? parsed : []
+}
+
+function writeReceipts(receipts: X402ExplorerReceipt[]): void {
+  ensureDb()
+  const tmpPath = `${DB_PATH}.${process.pid}.tmp`
+  writeFileSync(tmpPath, `${JSON.stringify(receipts, null, 2)}\n`, 'utf8')
+  try {
+    renameSync(tmpPath, DB_PATH)
+  } catch {
+    // On Windows, renameSync can fail with EPERM when another process holds
+    // a lock on the target file (e.g. parallel Vitest workers). Fall back to
+    // a direct write so the data is not silently lost.
+    writeFileSync(DB_PATH, `${JSON.stringify(receipts, null, 2)}\n`, 'utf8')
+    try { renameSync(tmpPath, `${tmpPath}.done`) } catch { /* cleanup best-effort */ }
+  }
+}
 
 export function saveX402Receipt(receipt: X402ExplorerReceipt): X402ExplorerReceipt {
   const receipts = store.read()

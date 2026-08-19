@@ -75,3 +75,19 @@ describe("agent error store", () => {
     });
   });
 });
+    })
+  })
+
+  it("handles non-Error objects and primitive values gracefully when recording errors", () => {
+    const now = new Date("2026-06-30T12:00:00.000Z")
+    const summary = recordAgentExecutionError({
+      agentId: "cloud-delta",
+      error: { code: 500, detail: "internal server error" },
+      taskExcerpt: "api call",
+      date: now,
+    })
+
+    expect(summary.errorCount24h).toBe(1)
+  })
+})
+
