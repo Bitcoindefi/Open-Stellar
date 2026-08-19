@@ -51,7 +51,15 @@ function writeReceipts(receipts: X402ExplorerReceipt[]): void {
   ensureDb()
   const tmpPath = `${DB_PATH}.${process.pid}.tmp`
   writeFileSync(tmpPath, `${JSON.stringify(receipts, null, 2)}\n`, 'utf8')
-  renameSync(tmpPath, DB_PATH)
+  try {
+    renameSync(tmpPath, DB_PATH)
+  } catch {
+    // On Windows, renameSync can fail with EPERM when another process holds
+    // a lock on the target file (e.g. parallel Vitest workers). Fall back to
+    // a direct write so the data is not silently lost.
+    writeFileSync(DB_PATH, `${JSON.stringify(receipts, null, 2)}\n`, 'utf8')
+    try { renameSync(tmpPath, `${tmpPath}.done`) } catch { /* cleanup best-effort */ }
+  }
 }
 
 export function saveX402Receipt(receipt: X402ExplorerReceipt): X402ExplorerReceipt {
