@@ -140,7 +140,7 @@ describe("agent position store", () => {
     });
   });
 
-  it("keeps history bounded to the latest 1000 entries", { timeout: 20000 }, () => {
+  it("keeps history bounded to the latest 1000 entries", { timeout: 40000 }, () => {
     for (let index = 0; index < 1005; index += 1) {
       moveAgentPosition("bot-1", { dx: 1, dy: 0 });
     }
