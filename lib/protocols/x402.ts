@@ -293,11 +293,7 @@ export async function verifyX402Settlement(input: X402Settlement, quote?: X402Qu
   const isMock =
     isMockMode() ||
     process.env.NODE_ENV === 'test' ||
-    process.env.CI === 'true' ||
-    process.env.PLAYWRIGHT === 'true' ||
-    input.txHash.startsWith('mock_') ||
-    input.txHash.startsWith('0xaaaa') ||
-    input.txHash.startsWith('0xffff')
+    process.env.PLAYWRIGHT === 'true'
 
   const explorerUrl = getExplorerUrl(input.chain, input.txHash)
   if (input.chain === 'stellar') {
