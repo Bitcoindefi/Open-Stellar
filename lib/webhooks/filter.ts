@@ -105,7 +105,8 @@ export function normalizeFilters(value: unknown): WebhookFilter[] {
   for (const item of value) {
     if (!item || typeof item !== "object") continue;
 
-    const field = String((item as Record<string, unknown>).field ?? "").trim();
+    const rawField = (item as Record<string, unknown>).field;
+    const field = typeof rawField === "string" ? rawField.trim() : "";
     const operator = String((item as Record<string, unknown>).operator ?? "");
     const rawValue = (item as Record<string, unknown>).value;
 

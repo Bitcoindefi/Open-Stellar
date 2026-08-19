@@ -22,9 +22,9 @@ export async function generateMetadata({
 
 export default async function DocsPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ slug?: string[] }>;
-}) {
+}>) {
   const { slug } = await params;
   if (!slug?.length) redirect("/docs/getting-started");
   const activeSlug = slug.join("/");

@@ -36,7 +36,7 @@ export function TaskOfferSheet({
   offer,
   viewerAgentId,
   onClose,
-}: TaskOfferSheetProps) {
+}: Readonly<TaskOfferSheetProps>) {
   if (!offer) return null;
 
   const currentIndex = STATUS_ORDER.indexOf(offer.status);

@@ -38,7 +38,7 @@ describe("GET /api/agents/leaderboard", () => {
     expect(data.total).toBe(5);
     expect(data.limit).toBe(2);
     expect(data.offset).toBe(0);
-    expect(data.agents.length).toBe(2);
+    expect(data.agents).toHaveLength(2);
     expect(data.agents[0].agentId).toBe(`${prefix}5`);
     expect(data.agents[0].rank).toBe(1);
     expect(data.agents[1].agentId).toBe(`${prefix}4`);
@@ -82,7 +82,7 @@ describe("GET /api/agents/leaderboard", () => {
 
     expect(data.total).toBe(5);
     expect(data.offset).toBe(2);
-    expect(data.agents.length).toBe(2);
+    expect(data.agents).toHaveLength(2);
 
     expect(data.agents[0].agentId).toBe(`${prefix}3`);
     expect(data.agents[0].rank).toBe(3);

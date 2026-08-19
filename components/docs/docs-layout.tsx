@@ -66,11 +66,11 @@ function DocLink({
   slug,
   title,
   active,
-}: {
+}: Readonly<{
   slug: string;
   title: string;
   active: boolean;
-}) {
+}>) {
   return (
     <Link
       href={`/docs/${slug}`}

@@ -66,6 +66,11 @@ export function LeaderboardTable({
         )}
         {agents.map((agent) => {
           const delta = agent.previousRank - agent.rank;
+          const deltaDisplay = (() => {
+            if (delta > 0) return { symbol: "▲", className: "text-emerald-300" };
+            if (delta < 0) return { symbol: "▼", className: "text-rose-300" };
+            return { symbol: "—", className: "text-slate-500" };
+          })();
           return (
             <Link
               key={agent.id}
@@ -122,16 +127,8 @@ export function LeaderboardTable({
                     </span>
                   )}
                 </div>
-                <span
-                  className={
-                    delta > 0
-                      ? "text-emerald-300"
-                      : delta < 0
-                        ? "text-rose-300"
-                        : "text-slate-500"
-                  }
-                >
-                  {delta > 0 ? "▲" : delta < 0 ? "▼" : "—"}
+                <span className={deltaDisplay.className}>
+                  {deltaDisplay.symbol}
                 </span>
               </div>
             </Link>

@@ -78,7 +78,7 @@ describe('x402 webhooks', () => {
 
     const deliveries = await dispatchX402Webhooks(settleResult.receipt!, mockFetcher as unknown as typeof fetch)
 
-    expect(deliveries.length).toBe(1)
+    expect(deliveries).toHaveLength(1)
     expect(deliveries[0].success).toBe(true)
     expect(deliveries[0].status).toBe(200)
     expect(mockFetcher).toHaveBeenCalledTimes(1)

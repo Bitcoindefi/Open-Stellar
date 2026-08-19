@@ -103,7 +103,7 @@ export function AppearancePanel({
   agents,
   selectedAgent,
   onUpdateAgentAppearance,
-}: AppearancePanelProps) {
+}: Readonly<AppearancePanelProps>) {
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [colorInput, setColorInput] = useState(
@@ -456,11 +456,10 @@ export function AppearancePanel({
                     marginTop: 2,
                   }}
                 >
-                  {unlocked
-                    ? equipped
-                      ? "Equipped"
-                      : "Tap to equip"
-                    : `Lv. ${skin.levelRequired} required`}
+                  {(() => {
+                    if (!unlocked) return `Lv. ${skin.levelRequired} required`;
+                    return equipped ? "Equipped" : "Tap to equip";
+                  })()}
                 </div>
               </button>
             );
@@ -540,11 +539,10 @@ export function AppearancePanel({
                       color: "#64748b",
                     }}
                   >
-                    {unlocked
-                      ? equipped
-                        ? "Equipped"
-                        : "Tap to equip"
-                      : badge?.name}
+                  {(() => {
+                    if (!unlocked) return badge?.name;
+                    return equipped ? "Equipped" : "Tap to equip";
+                  })()}
                   </div>
                 </div>
               </button>

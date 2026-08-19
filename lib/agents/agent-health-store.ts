@@ -119,8 +119,8 @@ function normalizePercent(value: unknown): number | null {
 }
 
 function normalizeTask(value: unknown): string | null {
-  if (value === null || value === undefined) return null;
-  const task = String(value).trim();
+  if (typeof value !== "string") return null;
+  const task = value.trim();
   return task.length > 0 ? task.slice(0, 180) : null;
 }
 

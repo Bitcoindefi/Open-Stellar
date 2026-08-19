@@ -121,12 +121,12 @@ function normalizeSkillVersions(
 ): SkillRegistration[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) {
-    throw new Error("skillVersions must be an array");
+    throw new TypeError("skillVersions must be an array");
   }
 
   const versions = value.map((item, index) => {
     if (!isRecord(item)) {
-      throw new Error(`skillVersions[${index}] must be an object`);
+      throw new TypeError(`skillVersions[${index}] must be an object`);
     }
     const id = normalizeString(item.id, `skillVersions[${index}].id`);
     const version =
@@ -160,11 +160,11 @@ function normalizeDependencies(value: unknown): string[] | undefined {
 
 function normalizeX402(value: unknown): AgentX402Manifest {
   if (!isRecord(value)) {
-    throw new Error("x402 must be an object");
+    throw new TypeError("x402 must be an object");
   }
 
   if (typeof value.accepts !== "boolean") {
-    throw new Error("x402.accepts must be a boolean");
+    throw new TypeError("x402.accepts must be a boolean");
   }
 
   return {

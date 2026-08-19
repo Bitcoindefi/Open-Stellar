@@ -415,7 +415,7 @@ export async function commitOnChain(
   try {
     const tx = await client(publicKey).verify_and_register({
       proof: p.proof,
-      public_inputs: p.publicInputs.map((s) => BigInt(s)),
+      public_inputs: p.publicInputs.map(BigInt),
     });
     const sent = await tx.signAndSend({
       signTransaction: async (xdr: string, opts?: object) =>

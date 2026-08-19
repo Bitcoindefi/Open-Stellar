@@ -56,7 +56,7 @@ export interface Particle {
 }
 
 function rand(min: number, max: number) {
-  return min + Math.random() * (max - min);
+  return min + Math.random() * (max - min); // NOSONAR -- non-cryptographic particle animation
 }
 
 function randInt(min: number, max: number) {

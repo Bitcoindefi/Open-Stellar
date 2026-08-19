@@ -100,31 +100,10 @@ function CopyBtn({ text, label }: { text: string; label?: string }) {
   );
 }
 
-export function WalletPanel({
-  agents,
-  selectedAgent,
-  transactions,
-  onUpdateAgent,
-  onAddTransaction,
-}: WalletPanelProps) {
-  const [freighterAvailable, setFreighterAvailable] = useState<boolean | null>(
-    null,
-  );
+function useFreighterDetection() {
+  const [freighterAvailable, setFreighterAvailable] = useState<boolean | null>(null);
   const [connectedKey, setConnectedKey] = useState<string | null>(null);
-  const [loading, setLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [sendTo, setSendTo] = useState("");
-  const [sendAmount, setSendAmount] = useState("10");
-  const [track8004Mode, setTrack8004Mode] = useState<
-    "native-8004" | "reputation-fallback" | null
-  >(null);
-  const [reputationScore, setReputationScore] = useState<number | null>(null);
-  const [x402Quote, setX402Quote] = useState<X402QuoteView | null>(null);
-  const [x402Countdown, setX402Countdown] = useState<number | null>(null);
-  const [penaltyConfirm, setPenaltyConfirm] = useState(false);
-  const [assignConfirm, setAssignConfirm] = useState(false);
 
-  // Check Freighter availability on mount
   useEffect(() => {
     let cancelled = false;
     const check = async () => {
@@ -160,7 +139,6 @@ export function WalletPanel({
     };
   }, []);
 
-  // Poll every 3s until Freighter is detected
   useEffect(() => {
     if (freighterAvailable !== false) return;
     const id = setInterval(async () => {
@@ -173,6 +151,60 @@ export function WalletPanel({
     }, 3000);
     return () => clearInterval(id);
   }, [freighterAvailable]);
+
+  return { freighterAvailable, connectedKey, setConnectedKey };
+}
+
+function validateSendInputs(
+  wallet: { balance: string; publicKey: string } | undefined,
+  sendTo: string,
+  sendAmount: string,
+  agents: MoltbotAgent[],
+): { amountNum?: number; recipient?: MoltbotAgent; error?: string } {
+  if (!wallet || !sendTo || !sendAmount) return {};
+
+  const amountNum = Number.parseFloat(sendAmount);
+  if (!amountNum || amountNum <= 0) {
+    return { error: "Amount must be greater than 0" };
+  }
+  const currentBalance = Number.parseFloat(wallet.balance);
+  if (amountNum >= currentBalance - 1) {
+    return {
+      error: `Max sendable: ${Math.max(0, currentBalance - 1).toFixed(2)} XLM (1 XLM reserve required)`,
+    };
+  }
+
+  const recipient = agents.find((a) => a.id === sendTo);
+  if (!recipient?.wallet?.funded || !recipient.wallet.publicKey) {
+    return { error: "Recipient has no funded wallet" };
+  }
+
+  return { amountNum, recipient };
+}
+
+export function WalletPanel({
+  agents,
+  selectedAgent,
+  transactions,
+  onUpdateAgent,
+  onAddTransaction,
+}: WalletPanelProps) {
+  const { freighterAvailable, connectedKey, setConnectedKey } =
+    useFreighterDetection();
+  const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [sendTo, setSendTo] = useState("");
+  const [sendAmount, setSendAmount] = useState("10");
+  const [track8004Mode, setTrack8004Mode] = useState<
+    "native-8004" | "reputation-fallback" | null
+  >(null);
+  const [reputationScore, setReputationScore] = useState<number | null>(null);
+  const [x402Quote, setX402Quote] = useState<X402QuoteView | null>(null);
+  const [x402Countdown, setX402Countdown] = useState<number | null>(null);
+  const [penaltyConfirm, setPenaltyConfirm] = useState(false);
+  const [assignConfirm, setAssignConfirm] = useState(false);
+
+
 
   // x402 live countdown
   useEffect(() => {
@@ -219,7 +251,7 @@ export function WalletPanel({
       setError(e instanceof Error ? e.message : "Failed to connect Freighter");
     }
     setLoading(null);
-  }, []);
+  }, [setConnectedKey]);
 
   const handleAssignWallet = useCallback(
     async (agent: MoltbotAgent) => {
@@ -303,7 +335,7 @@ export function WalletPanel({
           onUpdateAgent(agent.id, {
             ...agent.wallet,
             balance: bal,
-            funded: parseFloat(bal) > 0,
+            funded: Number.parseFloat(bal) > 0,
           });
         }
       } catch {
@@ -314,28 +346,18 @@ export function WalletPanel({
     [onUpdateAgent],
   );
 
+
+
   const handleSend = useCallback(
     async (agent: MoltbotAgent) => {
-      if (!agent.wallet || !sendTo || !sendAmount) return;
+      const { amountNum, recipient, error: validationError } =
+        validateSendInputs(agent.wallet, sendTo, sendAmount, agents);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+      if (!amountNum || !recipient || !recipient.wallet || !agent.wallet) return;
 
-      const amountNum = parseFloat(sendAmount);
-      if (!amountNum || amountNum <= 0) {
-        setError("Amount must be greater than 0");
-        return;
-      }
-      const currentBalance = parseFloat(agent.wallet.balance);
-      if (amountNum >= currentBalance - 1) {
-        setError(
-          `Max sendable: ${Math.max(0, currentBalance - 1).toFixed(2)} XLM (1 XLM reserve required)`,
-        );
-        return;
-      }
-
-      const recipient = agents.find((a) => a.id === sendTo);
-      if (!recipient?.wallet?.funded) {
-        setError("Recipient has no funded wallet");
-        return;
-      }
       setLoading("send");
       setError(null);
       try {
@@ -358,14 +380,16 @@ export function WalletPanel({
           networkPassphrase: "Test SDF Network ; September 2015",
         });
 
-        const signedXdr =
-          typeof signResult === "string"
-            ? signResult
-            : signResult &&
-                typeof signResult === "object" &&
-                "signedTxXdr" in signResult
-              ? (signResult.signedTxXdr as string)
-              : null;
+        let signedXdr: string | null = null;
+        if (typeof signResult === "string") {
+          signedXdr = signResult;
+        } else if (
+          signResult &&
+          typeof signResult === "object" &&
+          "signedTxXdr" in signResult
+        ) {
+          signedXdr = signResult.signedTxXdr as string;
+        }
 
         if (!signedXdr) throw new Error("Freighter did not return signed XDR");
 
@@ -391,12 +415,14 @@ export function WalletPanel({
         ]);
 
         onUpdateAgent(agent.id, {
-          ...agent.wallet,
+          publicKey: agent.wallet.publicKey,
           balance: fromBal.balance || "0",
+          funded: agent.wallet.funded ?? true,
         });
         onUpdateAgent(recipient.id, {
-          ...recipient.wallet,
+          publicKey: recipient.wallet.publicKey,
           balance: toBal.balance || "0",
+          funded: recipient.wallet.funded ?? true,
         });
 
         const txId = Date.now();

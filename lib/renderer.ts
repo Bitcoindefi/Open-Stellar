@@ -250,8 +250,12 @@ export function drawDistrict(
   // District label with background pill
   ctx.font = "bold 10px monospace";
   const districtLabel = d.name.toUpperCase();
+  const multiplierSuffix =
+    eventState?.multiplier && eventState.multiplier > 1
+      ? ` ${eventState.multiplier}x`
+      : "";
   const scoreLabel = eventState?.scoreLabel
-    ? ` #${eventState.rank} ${eventState.scoreLabel}${eventState.multiplier && eventState.multiplier > 1 ? ` ${eventState.multiplier}x` : ""}`
+    ? ` #${eventState.rank} ${eventState.scoreLabel}${multiplierSuffix}`
     : "";
   const labelW =
     Math.max(

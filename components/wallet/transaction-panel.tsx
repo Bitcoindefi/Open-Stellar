@@ -484,11 +484,11 @@ export function TransactionPanel() {
                           : "none",
                       }}
                     >
-                      {bnbChainId !== bscTestnet.id
-                        ? "Red Incorrecta"
-                        : isSendingBnb || isConnectingBnb
-                          ? "Confirmando..."
-                          : "Enviar BNB"}
+                      {(() => {
+                        if (bnbChainId !== bscTestnet.id) return "Red Incorrecta";
+                        if (isSendingBnb || isConnectingBnb) return "Confirmando...";
+                        return "Enviar BNB";
+                      })()}
                     </button>
                   )}
                   {isConnected && bnbChainId !== bscTestnet.id && (
@@ -612,11 +612,11 @@ export function TransactionPanel() {
                           : "pointer",
                     }}
                   >
-                    {isConnectingStellar
-                      ? "Conectando..."
-                      : isSendingStellar
-                        ? "Confirmando..."
-                        : "Enviar XLM"}
+                      {(() => {
+                        if (isConnectingStellar) return "Conectando...";
+                        if (isSendingStellar) return "Confirmando...";
+                        return "Enviar XLM";
+                      })()}
                   </button>
                 </>
               )}
@@ -651,9 +651,7 @@ export function TransactionPanel() {
                         borderLeft: `3px solid ${
                           log.status === "pending"
                             ? "#f0b90b"
-                            : log.status === "success"
-                              ? "#2d5a27"
-                              : "#8b2942"
+                            : (log.status === "success" ? "#2d5a27" : "#8b2942")
                         }`,
                         fontFamily: "var(--font-vt323)",
                       }}
@@ -665,9 +663,7 @@ export function TransactionPanel() {
                             backgroundColor:
                               log.status === "pending"
                                 ? "#f0b90b"
-                                : log.status === "success"
-                                  ? "#2d5a27"
-                                  : "#8b2942",
+                                : (log.status === "success" ? "#2d5a27" : "#8b2942"),
                           }}
                         />
                         <span style={{ color: "#4a3728" }}>{log.message}</span>

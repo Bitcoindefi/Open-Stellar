@@ -454,13 +454,12 @@ export function PassportPanel() {
                   ) : (
                     <Database className="h-3.5 w-3.5" />
                   )}
-                  {committing
-                    ? "Committing…"
-                    : committed
-                      ? "Committed ✓"
-                      : freighterKey
-                        ? "Register passport"
-                        : "Connect & Register"}
+                  {(() => {
+                    if (committing) return "Committing…";
+                    if (committed) return "Committed ✓";
+                    if (freighterKey) return "Register passport";
+                    return "Connect & Register";
+                  })()}
                 </button>
               </div>
               {commitResult && (
@@ -604,17 +603,16 @@ export function PassportPanel() {
                 log.map((l, i) => (
                   <div
                     key={i}
-                    className={
-                      l.includes("DENIED") || l.startsWith("!")
-                        ? "text-rose-300"
-                        : l.includes("APPROVED") ||
-                            l.includes("VERIFIED") ||
-                            l.includes("COMMITTED")
-                          ? "text-emerald-300"
-                          : l.includes("SIMULATION PASSED")
-                            ? "text-amber-300"
-                            : ""
-                    }
+                    className={(() => {
+                      if (l.includes("DENIED") || l.startsWith("!")) return "text-rose-300";
+                      if (
+                        l.includes("APPROVED") ||
+                        l.includes("VERIFIED") ||
+                        l.includes("COMMITTED")
+                      ) return "text-emerald-300";
+                      if (l.includes("SIMULATION PASSED")) return "text-amber-300";
+                      return "";
+                    })()}
                   >
                     {l}
                   </div>
@@ -701,12 +699,12 @@ function Fact({
   value,
   mono,
   tone,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   mono?: boolean;
   tone?: string;
-}) {
+}>) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-[#09101a] p-3">
       <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">
@@ -725,11 +723,11 @@ function ContractRow({
   icon,
   label,
   id,
-}: {
+}: Readonly<{
   icon: ReactNode;
   label: string;
   id: string;
-}) {
+}>) {
   return (
     <a
       href={EXPLORER(id)}
@@ -841,20 +839,15 @@ function PassportCardMini({
   verified: boolean;
   committed: boolean;
 }) {
-  const status = committed
-    ? "COMMITTED ON-CHAIN"
-    : verified
-      ? "SIMULATION OK"
-      : minted
-        ? "PROVEN"
-        : "EMPTY";
-  const tone = committed
-    ? "text-emerald-300"
-    : verified
-      ? "text-amber-300"
-      : minted
-        ? "text-cyan-300"
-        : "text-slate-500";
+  let status = "EMPTY";
+  if (committed) status = "ON-CHAIN";
+  else if (verified) status = "VERIFIED";
+  else if (minted) status = "OFF-CHAIN";
+
+  let tone = "text-slate-500";
+  if (committed) tone = "text-emerald-300";
+  else if (verified) tone = "text-amber-300";
+  else if (minted) tone = "text-cyan-300";
   return (
     <div className="rounded-[28px] border border-cyan-500/20 bg-gradient-to-br from-slate-950 to-[#06101c] p-5 shadow-[0_24px_80px_rgba(2,8,23,0.55)]">
       <div className="flex items-center justify-between">

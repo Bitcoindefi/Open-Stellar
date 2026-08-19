@@ -242,22 +242,14 @@ describe("skills-registry", () => {
       expect(skills).toHaveLength(3);
     });
 
-    it("filters by search query - name match", () => {
-      const skills = searchSkills({ q: "payment" });
+    it.each([
+      { name: "name match", q: "payment", expectedId: "payment" },
+      { name: "description match", q: "translate", expectedId: "translation" },
+      { name: "case insensitive", q: "PAYMENT", expectedId: "payment" },
+    ])("filters by search query - $name", ({ q, expectedId }) => {
+      const skills = searchSkills({ q });
       expect(skills).toHaveLength(1);
-      expect(skills[0].skillId).toBe("payment");
-    });
-
-    it("filters by search query - description match", () => {
-      const skills = searchSkills({ q: "translate" });
-      expect(skills).toHaveLength(1);
-      expect(skills[0].skillId).toBe("translation");
-    });
-
-    it("filters by search query - case insensitive", () => {
-      const skills = searchSkills({ q: "PAYMENT" });
-      expect(skills).toHaveLength(1);
-      expect(skills[0].skillId).toBe("payment");
+      expect(skills[0].skillId).toBe(expectedId);
     });
 
     it("filters by maxPrice", () => {

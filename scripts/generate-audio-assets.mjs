@@ -399,11 +399,11 @@ function researchDay(_rng) {
     for (const freq of [220, 277.18, 329.63]) addSine(buf, freq, 0.05);
     for (const at of [0.4, 2.3]) {
       addTransient(buf, at, 0.7, 0.16, {
-        freq: at === 0.4 ? 660 : 880,
+        freq: Math.abs(at - 0.4) < 0.001 ? 660 : 880,
         decayFactor: 0.35,
       });
       addTransient(buf, at, 0.7, 0.06, {
-        freq: (at === 0.4 ? 660 : 880) * 2,
+        freq: (Math.abs(at - 0.4) < 0.001 ? 660 : 880) * 2,
         decayFactor: 0.3,
       });
     }

@@ -230,13 +230,11 @@ export function WalletButton() {
       >
         <PixelWalletIcon connected={hasAnyConnection} />
         <span className="text-xs font-bold text-white uppercase tracking-wide">
-          {hasAnyConnection
-            ? walletState.bnb.address
-              ? formatAddress(walletState.bnb.address)
-              : walletState.stellar.publicKey
-                ? formatAddress(walletState.stellar.publicKey)
-                : "WALLET"
-            : "WALLET"}
+          {(() => {
+            if (!hasAnyConnection) return "WALLET";
+            const addr = walletState.bnb.address || walletState.stellar.publicKey;
+            return addr ? formatAddress(addr) : "WALLET";
+          })()}
         </span>
       </motion.button>
 
@@ -421,13 +419,12 @@ export function WalletButton() {
                   variant="stellar"
                   fullWidth
                 >
-                  {!freighterAvailable
-                    ? "Install / Retry"
-                    : isConnecting === "stellar"
-                      ? "Connecting..."
-                      : stellarManuallyDisconnected
-                        ? "Reconnect Freighter"
-                        : "Connect Freighter"}
+                  {(() => {
+                    if (!freighterAvailable) return "Install / Retry";
+                    if (isConnecting === "stellar") return "Connecting...";
+                    if (stellarManuallyDisconnected) return "Reconnect Freighter";
+                    return "Connect Freighter";
+                  })()}
                 </PixelButton>
               )}
 

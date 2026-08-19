@@ -102,7 +102,7 @@ export default function AgentsMap() {
           if (agent.status === "moving" && agent.targetBuilding) {
             const { lat: tLat, lng: tLng } = agent.targetBuilding.coordinates;
             const { lat: cLat, lng: cLng } = agent.position;
-            const dist = Math.sqrt((tLat - cLat) ** 2 + (tLng - cLng) ** 2);
+            const dist = Math.hypot(tLat - cLat, tLng - cLng);
             if (dist < 0.001)
               return {
                 ...agent,

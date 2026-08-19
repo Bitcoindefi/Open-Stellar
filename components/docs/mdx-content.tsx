@@ -3,17 +3,18 @@ import Link from "next/link";
 function inline(text: string): React.ReactNode[] {
   const parts = text.split(/(`[^`]+`|\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*)/g);
   return parts.map((part, index) => {
+    const key = `${part}-${index}`;
     if (part.startsWith("`") && part.endsWith("`"))
-      return <code key={index}>{part.slice(1, -1)}</code>;
+      return <code key={key}>{part.slice(1, -1)}</code>;
     const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (link)
       return (
-        <Link key={index} href={link[2]}>
+        <Link key={key} href={link[2]}>
           {link[1]}
         </Link>
       );
     if (part.startsWith("**") && part.endsWith("**"))
-      return <strong key={index}>{part.slice(2, -2)}</strong>;
+      return <strong key={key}>{part.slice(2, -2)}</strong>;
     return part;
   });
 }

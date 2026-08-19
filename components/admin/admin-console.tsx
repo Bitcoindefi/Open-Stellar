@@ -1156,11 +1156,11 @@ function DeployStep({
   n,
   title,
   text,
-}: {
+}: Readonly<{
   n: number;
   title: string;
   text: string;
-}) {
+}>) {
   return (
     <div className="flex gap-4">
       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-amber-400/30 bg-amber-400/10 font-mono text-xs text-amber-300">
@@ -1344,11 +1344,11 @@ function SignalStat({
   label,
   value,
   color,
-}: {
+}: Readonly<{
   label: string;
   value: string;
   color: string;
-}) {
+}>) {
   return (
     <div className="rounded-[20px] border border-slate-800 bg-[#09101a] p-3">
       <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">
@@ -1363,11 +1363,11 @@ function InfoRow({
   icon,
   label,
   value,
-}: {
+}: Readonly<{
   icon: ReactNode;
   label: string;
   value: string;
-}) {
+}>) {
   return (
     <div className="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
       <div className="mt-0.5 text-cyan-300">{icon}</div>

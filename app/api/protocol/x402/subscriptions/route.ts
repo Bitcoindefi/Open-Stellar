@@ -6,7 +6,7 @@ import {
 } from "@/lib/protocols/x402";
 
 function normalizePlan(plan: unknown): X402SubscriptionPlan {
-  const value = String(plan || "monthly").toLowerCase();
+  const value = typeof plan === "string" ? plan.toLowerCase() : "";
   if (
     value === "starter" ||
     value === "growth" ||

@@ -150,10 +150,11 @@ export function getAgentDistrictCompetitionScore(
       return agent.tasksCompleted;
     case "revenue":
       return agent.tasksCompleted * (0.03 + noise * 0.09);
-    case "uptime":
-      return agent.status === "offline"
-        ? 0
-        : 92 + noise * 7.5 - (agent.status === "error" ? 8 : 0);
+    case "uptime": {
+      if (agent.status === "offline") return 0;
+      const penalty = agent.status === "error" ? 8 : 0;
+      return 92 + noise * 7.5 - penalty;
+    }
     case "speed":
       return 4 + noise * 18 + (agent.status === "working" ? -1.5 : 0);
     case "skill":

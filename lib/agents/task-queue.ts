@@ -133,7 +133,7 @@ export function updateTask(
   const db = getDb();
   const task = db.tasks.get(taskId);
 
-  if (!task || task.agentId !== cleanId) return null;
+  if (task?.agentId !== cleanId) return null;
   if (task.status !== "running") return null;
 
   const newStatus = input.status;
@@ -151,7 +151,7 @@ export function getTask(agentId: string, taskId: string): AgentTask | null {
   const cleanId = normalizeAgentId(agentId);
   const db = getDb();
   const task = db.tasks.get(taskId);
-  if (!task || task.agentId !== cleanId) return null;
+  if (task?.agentId !== cleanId) return null;
   return task;
 }
 

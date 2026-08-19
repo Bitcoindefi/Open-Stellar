@@ -81,11 +81,11 @@ function StatBox({
   label,
   value,
   color,
-}: {
+}: Readonly<{
   label: string;
   value: string | number;
   color: string;
-}) {
+}>) {
   return (
     <div
       style={{

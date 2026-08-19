@@ -157,11 +157,14 @@ function BadgeUnlockedEmail({
       },
     },
     React.createElement("h1", null, `${agentName} unlocked ${badgeName}`),
-    React.createElement(
-      "p",
-      null,
-      `${badgeRarity ? `${badgeRarity} badge` : "Badge"} unlocked on Open Stellar.`,
-    ),
+    (() => {
+      const rarityLabel = badgeRarity ? `${badgeRarity} badge` : "Badge";
+      return React.createElement(
+        "p",
+        null,
+        `${rarityLabel} unlocked on Open Stellar.`,
+      );
+    })(),
     React.createElement(
       "p",
       { style: { fontSize: 12, color: "#667085" } },

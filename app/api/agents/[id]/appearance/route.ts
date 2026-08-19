@@ -177,7 +177,7 @@ export async function POST(req: Request, context: RouteContext) {
       }
       const verification = await verifyTreasuryPayment(
         txHash,
-        parseFloat(COLOR_CHANGE_COST_XLM),
+        Number.parseFloat(COLOR_CHANGE_COST_XLM),
       );
       if (!verification.ok) {
         return await api.json(

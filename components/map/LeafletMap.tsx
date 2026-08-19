@@ -49,7 +49,7 @@ export default function LeafletMap({
       {cluster
         ? clusteredPositions.map((cp, idx) => (
             <Marker
-              key={`cluster-${idx}`}
+              key={`cluster-${cp.lat}-${cp.lng}-${cp.count}-${idx}`}
               position={[cp.lat, cp.lng]}
               icon={getClusterIcon(cp.count)}
             >

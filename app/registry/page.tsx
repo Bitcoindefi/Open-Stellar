@@ -10,6 +10,21 @@ import type {
   CapabilityCount,
 } from "@/lib/agent-registry";
 
+function getStatusDotBg(status: string): string {
+  switch (status) {
+    case "active":
+      return "bg-emerald-400";
+    case "working":
+      return "bg-cyan-400";
+    case "idle":
+      return "bg-amber-400";
+    case "degraded":
+      return "bg-rose-400";
+    default:
+      return "bg-slate-600";
+  }
+}
+
 export default function RegistryPage() {
   const [agents, setAgents] = useState<AgentCapabilityManifest[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilityCount[]>([]);
@@ -154,17 +169,7 @@ export default function RegistryPage() {
                       </CardTitle>
                       <div className="flex items-center gap-2">
                         <span
-                          className={`h-2 w-2 rounded-full ${
-                            agent.status === "active"
-                              ? "bg-emerald-400"
-                              : agent.status === "working"
-                                ? "bg-cyan-400"
-                                : agent.status === "idle"
-                                  ? "bg-amber-400"
-                                  : agent.status === "degraded"
-                                    ? "bg-rose-400"
-                                    : "bg-slate-600"
-                          }`}
+                          className={`h-2 w-2 rounded-full ${getStatusDotBg(agent.status)}`}
                         />
                         <span className="font-mono text-xs text-slate-400">
                           {agent.status}

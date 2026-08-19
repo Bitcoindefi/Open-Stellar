@@ -152,7 +152,7 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
   const capabilities = useMemo(() => {
     return Array.from(
       new Set(offers.map((offer) => offer.requiredCapability)),
-    ).sort();
+    ).sort((a, b) => a.localeCompare(b));
   }, [offers]);
 
   const filteredOffers = useMemo(() => {
