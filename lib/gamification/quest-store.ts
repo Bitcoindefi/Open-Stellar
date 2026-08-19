@@ -32,11 +32,9 @@ const globalState = globalThis as typeof globalThis & {
 };
 
 function getStore(): QuestStore {
-  if (!globalState.__openStellarQuestStore__) {
-    globalState.__openStellarQuestStore__ = {
-      quests: new Map(),
-    };
-  }
+  globalState.__openStellarQuestStore__ ??= {
+    quests: new Map(),
+  };
   return globalState.__openStellarQuestStore__;
 }
 
@@ -87,6 +85,29 @@ export function listStoredQuests(options?: {
   return quests;
 }
 
+function handleQuestCompletion(
+  quest: StoredQuest,
+  store: QuestStore,
+  wasCompleted: boolean,
+): void {
+  quest.completedAt = new Date().toISOString();
+  if (wasCompleted || !quest.unlocksQuestId) return;
+
+  const unlockedQuest = store.quests.get(quest.unlocksQuestId);
+  if (!unlockedQuest) return;
+
+  for (const agentId of new Set(quest.assignedAgentIds)) {
+    if (!unlockedQuest.assignedAgentIds.includes(agentId)) {
+      unlockedQuest.assignedAgentIds.push(agentId);
+    }
+    publishSystemEvent({
+      type: "quest.unlocked",
+      agentId,
+      questId: quest.unlocksQuestId,
+    });
+  }
+}
+
 export function updateQuestStatus(
   id: string,
   status: QuestStatus,
@@ -97,23 +118,7 @@ export function updateQuestStatus(
   const wasCompleted = quest.status === "completed";
   quest.status = status;
   if (status === "completed") {
-    quest.completedAt = new Date().toISOString();
-
-    if (!wasCompleted && quest.unlocksQuestId) {
-      const unlockedQuest = store.quests.get(quest.unlocksQuestId);
-      if (unlockedQuest) {
-        for (const agentId of new Set(quest.assignedAgentIds)) {
-          if (!unlockedQuest.assignedAgentIds.includes(agentId)) {
-            unlockedQuest.assignedAgentIds.push(agentId);
-          }
-          publishSystemEvent({
-            type: "quest.unlocked",
-            agentId,
-            questId: quest.unlocksQuestId,
-          });
-        }
-      }
-    }
+    handleQuestCompletion(quest, store, wasCompleted);
   }
   return quest;
 }

@@ -31,9 +31,9 @@ import { getQuests } from "@/lib/gamification/quests"
 import { getAgentXpHistory } from "@/lib/agents/xp-decay"
 import { DISTRICTS } from "@/lib/data"
 
-type AgentPageProps = {
-  params: Promise<{ id: string }>;
-};
+type AgentPageProps = Readonly<{
+  params: Promise<{ readonly id: string }>;
+}>;
 
 function getBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {

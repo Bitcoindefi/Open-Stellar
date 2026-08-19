@@ -40,13 +40,11 @@ const globalState = globalThis as typeof globalThis & {
 };
 
 function getDb(): PassportExpiryDb {
-  if (!globalState.__openStellarPassportExpiryDb__) {
-    globalState.__openStellarPassportExpiryDb__ = {
-      passports: new Map(),
-      events: [],
-      stats: { totalExpired: 0, totalRevoked: 0, lastCheckAt: null },
-    };
-  }
+  globalState.__openStellarPassportExpiryDb__ ??= {
+    passports: new Map(),
+    events: [],
+    stats: { totalExpired: 0, totalRevoked: 0, lastCheckAt: null },
+  };
   return globalState.__openStellarPassportExpiryDb__;
 }
 

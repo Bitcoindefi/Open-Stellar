@@ -30,16 +30,12 @@ const globalState = globalThis as typeof globalThis & {
 };
 
 function getHistoryDb(): Map<string, AgentXpHistoryDb> {
-  if (!globalState.__openStellarAgentXpHistory__) {
-    globalState.__openStellarAgentXpHistory__ = new Map();
-  }
+  globalState.__openStellarAgentXpHistory__ ??= new Map();
   return globalState.__openStellarAgentXpHistory__;
 }
 
 function getAuditDb(): XpDecayAuditDb {
-  if (!globalState.__openStellarXpDecayAudit__) {
-    globalState.__openStellarXpDecayAudit__ = [];
-  }
+  globalState.__openStellarXpDecayAudit__ ??= [];
   return globalState.__openStellarXpDecayAudit__;
 }
 

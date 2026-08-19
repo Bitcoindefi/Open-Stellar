@@ -47,7 +47,7 @@ function statusClasses(status: string) {
   return "border-slate-700 bg-slate-900 text-slate-400";
 }
 
-export function RunsHistory({ initialData }: { initialData: RunsPayload }) {
+export function RunsHistory({ initialData }: Readonly<{ initialData: RunsPayload }>) {
   const [runs, setRuns] = useState(initialData.runs);
   const [selected, setSelected] = useState<RunDetailPayload | null>(null);
   const [loadingRunId, setLoadingRunId] = useState<string | null>(null);
@@ -328,7 +328,7 @@ export function RunsHistory({ initialData }: { initialData: RunsPayload }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div className="rounded-[22px] border border-slate-800 bg-slate-950/80 p-4">
       <div className="text-[10px] uppercase tracking-[0.28em] text-slate-500">
@@ -339,7 +339,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function JsonBlock({ title, value }: { title: string; value: unknown }) {
+function JsonBlock({ title, value }: Readonly<{ title: string; value: unknown }>) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
       <div className="mb-2 flex items-center justify-between">
