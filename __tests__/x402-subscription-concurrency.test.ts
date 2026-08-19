@@ -1,14 +1,12 @@
 import { describe, expect, it, beforeEach } from 'vitest'
 import {
-  writeSubscriptions,
   saveX402SubscriptionStoreRecord,
-  scheduleSubscriptionFlush,
-  flushSubscriptionsToDisk,
+  saveX402SubscriptionStoreRecordSync,
   readSubscriptions,
   resetX402SubscriptionStoreForTests,
 } from '@/lib/protocols/x402-subscription-store'
 
-describe('Subscription Store Concurrency & Flushing', () => {
+describe('Subscription Store Concurrency & Storage', () => {
   beforeEach(() => {
     resetX402SubscriptionStoreForTests()
   })
@@ -34,11 +32,11 @@ describe('Subscription Store Concurrency & Flushing', () => {
 
     await Promise.all(promises)
     const stored = readSubscriptions()
-    expect(stored.length).toBe(10)
+    expect(stored).toHaveLength(10)
   })
 
-  it('flushes debounced subscription updates to disk', async () => {
-    scheduleSubscriptionFlush({
+  it('persists subscription updates to disk durably', () => {
+    saveX402SubscriptionStoreRecordSync({
       id: 'sub_flush_1',
       serviceId: 'oracle',
       agentId: 'agent-hot',
@@ -54,9 +52,8 @@ describe('Subscription Store Concurrency & Flushing', () => {
       billingEvents: [],
     })
 
-    await flushSubscriptionsToDisk()
     const stored = readSubscriptions()
-    expect(stored.length).toBe(1)
+    expect(stored).toHaveLength(1)
     expect(stored[0].callsUsed).toBe(42)
   })
 })

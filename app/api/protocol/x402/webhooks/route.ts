@@ -1,20 +1,29 @@
+import { timingSafeEqual } from 'node:crypto'
 import { createApiRouteLogger } from '@/lib/api-logging'
 import {
   dispatchX402SettlementWebhook,
   listX402WebhookDeliveries,
 } from '@/lib/protocols/x402-webhooks'
 
+function safeCompare(a: string, b: string): boolean {
+  if (!a || !b) return false
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
+
 function isAuthorized(req: Request): boolean {
   const secret = process.env.ADMIN_SECRET || process.env.X402_ADMIN_SECRET || ''
   if (!secret) {
-    // In dev / test mode without secret configured, allow requests from localhost
-    const host = req.headers.get('host') || ''
-    return process.env.NODE_ENV !== 'production' || host.includes('localhost')
+    // Fail closed in production when no secret is set. Never trust Host header.
+    return process.env.NODE_ENV !== 'production'
   }
 
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || ''
   const adminHeader = req.headers.get('X-Admin-Secret') || req.headers.get('x-admin-secret') || ''
-  return authHeader === `Bearer ${secret}` || adminHeader === secret
+
+  return safeCompare(authHeader, `Bearer ${secret}`) || safeCompare(adminHeader, secret)
 }
 
 export async function GET(req: Request) {

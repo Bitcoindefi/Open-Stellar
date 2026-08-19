@@ -29,7 +29,7 @@ describe('x402 Settlement Webhooks', () => {
     expect(log.payload.receipt.quoteId).toBe('q_test_123')
 
     const deliveries = listX402WebhookDeliveries()
-    expect(deliveries.length).toBe(1)
+    expect(deliveries).toHaveLength(1)
   })
 
   it('automatically triggers webhook dispatch during settleX402', () => {

@@ -2,7 +2,7 @@ import { StrKey } from '@stellar/stellar-sdk'
 import { verifyEvmPayment, type EvmSettlementChain } from '@/lib/evm-utils'
 
 import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
-import { readSubscriptions, saveX402SubscriptionStoreRecord, scheduleSubscriptionFlush, resetX402SubscriptionStoreForTests } from '@/lib/protocols/x402-subscription-store'
+import { readSubscriptions, saveX402SubscriptionStoreRecord, saveX402SubscriptionStoreRecordSync, resetX402SubscriptionStoreForTests } from '@/lib/protocols/x402-subscription-store'
 import { dispatchX402SettlementWebhook } from '@/lib/protocols/x402-webhooks'
 import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
 import { checkReputationGate } from '@/lib/reputation/attestation'
@@ -223,12 +223,13 @@ export async function verifyStellarPayment(input: StellarVerificationParams): Pr
     clearTimeout(timeout)
 
     if (!res.ok) return { accepted: false, error: `Horizon API error: HTTP ${res.status}` }
-    const data = (await res.json()) as { _embedded?: { records?: Array<{ type?: string; to?: string; amount?: string; asset_type?: string }> } }
+    const data = (await res.json()) as { _embedded?: { records?: Array<{ type?: string; to?: string; from?: string; amount?: string; asset_type?: string }> } }
     const records = data._embedded?.records ?? []
 
-    const paymentOp = records.find((op) => {
+    const hasMatchingPayment = records.some((op) => {
       if (op.type !== 'payment' && op.type !== 'create_account') return false
       if (input.expectedTo && op.to && op.to.toLowerCase() !== input.expectedTo.toLowerCase()) return false
+      if (input.expectedFrom && op.from && op.from.toLowerCase() !== input.expectedFrom.toLowerCase()) return false
       if (op.asset_type && op.asset_type !== 'native') return false
       if (input.expectedAmountXlm !== undefined && op.amount) {
         if (Number(op.amount) < input.expectedAmountXlm) return false
@@ -236,7 +237,7 @@ export async function verifyStellarPayment(input: StellarVerificationParams): Pr
       return true
     })
 
-    if (!paymentOp) return { accepted: false, error: 'Payment operation matching expected recipient not found' }
+    if (!hasMatchingPayment) return { accepted: false, error: 'Payment operation matching recipient/amount/sender not found' }
     return { accepted: true }
   } catch (err) {
     return { accepted: false, error: err instanceof Error ? err.message : 'Stellar verification failed' }
@@ -250,9 +251,11 @@ export async function verifyX402Settlement(input: X402Settlement, quote?: X402Qu
 
   if (input.chain === 'stellar') {
     const expectedTo = option?.address || DEFAULT_ADDRESSES.stellar
+    const expectedAmountXlm = option ? Number(parseXlmAmount(option.amount)) : undefined
     const verified = await verifyStellarPayment({
       txHash: input.txHash,
       expectedTo,
+      expectedAmountXlm,
       expectedFrom: input.paidBy,
     })
     return { accepted: verified.accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
@@ -451,7 +454,7 @@ export function createX402Subscription(input: X402SubscriptionRequest): X402Subs
   }
 
   subscriptionRegistry.set(subscriptionKey(agentId, serviceId), subscription)
-  saveX402SubscriptionStoreRecord(subscription)
+  saveX402SubscriptionStoreRecordSync(subscription)
   return subscription
 }
 
@@ -478,7 +481,7 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
         note: 'Insufficient Stellar wallet balance; subscription entered grace/paused state',
       })
       paused.push(subscription)
-      saveX402SubscriptionStoreRecord(subscription)
+      saveX402SubscriptionStoreRecordSync(subscription)
       continue
     }
 
@@ -497,7 +500,7 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
       note: 'Monthly renewal deducted from agent Stellar wallet',
     })
     renewed.push(subscription)
-    saveX402SubscriptionStoreRecord(subscription)
+    saveX402SubscriptionStoreRecordSync(subscription)
   }
 
   return { renewed, paused }
@@ -520,7 +523,7 @@ export function checkX402Subscription(agentId: string, serviceId: string, option
 
   if (options.consumeCall && monthlyCallLimit !== null) {
     subscription.callsUsed += 1
-    scheduleSubscriptionFlush(subscription)
+    saveX402SubscriptionStoreRecordSync(subscription)
   }
   return {
     active: true,

@@ -15,10 +15,13 @@ describe('SSRF Guard & Webhook Auth Security', () => {
   it('detects private, loopback, and cloud metadata hostnames', () => {
     expect(isPrivateOrLoopbackHost('localhost')).toBe(true)
     expect(isPrivateOrLoopbackHost('127.0.0.1')).toBe(true)
+    expect(isPrivateOrLoopbackHost('127.0.0.2')).toBe(true)
     expect(isPrivateOrLoopbackHost('169.254.169.254')).toBe(true)
     expect(isPrivateOrLoopbackHost('10.0.0.5')).toBe(true)
     expect(isPrivateOrLoopbackHost('192.168.1.100')).toBe(true)
     expect(isPrivateOrLoopbackHost('172.20.0.1')).toBe(true)
+    expect(isPrivateOrLoopbackHost('2130706433')).toBe(true)
+    expect(isPrivateOrLoopbackHost('::ffff:169.254.169.254')).toBe(true)
     expect(isPrivateOrLoopbackHost('example.internal')).toBe(true)
 
     expect(isPrivateOrLoopbackHost('api.example.com')).toBe(false)
@@ -32,6 +35,9 @@ describe('SSRF Guard & Webhook Auth Security', () => {
       /private\/loopback\/metadata/
     )
     expect(() => validateWebhookTargetUrl('http://127.0.0.1/internal')).toThrow(
+      /private\/loopback\/metadata/
+    )
+    expect(() => validateWebhookTargetUrl('http://2130706433/internal')).toThrow(
       /private\/loopback\/metadata/
     )
   })
@@ -53,7 +59,7 @@ describe('SSRF Guard & Webhook Auth Security', () => {
     expect(log.error).toMatch(/private\/loopback\/metadata/)
   })
 
-  it('rejects unauthenticated POST requests to /api/protocol/x402/webhooks', async () => {
+  it('rejects unauthenticated POST requests to /api/protocol/x402/webhooks in production or when secret set', async () => {
     const req = new Request('https://openstellar.org/api/protocol/x402/webhooks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -62,7 +68,6 @@ describe('SSRF Guard & Webhook Auth Security', () => {
       }),
     })
 
-    // Set ADMIN_SECRET to simulate production auth requirement
     const oldSecret = process.env.ADMIN_SECRET
     process.env.ADMIN_SECRET = 'top-secret-key'
 
