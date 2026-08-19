@@ -105,11 +105,20 @@ const globalState = globalThis as typeof globalThis & {
   __x402SubscriptionRegistry__?: SubscriptionRegistry
 }
 
-const quoteRegistry: QuoteRegistry = globalState.__x402QuoteRegistry__ ?? new Map()
-if (!globalState.__x402QuoteRegistry__) globalState.__x402QuoteRegistry__ = quoteRegistry
+const quoteRegistry: QuoteRegistry = (globalState.__x402QuoteRegistry__ ??= new Map())
 export interface X402SettlementResult { ok: boolean; receipt?: X402Receipt; error?: string }
 
 export function peekX402Quote(paymentRef: string): X402Quote | undefined { return quoteRegistry.get(paymentRef) }
+
+function generateSecureRandomSuffix(): string {
+  const c = typeof crypto !== "undefined" ? crypto : (globalThis as any).crypto
+  if (c && typeof c.getRandomValues === "function") {
+    const buf = new Uint8Array(4)
+    c.getRandomValues(buf)
+    return Array.from(buf, (b: number) => b.toString(36).padStart(2, "0")).join("").slice(0, 6)
+  }
+  return Date.now().toString(36).slice(-6)
+}
 
 async function refreshNativeUsdRates(fetcher: typeof fetch = fetch): Promise<Record<SettlementChain, number>> {
   const now = Date.now()
@@ -168,7 +177,7 @@ export function createX402Quote(input: X402QuoteRequest): X402Quote {
   const preferredChain = input.chain ?? 'bnb'
   const preferred = options.find((option) => option.chain === preferredChain) ?? options[0]
   const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString()
-  const quoteId = `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  const quoteId = `q_${Date.now().toString(36)}_${generateSecureRandomSuffix()}`
   const paymentRef = `${input.serviceId}:${preferred.chain}:${Date.now()}`
   const quote: X402Quote = { code: 402, quoteId, service: input.serviceId, serviceId: input.serviceId, chain: preferred.chain, payer: input.payer, amountUsd, amountUnits: preferred.amountUnits, address: preferred.address, options, expiresAt, paymentRef, memo: `x402/${input.serviceId}/${quoteId}` }
   quoteRegistry.set(paymentRef, quote)
@@ -197,6 +206,17 @@ export function listX402ExplorerReceipts(filters: X402ReceiptQuery = {}) {
   return listX402Receipts(filters)
 }
 
+function validateSettlementPayer(input: X402Settlement, quote: X402Quote): string | null {
+  const payer = input.paidBy || input.agentId || ''
+  if (!payer || quote.payer === 'anonymous') return null
+  const isStellarPayer = input.chain === 'stellar' && StrKey.isValidEd25519PublicKey(payer)
+  const isEvmPayer = input.chain !== 'stellar' && /^0x[a-fA-F0-9]{40}$/.test(payer)
+  if (!isStellarPayer && !isEvmPayer && payer !== quote.payer) {
+    return 'paidBy does not match quote payer'
+  }
+  return null
+}
+
 export function settleX402(input: X402Settlement): X402SettlementResult {
   const paymentRef = input.paymentRef || input.quoteId || ''
   const quote = quoteRegistry.get(paymentRef)
@@ -214,12 +234,8 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
     return { ok: false, error: 'Quote expired' }
   }
 
-  const payer = input.paidBy || input.agentId || ''
-  if (payer && quote.payer !== 'anonymous') {
-    const isStellarPayer = input.chain === 'stellar' && StrKey.isValidEd25519PublicKey(payer)
-    const isEvmPayer = input.chain !== 'stellar' && /^0x[a-fA-F0-9]{40}$/.test(payer)
-    if (!isStellarPayer && !isEvmPayer && payer !== quote.payer) return { ok: false, error: 'paidBy does not match quote payer' }
-  }
+  const payerError = validateSettlementPayer(input, quote)
+  if (payerError) return { ok: false, error: payerError }
 
   const txLooksValid = input.chain === 'stellar' ? /^0x[a-fA-F0-9]{64}$/.test(input.txHash) || /^[a-fA-F0-9]{64}$/.test(input.txHash) || /^[A-Z0-9]{64}$/.test(input.txHash) : /^0x[a-fA-F0-9]{64}$/.test(input.txHash)
   const receipt: X402Receipt = { accepted: txLooksValid, quoteId: quote.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain }
@@ -230,7 +246,7 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
 
   const storedReceipt = saveX402Receipt({
     ...receipt,
-    id: `rcpt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+    id: `rcpt_${Date.now().toString(36)}_${generateSecureRandomSuffix()}`,
     agentId: quote.payer,
     service: quote.serviceId,
     amount: `${quote.amountUsd} USD`,
@@ -312,17 +328,14 @@ const GRACE_PERIOD_MS = MS_PER_DAY
 
 type SubscriptionRegistry = Map<string, X402Subscription>
 
-const subscriptionRegistry: SubscriptionRegistry = globalState.__x402SubscriptionRegistry__ ?? new Map()
-if (!globalState.__x402SubscriptionRegistry__) {
-  globalState.__x402SubscriptionRegistry__ = subscriptionRegistry
-}
+const subscriptionRegistry: SubscriptionRegistry = (globalState.__x402SubscriptionRegistry__ ??= new Map())
 
 function subscriptionKey(agentId: string, serviceId: string) {
   return `${agentId}:${serviceId}`
 }
 
 function parseXlmAmount(price: string) {
-  const match = price.trim().match(/^([0-9]+(?:\.[0-9]+)?)\s*XLM$/i)
+  const match = /^(\d+(?:\.\d+)?)\s*XLM$/i.exec(price.trim())
   return match ? Number(match[1]) : 0
 }
 
