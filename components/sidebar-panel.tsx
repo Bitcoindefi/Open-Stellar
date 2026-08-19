@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, type ReactNode } from "react"
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
 import { Bell, CheckCheck, Copy, Download, Share2 } from "lucide-react"
 import { toast } from "sonner"
 import type { AgentAppearance, MoltbotAgent, LogEntry, ChatMessage, WalletTransaction } from "@/lib/types"
@@ -743,24 +743,38 @@ export function SidebarPanel({
   variant = "desktop",
   showTabBar = true,
 }: SidebarPanelProps) {
-  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<SidebarTabId>(() => {
-    if (typeof window !== "undefined") {
-      const storedTab = localStorage.getItem("sidebar-tab") as SidebarTabId | null
-      return storedTab && SIDEBAR_TABS.some((tab) => tab.id === storedTab) ? storedTab : "overview"
+  // Start with null to avoid SSR/client hydration mismatch.
+  // The server always renders 'overview' (null resolves to it), and after
+  // mount we synchronously read localStorage and correct the tab if needed.
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<SidebarTabId | null>(null)
+  const hydratedRef = useRef(false)
+
+  // On mount: restore persisted tab from localStorage (client-only).
+  useEffect(() => {
+    if (hydratedRef.current) return
+    hydratedRef.current = true
+    const storedTab = localStorage.getItem("sidebar-tab") as SidebarTabId | null
+    if (storedTab && SIDEBAR_TABS.some((tab) => tab.id === storedTab)) {
+      setUncontrolledActiveTab(storedTab)
+    } else {
+      setUncontrolledActiveTab("overview")
     }
-    return "overview"
-  })
-  const activeTab = controlledActiveTab ?? uncontrolledActiveTab
+  }, [])
+
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab ?? "overview"
 
   const setActiveTab = useCallback(
     (tab: SidebarTabId) => {
       setUncontrolledActiveTab(tab)
+      localStorage.setItem("sidebar-tab", tab)
       onActiveTabChange?.(tab)
     },
     [onActiveTabChange],
   )
 
+  // Persist whenever activeTab changes (handles controlled-mode changes too).
   useEffect(() => {
+    if (!hydratedRef.current) return
     localStorage.setItem("sidebar-tab", activeTab)
   }, [activeTab])
 
@@ -794,6 +808,7 @@ export function SidebarPanel({
               onClick={() => setActiveTab(tab.id)}
               aria-pressed={activeTab === tab.id}
               aria-label={`${tab.label} tab`}
+              suppressHydrationWarning
               style={{
                 flex: 1,
                 minHeight: variant === "mobile" ? 46 : undefined,

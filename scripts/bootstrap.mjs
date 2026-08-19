@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Interactive setup wizard for new Open Stellar deployments.
 // Run via: npx open-stellar bootstrap [--yes]
 import { createInterface } from "node:readline/promises"

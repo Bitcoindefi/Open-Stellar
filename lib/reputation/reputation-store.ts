@@ -175,6 +175,21 @@ export function applyReputationAction(action: ReputationAction): ReputationSnaps
   return updated
 }
 
+export function awardBadgeToAgent(actorId: string, badgeId: string, rarity: ReputationBadgeRarity = 'common'): ReputationSnapshot {
+  const cleanId = normalizeActorId(actorId)
+  const current = getReputation(cleanId)
+  const metrics = { ...current.metrics }
+
+  if (!metrics.badges.some((b) => b.id === badgeId)) {
+    metrics.badges = [
+      ...metrics.badges,
+      { id: badgeId, rarity, awardedAt: new Date().toISOString() },
+    ]
+  }
+
+  return upsertReputationMetrics(cleanId, metrics)
+}
+
 export function listReputations(limit = 50): ReputationSnapshot[] {
   return Array.from(db.values())
     .map((entry) => snapshot(entry.actorId, entry.metrics, entry.updatedAt))
