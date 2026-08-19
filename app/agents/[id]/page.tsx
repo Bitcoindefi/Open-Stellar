@@ -27,8 +27,6 @@ import {
   getAgentProfilePath,
 } from "@/lib/og-card-data";
 
-import { getAgentHealth } from "@/lib/agents/agent-health-store"
-import { getReputation } from "@/lib/reputation/reputation-store"
 import { getQuests } from "@/lib/gamification/quests"
 import { getAgentXpHistory } from "@/lib/agents/xp-decay"
 import { DISTRICTS } from "@/lib/data"
