@@ -1,0 +1,16 @@
+{
+  "name": "@open-stellar/x402",
+  "version": "1.0.0",
+  "description": "Production-grade HTTP payment gate SDK for x402 on Open Stellar",
+  "main": "index.ts",
+  "types": "index.ts",
+  "license": "MIT",
+  "keywords": [
+    "x402",
+    "stellar",
+    "payments",
+    "http-payment-required",
+    "nextjs",
+    "sdk"
+  ]
+}

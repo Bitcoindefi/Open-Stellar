@@ -2,6 +2,8 @@ import { StrKey } from '@stellar/stellar-sdk'
 import { verifyEvmPayment, type EvmSettlementChain } from '@/lib/evm-utils'
 
 import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
+import { readSubscriptions, saveX402SubscriptionStoreRecord, writeSubscriptions, resetX402SubscriptionStoreForTests } from '@/lib/protocols/x402-subscription-store'
+import { dispatchX402SettlementWebhook } from '@/lib/protocols/x402-webhooks'
 import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
 import { checkReputationGate } from '@/lib/reputation/attestation'
 
@@ -261,6 +263,8 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
     reputationTier: quote.amountUsd >= 1 ? 'gold' : 'standard',
   })
 
+  void dispatchX402SettlementWebhook(storedReceipt)
+
   quoteRegistry.delete(paymentRef)
   quoteRegistry.delete(quote.quoteId)
   return { ok: true, receipt: storedReceipt }
@@ -331,6 +335,10 @@ type SubscriptionRegistry = Map<string, X402Subscription>
 const subscriptionRegistry: SubscriptionRegistry = globalState.__x402SubscriptionRegistry__ ?? new Map()
 if (!globalState.__x402SubscriptionRegistry__) {
   globalState.__x402SubscriptionRegistry__ = subscriptionRegistry
+  const saved = readSubscriptions()
+  for (const sub of saved) {
+    subscriptionRegistry.set(subscriptionKey(sub.agentId, sub.serviceId), sub)
+  }
 }
 
 function subscriptionKey(agentId: string, serviceId: string) {
@@ -389,6 +397,7 @@ export function createX402Subscription(input: X402SubscriptionRequest): X402Subs
   }
 
   subscriptionRegistry.set(subscriptionKey(agentId, serviceId), subscription)
+  saveX402SubscriptionStoreRecord(subscription)
   return subscription
 }
 
@@ -415,6 +424,7 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
         note: 'Insufficient Stellar wallet balance; subscription entered grace/paused state',
       })
       paused.push(subscription)
+      saveX402SubscriptionStoreRecord(subscription)
       continue
     }
 
@@ -433,6 +443,7 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
       note: 'Monthly renewal deducted from agent Stellar wallet',
     })
     renewed.push(subscription)
+    saveX402SubscriptionStoreRecord(subscription)
   }
 
   return { renewed, paused }
@@ -453,7 +464,10 @@ export function checkX402Subscription(agentId: string, serviceId: string, option
     return { active: false, callsRemaining: 0, renewsAt: subscription.renewsAt, status: 'exhausted', subscription }
   }
 
-  if (options.consumeCall && monthlyCallLimit !== null) subscription.callsUsed += 1
+  if (options.consumeCall && monthlyCallLimit !== null) {
+    subscription.callsUsed += 1
+    saveX402SubscriptionStoreRecord(subscription)
+  }
   return {
     active: true,
     callsRemaining: monthlyCallLimit === null ? null : Math.max(0, monthlyCallLimit - subscription.callsUsed),
@@ -487,4 +501,5 @@ export function listX402Subscriptions() {
 
 export function resetX402SubscriptionsForTests() {
   subscriptionRegistry.clear()
+  resetX402SubscriptionStoreForTests()
 }
