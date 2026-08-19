@@ -2,12 +2,9 @@ import { randomBytes } from "node:crypto";
 import { StrKey } from "@stellar/stellar-sdk";
 import { verifyEvmPayment, type EvmSettlementChain } from "@/lib/evm-utils";
 
-import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from "@/lib/protocols/x402-receipt-store"
-import type { ReputationAttestation, ReputationGateRequirement } from "@/lib/reputation/attestation"
-import { checkReputationGate } from "@/lib/reputation/attestation"
-import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
-import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
-import { checkReputationGate } from '@/lib/reputation/attestation'
+import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from "@/lib/protocols/x402-receipt-store";
+import type { ReputationAttestation, ReputationGateRequirement } from "@/lib/reputation/attestation";
+import { checkReputationGate } from "@/lib/reputation/attestation";
 
 export type SettlementChain = "bnb" | "base" | "stellar";
 
@@ -29,8 +26,6 @@ export function getExplorerUrl(chain: SettlementChain, txHash: string): string {
   const base = isProduction ? EXPLORER_MAINNET[chain] : EXPLORER_TESTNET[chain]
   return `${base}/${txHash}`
 }
-
-type ChainAsset = 'XLM' | 'BNB' | 'ETH'
 
 export interface X402QuoteRequest {
   serviceId: string;
@@ -84,15 +79,7 @@ export interface X402Receipt {
   chain: SettlementChain;
   amountUsd?: number;
   amountUnits?: string;
-  accepted: boolean
-  quoteId?: string
-  paymentRef: string
-  settledAt: string
-  txHash: string
-  chain: SettlementChain
-  amountUsd?: number
-  amountUnits?: string
-  explorerUrl?: string
+  explorerUrl?: string;
 }
 
 export interface X402ExplorerReceipt extends X402Receipt {
@@ -277,61 +264,6 @@ export function createX402Quote(input: X402QuoteRequest): X402Quote {
   return quote;
 }
 
-export async function verifyX402Settlement(
-  input: X402Settlement,
-  quote?: X402Quote,
-): Promise<X402Receipt> {
-  const paymentRef = input.paymentRef || input.quoteId || "";
-  const option = quote?.options.find((item) => item.chain === input.chain);
-  if (input.chain === "stellar") {
-    const accepted =
-      /^0x[a-fA-F0-9]{64}$/.test(input.txHash) ||
-      /^[a-fA-F0-9]{64}$/.test(input.txHash) ||
-      /^[A-Z0-9]{64}$/.test(input.txHash);
-    return {
-      accepted,
-      quoteId: quote?.quoteId,
-      paymentRef,
-      settledAt: new Date().toISOString(),
-      txHash: input.txHash,
-      chain: input.chain,
-    };
-  }
-
-  if (!option)
-    return {
-      accepted: false,
-      quoteId: quote?.quoteId,
-      paymentRef,
-      settledAt: new Date().toISOString(),
-      txHash: input.txHash,
-      chain: input.chain,
-    };
-  try {
-    const verified = await verifyEvmPayment({
-      chain: input.chain as EvmSettlementChain,
-      txHash: input.txHash,
-      expectedTo: option.address,
-      expectedValueWei: option.amountUnits,
-      expectedFrom: input.paidBy,
-    });
-    return {
-      accepted: verified.accepted,
-      quoteId: quote?.quoteId,
-      paymentRef,
-      settledAt: new Date().toISOString(),
-      txHash: input.txHash,
-      chain: input.chain,
-    };
-  } catch {
-    return {
-      accepted: false,
-      quoteId: quote?.quoteId,
-      paymentRef,
-      settledAt: new Date().toISOString(),
-      txHash: input.txHash,
-      chain: input.chain,
-    };
 export async function verifyX402Settlement(input: X402Settlement, quote?: X402Quote): Promise<X402Receipt> {
   const paymentRef = input.paymentRef || input.quoteId || ''
   const option = quote?.options.find((item) => item.chain === input.chain)
@@ -408,10 +340,8 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
     chain: input.chain,
     amountUsd: quote.amountUsd,
     amountUnits: option.amountUnits,
+    explorerUrl: getExplorerUrl(input.chain, input.txHash),
   };
-  receipt.amountUsd = quote.amountUsd
-  receipt.amountUnits = option.amountUnits
-  receipt.explorerUrl = getExplorerUrl(input.chain, input.txHash)
 
   const storedReceipt = saveX402Receipt({
     ...receipt,
@@ -572,6 +502,51 @@ export function createX402Subscription(
   return subscription;
 }
 
+function updateSubscriptionForFailedRenewal(
+  subscription: X402Subscription,
+  now: Date,
+) {
+  const graceEndTime =
+    new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS;
+  const isGrace = now.getTime() <= graceEndTime;
+
+  subscription.status = isGrace ? "grace" : "paused";
+  subscription.active = isGrace;
+  subscription.graceEndsAt = new Date(graceEndTime).toISOString();
+  if (!isGrace) {
+    subscription.pausedAt = now.toISOString();
+  }
+  subscription.billingEvents.unshift({
+    id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
+    type: "renewal_failed",
+    amount: subscription.pricePerMonth,
+    at: now.toISOString(),
+    note: "Insufficient Stellar wallet balance; subscription entered grace/paused state",
+  });
+}
+
+function updateSubscriptionForSuccessRenewal(
+  subscription: X402Subscription,
+  now: Date,
+) {
+  subscription.status = "active";
+  subscription.active = true;
+  subscription.callsUsed = 0;
+  subscription.renewsAt = new Date(
+    now.getTime() + BILLING_CYCLE_MS,
+  ).toISOString();
+  subscription.lastChargedAt = now.toISOString();
+  delete subscription.graceEndsAt;
+  delete subscription.pausedAt;
+  subscription.billingEvents.unshift({
+    id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
+    type: "renewal",
+    amount: subscription.pricePerMonth,
+    at: now.toISOString(),
+    note: "Monthly renewal deducted from agent Stellar wallet",
+  });
+}
+
 export function renewX402Subscriptions(
   now: Date = new Date(),
   balances: Record<string, number> = {},
@@ -582,46 +557,15 @@ export function renewX402Subscriptions(
   for (const subscription of subscriptionRegistry.values()) {
     if (now.getTime() < new Date(subscription.renewsAt).getTime()) continue;
 
-    const requiredXlm = parseXlmAmount(subscription.pricePerMonth)
-    const balance = balances[subscription.agentId] ?? 0
+    const requiredXlm = parseXlmAmount(subscription.pricePerMonth);
+    const balance = balances[subscription.agentId] ?? 0;
     if (requiredXlm > 0 && balance < requiredXlm) {
-      const graceEndTime = new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS
-      subscription.status = now.getTime() <= graceEndTime ? "grace" : "paused"
-      subscription.active = subscription.status === "grace"
-      subscription.graceEndsAt = new Date(graceEndTime).toISOString()
-      if (subscription.status === "paused") subscription.pausedAt = now.toISOString()
-      subscription.status = now.getTime() <= graceEndTime ? 'grace' : 'paused'
-      subscription.active = subscription.status === 'grace'
-      subscription.graceEndsAt = new Date(graceEndTime).toISOString()
-      if (subscription.status === 'paused') subscription.pausedAt = now.toISOString()
-      subscription.billingEvents.unshift({
-        id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
-        type: "renewal_failed",
-        amount: subscription.pricePerMonth,
-        at: now.toISOString(),
-        note: "Insufficient Stellar wallet balance; subscription entered grace/paused state",
-      });
+      updateSubscriptionForFailedRenewal(subscription, now);
       paused.push(subscription);
-      continue;
+    } else {
+      updateSubscriptionForSuccessRenewal(subscription, now);
+      renewed.push(subscription);
     }
-
-    subscription.status = "active";
-    subscription.active = true;
-    subscription.callsUsed = 0;
-    subscription.renewsAt = new Date(
-      now.getTime() + BILLING_CYCLE_MS,
-    ).toISOString();
-    subscription.lastChargedAt = now.toISOString();
-    delete subscription.graceEndsAt;
-    delete subscription.pausedAt;
-    subscription.billingEvents.unshift({
-      id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
-      type: "renewal",
-      amount: subscription.pricePerMonth,
-      at: now.toISOString(),
-      note: "Monthly renewal deducted from agent Stellar wallet",
-    });
-    renewed.push(subscription);
   }
 
   return { renewed, paused };

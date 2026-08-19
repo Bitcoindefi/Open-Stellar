@@ -400,7 +400,6 @@ export default async function AgentPage({ params }: AgentPageProps) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {badges.length > 0 ? badges.map((badge, i) => (
                     <div key={badge.id || badge.badgeId || badge.name || i} className={`flex flex-col p-3 rounded-lg border gap-1.5 ${getBadgeRarityStyles(badge.rarity)}`}>
-                    <div key={i} className={`flex flex-col p-3 rounded-lg border gap-1.5 ${getBadgeRarityStyles(badge.rarity)}`}>
                       <div className="flex items-center justify-between">
                         <span className="font-pixel text-xs leading-tight text-slate-100">{badge.name || badge.badgeId || badge.id}</span>
                         <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 rounded border border-current opacity-80">{badge.rarity || 'common'}</span>
