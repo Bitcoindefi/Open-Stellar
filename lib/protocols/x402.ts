@@ -249,7 +249,7 @@ export async function settleX402(input: X402Settlement): Promise<X402SettlementR
   if (payerError) return { ok: false, error: payerError }
 
   const verification = await verifyX402Settlement(input, quote)
-  if (!verification.accepted) return { ok: false, error: 'Transaction verification failed on-chain' }
+  if (!verification.accepted) return { ok: false, error: 'Invalid tx hash format or verification failed' }
 
   const receipt: X402Receipt = { accepted: true, quoteId: quote.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain }
 
