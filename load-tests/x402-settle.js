@@ -46,7 +46,7 @@ function fakeTxHash() {
   return `${vu}${iter}`.padEnd(64, "a").slice(0, 64);
 }
 
-export default function () {
+export default function x402SettleTest() {
   group("quote and settle x402 payment", () => {
     const quotePayload = JSON.stringify({
       serviceId: SERVICE_ID,

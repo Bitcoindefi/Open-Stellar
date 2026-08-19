@@ -28,7 +28,7 @@ export const options = {
   },
 };
 
-export default function () {
+export default function sseConnectionsTest() {
   let eventsForConnection = 0;
   const response = sse.open(
     `${BASE_URL}${SSE_PATH}`,

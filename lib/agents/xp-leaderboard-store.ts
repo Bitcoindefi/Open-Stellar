@@ -88,7 +88,7 @@ function invalidateCache(): void {
   cache.clear();
 }
 
-function invalidateCacheForWindow(window: LeaderboardWindow): void {
+function _invalidateCacheForWindow(window: LeaderboardWindow): void {
   const cache = getCache();
   for (const key of cache.keys()) {
     if (key.startsWith(`${window}:`)) {

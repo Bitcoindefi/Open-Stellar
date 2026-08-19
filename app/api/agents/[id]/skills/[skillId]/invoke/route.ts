@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { getSkill } from "@/lib/skills/skills-registry";
 import { createX402Quote, settleX402 } from "@/lib/protocols/x402";
 import { createApiRouteLogger } from "@/lib/api-logging";

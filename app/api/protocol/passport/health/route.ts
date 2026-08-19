@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { createApiRouteLogger } from "@/lib/api-logging";
 import {
   getPassportExpiryStats,

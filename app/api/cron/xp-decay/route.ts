@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { runXpDecayCron } from "@/lib/agents/xp-decay";
 import { createApiRouteLogger } from "@/lib/api-logging";
 

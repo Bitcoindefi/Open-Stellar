@@ -1,4 +1,4 @@
-import type { Quest, QuestType, QuestReward, SubTask } from "./quests";
+import type { QuestType, QuestReward, SubTask } from "./quests";
 import { addNotification } from "@/lib/notifications/notification-store";
 import { publishSystemEvent } from "@/lib/events/system-events";
 

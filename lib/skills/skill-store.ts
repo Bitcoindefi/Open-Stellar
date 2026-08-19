@@ -56,7 +56,7 @@ export function getSkill(
 
 export function getAllVersions(skillId: string): string[] {
   const versions: string[] = [];
-  for (const [key, skill] of store.entries()) {
+  for (const [, skill] of store.entries()) {
     if (skill.skillId === skillId) {
       versions.push(skill.version);
     }
@@ -70,7 +70,7 @@ export function getAllSkills(): {
   latest: string;
 }[] {
   const skillMap = new Map<string, string[]>();
-  for (const [key, skill] of store.entries()) {
+  for (const [, skill] of store.entries()) {
     if (!skillMap.has(skill.skillId)) {
       skillMap.set(skill.skillId, []);
     }

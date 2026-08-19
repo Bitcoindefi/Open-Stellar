@@ -46,7 +46,7 @@ export function TransactionPanel() {
   const [stellarRecipient, setStellarRecipient] = useState("");
   const [isSendingStellar, setIsSendingStellar] = useState(false);
   const [isConnectingStellar, setIsConnectingStellar] = useState(false);
-  const bnbTestnetReady = isConnected && bnbChainId === bscTestnet.id;
+  const _bnbTestnetReady = isConnected && bnbChainId === bscTestnet.id;
   const bnbDefaultRecipient = address || "";
 
   const addLog = (log: Omit<TransactionLog, "id" | "timestamp">) => {

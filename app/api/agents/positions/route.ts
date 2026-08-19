@@ -2,8 +2,6 @@ import {
   createAgentPositionSnapshotEvent,
   subscribeAgentPositionDeltas,
   listAgentPositions,
-  type AgentPositionDeltaEvent,
-  type AgentPositionSnapshotEvent,
 } from "@/lib/agents/agent-position-store";
 import { eventStreamHeaders } from "@/lib/events/event-stream";
 import { clusterPositions } from "@/lib/agents/position-cluster";

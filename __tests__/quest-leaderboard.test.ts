@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   getQuestLeaderboard,
   getAgentQuestStats,
-  type LeaderboardPeriod,
   resetLeaderboardCache,
 } from "@/lib/gamification/quest-leaderboard";
 import {

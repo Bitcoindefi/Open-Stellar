@@ -1,7 +1,7 @@
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
 
-export default [
+const eslintConfig = [
   {
     ignores: [
       ".next/**",
@@ -23,7 +23,12 @@ export default [
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn",
-        { argsIgnorePattern: "^_" },
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
       ],
       "react-hooks/set-state-in-effect": "off",
       "react-hooks/purity": "off",
@@ -31,3 +36,5 @@ export default [
     },
   },
 ];
+
+export default eslintConfig;

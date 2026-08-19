@@ -3,7 +3,6 @@ import {
   getAgentPositionHistoryPaginated,
   resetAgentPositionStoreForTests,
   setAgentPositionHistoryDirectoryForTests,
-  moveAgentPosition,
   setAgentPositionForTests,
 } from "@/lib/agents/agent-position-store";
 import { GET } from "@/app/api/agents/[id]/positions/route";

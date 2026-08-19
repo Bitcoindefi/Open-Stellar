@@ -46,7 +46,7 @@ export function allDocSlugs(): string[] {
     }
   };
   walk(docsRoot);
-  return slugs.sort();
+  return slugs.sort((a, b) => a.localeCompare(b));
 }
 
 export function getDocPage(slug = "getting-started"): DocPage | null {

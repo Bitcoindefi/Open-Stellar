@@ -5,7 +5,6 @@ import {
   runPassportExpiryCheck,
   revokePassportInStore,
   getPassportExpiryStats,
-  listPassportExpiryRecords,
 } from "@/lib/passport/passport-store";
 import type { AgentPassport } from "@/lib/passport/passport";
 

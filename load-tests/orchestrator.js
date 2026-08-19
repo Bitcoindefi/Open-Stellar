@@ -42,7 +42,7 @@ function jobPayload() {
   });
 }
 
-export default function () {
+export default function orchestratorTest() {
   group("enqueue orchestration run", () => {
     const res = http.post(`${BASE_URL}${ORCHESTRATOR_PATH}`, jobPayload(), {
       headers: {

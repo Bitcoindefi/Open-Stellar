@@ -49,7 +49,7 @@ function absoluteUrl(path: string): string {
   return new URL(path, getBaseUrl()).toString();
 }
 
-function getBadgeRarityStyles(rarity?: string): string {
+function _getBadgeRarityStyles(rarity?: string): string {
   switch (rarity) {
     case "legendary":
       return "border-purple-500/50 bg-purple-500/10 text-purple-200";
@@ -132,7 +132,7 @@ function getStatusBadgeStyle(status: string) {
   }
 }
 
-function getBadgeClass(rarity?: string): string {
+function _getBadgeClass(rarity?: string): string {
   if (rarity === "legendary") return "border-purple-500/50 bg-purple-500/10 text-purple-300";
   if (rarity === "rare") return "border-blue-500/50 bg-blue-500/10 text-blue-300";
   return "border-slate-700 bg-slate-800/50 text-slate-300";

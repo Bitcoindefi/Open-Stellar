@@ -170,9 +170,9 @@ contract SimpleToken {
  * Funciones helper para interactuar con Smart Contracts en BNB
  */
 export async function getTokenBalance(
-  address: string,
-  contractAddress: string,
-  rpcUrl: string,
+  _address: string,
+  _contractAddress: string,
+  _rpcUrl: string,
 ): Promise<string> {
   try {
     // Implementación con ethers.js o viem
@@ -184,10 +184,10 @@ export async function getTokenBalance(
 }
 
 export async function transferToken(
-  from: string,
-  to: string,
-  amount: string,
-  contractAddress: string,
+  _from: string,
+  _to: string,
+  _amount: string,
+  _contractAddress: string,
 ): Promise<string> {
   try {
     // Implementación con useWriteContract de wagmi

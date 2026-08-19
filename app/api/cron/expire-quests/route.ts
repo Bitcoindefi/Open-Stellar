@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { runQuestExpiryCheck } from "@/lib/gamification/quest-store";
 import { createApiRouteLogger } from "@/lib/api-logging";
 

@@ -7,7 +7,6 @@ import {
   seedXpEvents,
   LEADERBOARD_CACHE_TTL_MS,
   subscribeToXpEvents,
-  type LeaderboardWindow,
 } from "@/lib/agents/xp-leaderboard-store";
 import { publishSystemEvent } from "@/lib/events/system-events";
 

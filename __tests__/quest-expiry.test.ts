@@ -3,7 +3,6 @@ import {
   resetQuestStore,
   seedQuest,
   runQuestExpiryCheck,
-  setQuestExpired,
   getStoredQuest,
   listStoredQuests,
 } from "@/lib/gamification/quest-store";

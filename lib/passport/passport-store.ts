@@ -1,5 +1,4 @@
 import type { AgentPassport } from "./passport";
-import { getPassportStatus } from "./passport";
 
 export interface PassportExpiryRecord {
   agentId: string;

@@ -49,7 +49,7 @@ function heartbeatPayload(id) {
   });
 }
 
-export default function () {
+export default function agentHeartbeatTest() {
   const id = agentId();
   const res = http.post(
     `${BASE_URL}${heartbeatPath(id)}`,

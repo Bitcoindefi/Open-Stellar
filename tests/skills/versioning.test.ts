@@ -2,10 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   registerSkill,
   getSkill,
-  getAllVersions,
   getAllSkills,
   _resetStore,
-  makeKey,
 } from "@/lib/skills/skill-store";
 
 describe("Skill Versioning", () => {

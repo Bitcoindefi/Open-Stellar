@@ -1,6 +1,5 @@
 import { XP_DECAY_CONFIG } from "./xp-decay-config";
 import { getAgentXP, awardXP, type AgentXPRecord } from "@/lib/gamification/xp";
-import { publishSystemEvent } from "@/lib/events/system-events";
 
 export interface XpHistoryEvent {
   type: "earned" | "decayed";
