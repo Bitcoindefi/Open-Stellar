@@ -1,11 +1,25 @@
-import { describe, expect, it, beforeAll } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { withX402 } from '@/lib/sdk/x402'
 import { createX402Subscription } from '@/lib/protocols/x402'
-import { saveX402Receipt, resetX402ReceiptStoreForTests } from '@/lib/protocols/x402-receipt-store'
+import { saveX402Receipt, setX402ReceiptStorePathForTests, resetX402ReceiptStorePathForTests, resetX402ReceiptStoreForTests } from '@/lib/protocols/x402-receipt-store'
 
 describe('x402 SDK (withX402 middleware)', () => {
-  beforeAll(() => {
+  let tempDir: string
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'x402-sdk-test-'))
+    setX402ReceiptStorePathForTests(join(tempDir, 'receipts.json'))
     resetX402ReceiptStoreForTests()
+  })
+
+  afterEach(() => {
+    resetX402ReceiptStorePathForTests()
+    try {
+      rmSync(tempDir, { recursive: true, force: true })
+    } catch {}
   })
 
   it('returns HTTP 402 with quote headers when no payment credentials are provided', async () => {

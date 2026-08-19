@@ -1,11 +1,11 @@
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import { GET as listReceipts } from "@/app/api/protocol/x402/receipts/route";
 import { GET as getReceipt } from "@/app/api/protocol/x402/receipts/[receiptId]/route";
 import { createX402Quote, settleX402 } from "@/lib/protocols/x402";
 import { resetX402ReceiptStoreForTests } from "@/lib/protocols/x402-receipt-store";
 
 describe("GET /api/protocol/x402/receipts", () => {
-  beforeAll(() => {
+  beforeEach(() => {
     resetX402ReceiptStoreForTests();
   });
 
@@ -43,6 +43,20 @@ describe("GET /api/protocol/x402/receipts", () => {
   });
 
   it("returns a single receipt by id", async () => {
+    const quote = createX402Quote({
+      serviceId: "data-indexing",
+      chain: "stellar",
+      payer: "nexus-7",
+      units: 1,
+      unitPriceUsd: 0.01,
+    });
+    await settleX402({
+      paymentRef: quote.paymentRef,
+      chain: quote.chain,
+      txHash: `0x${"c".repeat(64)}`,
+      paidBy: quote.payer,
+    });
+
     const listRes = await listReceipts(
       new Request("http://localhost/api/protocol/x402/receipts?pageSize=1"),
     );

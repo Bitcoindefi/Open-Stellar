@@ -131,7 +131,7 @@ export function ReceiptTable({
                   <td className="px-4 py-3">{receipt.agent}</td>
                   <td className="px-4 py-3">{receipt.serviceId}</td>
                   <td className="px-4 py-3 font-mono">
-                    {formatUsd(receipt.amountUsd)}
+                    {formatUsd(receipt.amountUsd ?? 0)}
                   </td>
                   <td className="px-4 py-3 uppercase">{receipt.chain}</td>
                   <td className="px-4 py-3 font-mono text-slate-400">

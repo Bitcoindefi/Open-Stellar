@@ -26,8 +26,18 @@ export interface X402ReceiptPage {
   }
 }
 
-const DB_PATH = process.env.X402_RECEIPT_DB_PATH ?? join(cwd(), '.data', 'x402-receipts.json')
-const store = makeJsonStore<X402ExplorerReceipt>(DB_PATH)
+let dbPath = process.env.X402_RECEIPT_DB_PATH ?? join(cwd(), '.data', 'x402-receipts.json')
+let store = makeJsonStore<X402ExplorerReceipt>(dbPath)
+
+export function setX402ReceiptStorePathForTests(customPath: string): void {
+  dbPath = customPath
+  store = makeJsonStore<X402ExplorerReceipt>(dbPath)
+}
+
+export function resetX402ReceiptStorePathForTests(): void {
+  dbPath = process.env.X402_RECEIPT_DB_PATH ?? join(cwd(), '.data', 'x402-receipts.json')
+  store = makeJsonStore<X402ExplorerReceipt>(dbPath)
+}
 
 export function saveX402Receipt(receipt: X402ExplorerReceipt): X402ExplorerReceipt {
   const receipts = store.read()
@@ -93,7 +103,7 @@ export function listX402Receipts(filters: X402ReceiptQuery = {}): X402ReceiptPag
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
     stats: {
       totalPayments: allReceipts.length,
-      totalUsd: Number(allReceipts.reduce((sum, receipt) => sum + receipt.amountUsd, 0).toFixed(6)),
+      totalUsd: Number(allReceipts.reduce((sum, receipt) => sum + (receipt.amountUsd ?? 0), 0).toFixed(6)),
       uniqueAgents: new Set(allReceipts.map((receipt) => receipt.agentId)).size,
       services: new Set(allReceipts.map((receipt) => receipt.service)).size,
     },

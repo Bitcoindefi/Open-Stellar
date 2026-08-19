@@ -21,11 +21,11 @@ export type X402NextHandler = (
 export function verifySubscriptionProof(agentId: string, serviceId: string, proof: string): boolean {
   if (!proof || proof.trim().length === 0) return false
   const cleanProof = proof.trim().replace(/^Bearer\s+/i, '')
-  const secret = process.env.X402_SUBSCRIPTION_SECRET || process.env.X402_SECRET || 'x402_sub_default_secret'
-  const expected = createHmac('sha256', secret).update(`${agentId}:${serviceId}`).digest('hex')
-  if (cleanProof === expected) return true
   if (process.env.NODE_ENV === 'test' && (cleanProof === 'valid-proof' || cleanProof.startsWith('valid'))) return true
-  return false
+  const secret = process.env.X402_SUBSCRIPTION_SECRET || process.env.X402_SECRET
+  if (!secret) return false
+  const expected = createHmac('sha256', secret).update(`${agentId}:${serviceId}`).digest('hex')
+  return cleanProof === expected
 }
 
 export function withX402(config: X402GateConfig, handler: X402NextHandler): X402NextHandler {
@@ -35,9 +35,12 @@ export function withX402(config: X402GateConfig, handler: X402NextHandler): X402
     const subscriptionProof = req.headers.get('x-x402-subscription-proof') || req.headers.get('x-subscription-proof') || req.headers.get('authorization')
     const agentId = req.headers.get('x-x402-agent-id') || req.headers.get('x-agent-id') || 'anonymous'
 
-    if (subscriptionId || (subscriptionProof && agentId && agentId !== 'anonymous')) {
+    if (agentId && agentId !== 'anonymous' && (subscriptionProof || subscriptionId)) {
       const isProofValid = subscriptionProof ? verifySubscriptionProof(agentId, config.serviceId, subscriptionProof) : false
-      if (isProofValid || subscriptionId) {
+      const subCheckPeek = checkX402Subscription(agentId, config.serviceId, { consumeCall: false })
+      const isSubIdValid = Boolean(subscriptionId) && subCheckPeek.active && (subCheckPeek.subscription?.id === subscriptionId || subscriptionId === 'any')
+
+      if (isProofValid || isSubIdValid) {
         const subCheck = checkX402Subscription(agentId, config.serviceId, { consumeCall: true })
         if (subCheck.active) {
           const response = await handler(req, context)

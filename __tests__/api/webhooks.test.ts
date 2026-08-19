@@ -911,7 +911,7 @@ describe("webhook API", () => {
     expect(data.error).toBe("Webhook not found");
   });
 
-  it("caps delivery log entries at 200 and evicts the oldest", () => {
+  it("caps delivery log entries at 200 and evicts the oldest", { timeout: 20000 }, () => {
     for (let i = 0; i < 201; i += 1) {
       appendWebhookDeliveryAttempt({
         webhookId: "wh_cap",

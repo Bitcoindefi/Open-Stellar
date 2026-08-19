@@ -31,10 +31,12 @@ export async function GET(req: Request) {
 function isValidApiCredential(authHeader: string | null): boolean {
   if (!authHeader || authHeader.trim().length === 0) return false
   const token = authHeader.trim().replace(/^Bearer\s+/i, '')
-  const validKey = process.env.X402_API_KEY || process.env.API_KEY || 'open_stellar_secret_key'
-  if (token === validKey) return true
-  if (process.env.NODE_ENV === 'test' && (token === 'valid-key' || token === 'admin-key' || token.startsWith('secret') || token.startsWith('key_'))) return true
-  return false
+  if (process.env.NODE_ENV === 'test' && (token === 'valid-key' || token === 'admin-key' || token.startsWith('secret') || token.startsWith('key_'))) {
+    return true
+  }
+  const validKey = process.env.X402_API_KEY || process.env.API_KEY
+  if (!validKey) return false
+  return token === validKey
 }
 
 export async function POST(req: Request) {

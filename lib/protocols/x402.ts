@@ -1,5 +1,7 @@
+import { randomBytes } from 'node:crypto'
 import { StrKey } from '@stellar/stellar-sdk'
 import { verifyEvmPayment, type EvmSettlementChain } from '@/lib/evm-utils'
+import { verifyStellarPayment } from '@/lib/stellar-utils'
 import { isMockMode } from '@/lib/mock/mock-mode'
 
 import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
@@ -70,6 +72,7 @@ export interface X402Settlement {
   chain: SettlementChain
   txHash: string
   paidBy: string
+  agentId?: string
   reputationGate?: ReputationGateRequirement
   attestation?: ReputationAttestation
 }
@@ -86,6 +89,9 @@ export interface X402Receipt {
   explorerUrl?: string
   consumed?: boolean
   consumedAt?: string
+  serviceId?: string
+  service?: string
+  id?: string
 }
 
 export interface X402ExplorerReceipt extends X402Receipt {
@@ -96,6 +102,7 @@ export interface X402ExplorerReceipt extends X402Receipt {
   serviceId: string
   amount: string
   passportVerified: boolean
+  reputationTier?: string
 }
 
 export interface X402SettlementResult {
@@ -105,11 +112,11 @@ export interface X402SettlementResult {
 }
 
 export type SubscriptionPlanId = 'tier-starter' | 'tier-pro' | 'tier-enterprise' | 'tier-custom'
-export type SubscriptionStatus = 'active' | 'grace' | 'paused' | 'exhausted' | 'missing'
+export type X402SubscriptionStatus = 'active' | 'grace' | 'paused' | 'exhausted' | 'missing'
 
 export interface X402SubscriptionBillingEvent {
   id: string
-  type: 'initial_grant' | 'renewal' | 'grace_start' | 'paused'
+  type: 'initial_grant' | 'initial_charge' | 'renewal' | 'renewal_failed' | 'grace_start' | 'paused'
   amount: string
   at: string
   note?: string
@@ -119,8 +126,9 @@ export interface X402Subscription {
   id: string
   agentId: string
   serviceId: string
-  planId: SubscriptionPlanId
-  status: SubscriptionStatus
+  planId?: SubscriptionPlanId
+  plan?: string
+  status: X402SubscriptionStatus
   pricePerMonth: string
   callsPerMonth: number | null
   callsUsed: number
@@ -129,7 +137,7 @@ export interface X402Subscription {
   lastChargedAt?: string
   graceEndsAt?: string
   pausedAt?: string
-  createdAt: string
+  createdAt?: string
   billingEvents: X402SubscriptionBillingEvent[]
 }
 
@@ -137,7 +145,7 @@ export interface X402SubscriptionAccess {
   active: boolean
   callsRemaining: number | null
   renewsAt: string
-  status: SubscriptionStatus
+  status: X402SubscriptionStatus
   graceEndsAt?: string
   subscription?: X402Subscription
 }
@@ -191,7 +199,7 @@ function generateSecureRandomSuffix(): string {
     globalThis.crypto.getRandomValues(bytes)
     return Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 5)
   }
-  return Math.random().toString(36).slice(2, 7)
+  return randomBytes(4).toString('hex').slice(0, 5)
 }
 
 let cachedRates = globalStore.__x402RatesCache__
@@ -292,8 +300,8 @@ export async function verifyX402Settlement(input: X402Settlement, quote?: X402Qu
     }
     const verified = await verifyStellarPayment({
       txHash: input.txHash,
-      expectedDestination: option?.address,
-      expectedAmount: option?.amountUnits,
+      expectedDestination: option?.address ?? '',
+      expectedAmount: option?.amountUnits ?? '',
       expectedSource: input.paidBy,
     })
     return { accepted: verified.accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
@@ -320,7 +328,7 @@ export function listX402ExplorerReceipts(filters: X402ReceiptQuery = {}) {
 }
 
 function validateSettlementPayer(input: X402Settlement, quote: X402Quote): string | null {
-  const payer = input.paidBy || input.agentId || ''
+  const payer = input.paidBy || ''
   if (!payer || quote.payer === 'anonymous') return null
   const isStellarPayer = input.chain === 'stellar' && StrKey.isValidEd25519PublicKey(payer)
   const isEvmPayer = input.chain !== 'stellar' && /^0x[a-fA-F0-9]{40}$/.test(payer)
@@ -366,7 +374,7 @@ export async function settleX402(input: X402Settlement): Promise<X402SettlementR
     service: quote.serviceId,
     amount: `${quote.amountUsd} USD`,
     serviceId: quote.serviceId,
-    agent: input.agentId || input.paidBy || quote.payer,
+    agent: input.paidBy || quote.payer,
     amountUsd: quote.amountUsd,
     amountUnits: option.amountUnits,
     passportVerified: true,
@@ -383,7 +391,6 @@ export async function settleX402(input: X402Settlement): Promise<X402SettlementR
 }
 
 export type X402SubscriptionPlan = 'starter' | 'growth' | 'pro' | 'custom' | 'monthly'
-export type X402SubscriptionStatus = 'active' | 'grace' | 'paused'
 
 export interface X402SubscriptionRequest {
   serviceId: string
@@ -393,41 +400,6 @@ export interface X402SubscriptionRequest {
   pricePerMonth?: string
   walletBalanceXlm?: number
   now?: Date
-}
-
-export interface X402Subscription {
-  id: string
-  serviceId: string
-  agentId: string
-  plan: X402SubscriptionPlan
-  callsPerMonth: number | null
-  callsUsed: number
-  pricePerMonth: string
-  status: X402SubscriptionStatus
-  active: boolean
-  createdAt: string
-  renewsAt: string
-  graceEndsAt?: string
-  pausedAt?: string
-  lastChargedAt: string
-  billingEvents: X402SubscriptionBillingEvent[]
-}
-
-export interface X402SubscriptionBillingEvent {
-  id: string
-  type: 'initial_charge' | 'renewal' | 'renewal_failed'
-  amount: string
-  at: string
-  note: string
-}
-
-export interface X402SubscriptionAccess {
-  active: boolean
-  callsRemaining: number | null
-  renewsAt: string
-  status: X402SubscriptionStatus | 'missing' | 'exhausted'
-  graceEndsAt?: string
-  subscription?: X402Subscription
 }
 
 const PLAN_DEFAULTS: Record<X402SubscriptionPlan, { pricePerMonth: string; callsPerMonth: number | null }> = {
