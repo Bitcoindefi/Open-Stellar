@@ -344,6 +344,9 @@ export function OpenStellarHub() {
   const [particleTriggers, setParticleTriggers] = useState<ParticleTrigger[]>([])
   const agentLevelsRef = useRef<Map<string, number>>(new Map())
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  // `open-stellar-hub.tsx` is a 'use client' component — the lazy useState
+  // initializer runs ONLY on the client, never during SSR, so reading
+  // localStorage here is safe and race-condition-free.
   const [sidebarTab, setSidebarTab] = useState<SidebarTabId>(() => {
     if (typeof window === "undefined") return "overview"
     const stored = localStorage.getItem("sidebar-tab") as SidebarTabId | null
@@ -1321,6 +1324,38 @@ function handleDistrictUnlockedEvent(
         pushLog("skill upgrade blocked: skill not found", "warning", currentAgent.name)
         return
       }
+      return updated
+    })
+  }, [pushLog])
+
+  const handleUpgradeSkill = useCallback((agentId: string, skillId: string) => {
+    const currentAgent = agentsRef.current.find((agent) => agent.id === agentId)
+    if (!currentAgent) {
+      pushLog("skill upgrade blocked: agent not found", "warning", agentId)
+      return
+    }
+
+    const preview = upgradeAgentSkill(currentAgent, skillId)
+    if (!preview.result) {
+      pushLog("skill upgrade blocked: skill not found", "warning", currentAgent.name)
+      return
+    }
+
+    if (!preview.result.upgraded) {
+      const blockedReason = preview.result.reason === "max-level" ? "already at max level" : "not enough XP"
+      pushLog(`skill upgrade blocked: ${blockedReason}`, "warning", currentAgent.name)
+      toast.error("Skill Upgrade Blocked", { description: `${currentAgent.name}: ${blockedReason}` })
+      return
+    }
+
+    setAgents((prev) =>
+      prev.map((agent) => (agent.id === agentId ? upgradeAgentSkill(agent, skillId).agent : agent)),
+    )
+
+    pushLog(`${preview.result.skill.name} upgraded to level ${preview.result.skill.level}`, "success", preview.agent.name)
+    toast.success("Skill Upgraded!", { description: `${preview.agent.name} upgraded ${preview.result.skill.name} to Level ${preview.result.skill.level}` })
+    showAgentOverlay(preview.agent, `${preview.result.skill.name} Lv.${preview.result.skill.level}`, preview.agent.color)
+  }, [pushLog, showAgentOverlay])
 
       if (!preview.result.upgraded) {
         const blockedReason = preview.result.reason === "max-level" ? "already at max level" : "not enough XP"
