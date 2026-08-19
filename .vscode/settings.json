@@ -1,0 +1,6 @@
+{
+    "sonarlint.connectedMode.project": {
+        "connectionId": "bitcoindefi",
+        "projectKey": "Bitcoindefi_Open-Stellar"
+    }
+}

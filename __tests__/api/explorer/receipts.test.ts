@@ -35,12 +35,9 @@ describe("x402 explorer receipts", () => {
       chain: "stellar",
       amountUsd: 0.05,
     });
+    expect(explorer.receipts[0].explorerUrl).toMatch(/stellar\.expert\/explorer\/(mainnet|testnet)\/tx\//);
     expect(explorer.stats.totalPayments).toBeGreaterThanOrEqual(1);
   });
-    })
-    expect(explorer.receipts[0].explorerUrl).toMatch(/stellar\.expert\/explorer\/(mainnet|testnet)\/tx\//)
-    expect(explorer.stats.totalPayments).toBeGreaterThanOrEqual(1)
-  })
 
   it("paginates receipt responses", () => {
     const explorer = listX402ExplorerReceipts({ page: 1, pageSize: 1 });

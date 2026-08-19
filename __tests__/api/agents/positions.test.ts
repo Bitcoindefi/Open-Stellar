@@ -151,12 +151,7 @@ describe("agent position store", () => {
     expect(records[0]).toMatchObject({ pixelX: 16 });
     expect(records.at(-1)).toMatchObject({ pixelX: 1015 });
     expect(listAgentPositionHistory("bot-1", 1000)).toHaveLength(1000);
-  }, 30000);
-    expect(records).toHaveLength(1000)
-    expect(records[0]).toMatchObject({ pixelX: 16 })
-    expect(records.at(-1)).toMatchObject({ pixelX: 1015 })
-    expect(listAgentPositionHistory("bot-1", 1000)).toHaveLength(1000)
-  })
+  });
 
   it("accepts a 500-char agentId but stores it with a 200-char key", () => {
     const hugeId = "A".repeat(500);

@@ -28,10 +28,30 @@ const DB_PATH = process.env.X402_WEBHOOK_DB_PATH ?? join(cwd(), '.data', 'x402-w
 const store = makeJsonStore<X402Webhook>(DB_PATH)
 
 function isPrivateOrLocalHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().trim()
+  const host = hostname.toLowerCase().trim().replace(/^\[|\]$/g, '')
   if (host === 'localhost' || host === '0.0.0.0' || host === '127.0.0.1' || host === '::1' || host === '::') {
     return true
   }
+  if (host.startsWith('::ffff:')) {
+    return isPrivateOrLocalHost(host.slice(7))
+  }
+  // Decimal integer representation (e.g. 2130706433 -> 127.0.0.1)
+  if (/^\d+$/.test(host)) {
+    const num = Number(host)
+    if (num >= 0 && num <= 0xffffffff) {
+      const ip = `${(num >>> 24) & 0xff}.${(num >>> 16) & 0xff}.${(num >>> 8) & 0xff}.${num & 0xff}`
+      return isPrivateOrLocalHost(ip)
+    }
+  }
+  // Hex representation (e.g. 0x7f000001 -> 127.0.0.1)
+  if (/^0x[0-9a-f]+$/i.test(host)) {
+    const num = parseInt(host.slice(2), 16)
+    if (num >= 0 && num <= 0xffffffff) {
+      const ip = `${(num >>> 24) & 0xff}.${(num >>> 16) & 0xff}.${(num >>> 8) & 0xff}.${num & 0xff}`
+      return isPrivateOrLocalHost(ip)
+    }
+  }
+
   const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
   if (ipv4Match) {
     const [, a, b] = ipv4Match.map(Number)

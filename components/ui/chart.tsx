@@ -50,8 +50,6 @@ function ChartContainer({
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`;
   const contextValue = React.useMemo(() => ({ config }), [config]);
 
-  const contextValue = React.useMemo(() => ({ config }), [config])
-
   return (
     <ChartContext.Provider value={contextValue}>
       <div
@@ -129,13 +127,6 @@ function ChartTooltipContent({
     nameKey?: string;
     labelKey?: string;
     labelClassName?: string;
-  React.ComponentProps<'div'> & {
-    hideLabel?: boolean
-    hideIndicator?: boolean
-    indicator?: 'line' | 'dot' | 'dashed'
-    nameKey?: string
-    labelKey?: string
-    labelClassName?: string
   }) {
   const { config } = useChart();
 
@@ -155,7 +146,6 @@ function ChartTooltipContent({
     if (labelFormatter) {
       return (
         <div className={cn("font-medium", labelClassName)}>
-        <div className={cn('font-medium', labelClassName)}>
           {(labelFormatter as any)(value, payload)}
         </div>
       );
@@ -191,14 +181,10 @@ function ChartTooltipContent({
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
-        {payload.map((item, index) => {
+        {payload.map((item: any, index: number) => {
           const key = `${nameKey || item.name || item.dataKey || "value"}`;
           const itemConfig = getPayloadConfigFromPayload(config, item, key);
           const indicatorColor = color || item.payload.fill || item.color;
-        {payload.map((item: any, index: number) => {
-          const key = `${nameKey || item.name || item.dataKey || 'value'}`
-          const itemConfig = getPayloadConfigFromPayload(config, item, key)
-          const indicatorColor = color || item.payload.fill || item.color
 
           return (
             <div
@@ -294,9 +280,6 @@ function ChartLegendContent({
       {payload.map((item) => {
         const key = `${nameKey || (item as any).dataKey || "value"}`;
         const itemConfig = getPayloadConfigFromPayload(config, item, key);
-      {payload.map((item: any) => {
-        const key = `${nameKey || item.dataKey || 'value'}`
-        const itemConfig = getPayloadConfigFromPayload(config, item, key)
 
         return (
           <div

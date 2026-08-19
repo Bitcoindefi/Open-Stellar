@@ -39,10 +39,8 @@ describe("GET /api/protocol/x402/receipts", () => {
       amount: "0.01 USD",
       passportVerified: true,
     });
+    expect(data.receipts[0].explorerUrl).toMatch(/stellar\.expert\/explorer\/(mainnet|testnet)\/tx\//);
   });
-    })
-    expect(data.receipts[0].explorerUrl).toMatch(/stellar\.expert\/explorer\/(mainnet|testnet)\/tx\//)
-  })
 
   it("returns a single receipt by id", async () => {
     const listRes = await listReceipts(

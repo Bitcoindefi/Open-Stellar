@@ -49,27 +49,24 @@ function absoluteUrl(path: string): string {
   return new URL(path, getBaseUrl()).toString();
 }
 
+function getBadgeRarityStyles(rarity?: string): string {
+  switch (rarity) {
+    case "legendary":
+      return "border-purple-500/50 bg-purple-500/10 text-purple-200";
+    case "epic":
+      return "border-amber-500/50 bg-amber-500/10 text-amber-200";
+    case "rare":
+      return "border-cyan-500/50 bg-cyan-500/10 text-cyan-200";
+    default:
+      return "border-slate-700 bg-slate-900/60 text-slate-300";
+  }
+}
+
 export async function generateMetadata({
   params,
 }: AgentPageProps): Promise<Metadata> {
   const { id } = await params;
   const agent = findAgentByLookup(id);
-function getBadgeRarityStyles(rarity?: string): string {
-  switch (rarity) {
-    case "legendary":
-      return "border-purple-500/50 bg-purple-500/10 text-purple-200"
-    case "epic":
-      return "border-amber-500/50 bg-amber-500/10 text-amber-200"
-    case "rare":
-      return "border-cyan-500/50 bg-cyan-500/10 text-cyan-200"
-    default:
-      return "border-slate-700 bg-slate-900/60 text-slate-300"
-  }
-}
-
-export async function generateMetadata({ params }: AgentPageProps): Promise<Metadata> {
-  const { id } = await params
-  const agent = findAgentByLookup(id)
 
   if (!agent) {
     return {
@@ -235,21 +232,6 @@ export default async function AgentPage({ params }: AgentPageProps) {
   const localAgent = findAgentByLookup(id);
   if (!metaRes?.ok && !localAgent) {
     notFound();
-  // Parse Reputation & Badges
-  let repScore = 0
-  let badges: any[] = []
-  let infractions = 0
-  if (reputationData) {
-    repScore = reputationData.reputation?.score || 0
-    badges = reputationData.reputation?.metrics?.badges || reputationData.reputation?.badges || []
-    infractions = reputationData.reputation?.metrics?.infractions || reputationData.reputation?.history?.filter((h: any) => h.delta < 0).length || 0
-  } else {
-    const reputation = getReputation(id)
-    if (reputation) {
-      repScore = reputation.score || 0
-      badges = reputation.metrics?.badges || []
-      infractions = reputation.metrics?.infractions || 0
-    }
   }
 
   const { agentMetadata, capabilities } = await parseAgentMetadata(metaRes, localAgent);
@@ -475,40 +457,38 @@ export default async function AgentPage({ params }: AgentPageProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {badges.length > 0 ? (
-                    badges.map((badge, i) => (
+                    badges.map((badge: any, i: number) => (
                       <div
                         key={badge.id || badge.name || `badge-${i}`}
-                        className={`flex flex-col items-center justify-center p-3 rounded-lg border ${getBadgeClass(badge.rarity)}`}
+                        className="flex flex-col p-3 rounded-lg border border-purple-500/30 bg-purple-500/10 gap-1.5"
                       >
-                        <span className="font-pixel text-xs text-center leading-tight">
-                          {badge.name}
-                        </span>
+                        <div className="flex items-center justify-between">
+                          <span className="font-pixel text-xs leading-tight text-slate-100">
+                            {badge.name || badge.badgeId || badge.id}
+                          </span>
+                          <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 rounded border border-current opacity-80 text-purple-300">
+                            {badge.rarity || "common"}
+                          </span>
+                        </div>
+                        {badge.description && (
+                          <p className="font-mono text-[11px] text-slate-400 leading-normal">
+                            {badge.description}
+                          </p>
+                        )}
+                        {badge.earnedAt && (
+                          <span className="font-mono text-[9px] text-slate-500 mt-auto">
+                            Earned {new Date(badge.earnedAt).toLocaleDateString()}
+                          </span>
+                        )}
                       </div>
                     ))
                   ) : (
-                    <div className="col-span-2 sm:col-span-3 text-center p-4">
-                      <span className="text-sm text-slate-500 font-mono">
-                        No badges earned yet
-                      </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {badges.length > 0 ? badges.map((badge, i) => (
-                    <div key={i} className={`flex flex-col p-3 rounded-lg border gap-1.5 ${getBadgeRarityStyles(badge.rarity)}`}>
-                      <div className="flex items-center justify-between">
-                        <span className="font-pixel text-xs leading-tight text-slate-100">{badge.name || badge.badgeId || badge.id}</span>
-                        <span className="font-mono text-[9px] uppercase px-1.5 py-0.5 rounded border border-current opacity-80">{badge.rarity || 'common'}</span>
-                      </div>
-                      {badge.description && <p className="font-mono text-[11px] text-slate-400 leading-normal">{badge.description}</p>}
-                      {badge.earnedAt && (
-                        <span className="font-mono text-[9px] text-slate-500 mt-auto">
-                          Earned {new Date(badge.earnedAt).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                  )) : (
                     <div className="col-span-1 sm:col-span-2 lg:col-span-3 text-center p-4">
-                      <span className="text-sm text-slate-500 font-mono">No badges earned yet. Complete daily quests to earn badges!</span>
+                      <span className="text-sm text-slate-500 font-mono">
+                        No badges earned yet. Complete daily quests to earn badges!
+                      </span>
                     </div>
                   )}
                 </div>

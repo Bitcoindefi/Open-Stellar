@@ -1,9 +1,9 @@
-import type {
-  SettlementChain,
-  X402Quote,
-  X402Receipt,
+import {
+  getExplorerUrl,
+  type SettlementChain,
+  type X402Quote,
+  type X402Receipt,
 } from "@/lib/protocols/x402";
-import { getExplorerUrl, type SettlementChain, type X402Quote, type X402Receipt } from "@/lib/protocols/x402"
 
 export function createMockX402Quote(input: {
   serviceId: string;

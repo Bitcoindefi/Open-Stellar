@@ -2,13 +2,8 @@ import { getAgentRegistry } from "@/lib/agent-registry";
 import { DISTRICTS } from "@/lib/data";
 import { getAgentXP } from "@/lib/gamification/xp";
 import { getReputation } from "@/lib/reputation/reputation-store";
+import { createLocalReputationAttestation } from "@/lib/reputation/attestation";
 import type { DistrictId } from "@/lib/types";
-import { getAgentRegistry } from "@/lib/agent-registry"
-import { DISTRICTS } from "@/lib/data"
-import { getAgentXP } from "@/lib/gamification/xp"
-import { getReputation } from "@/lib/reputation/reputation-store"
-import { createLocalReputationAttestation } from "@/lib/reputation/attestation"
-import type { DistrictId } from "@/lib/types"
 
 export type LeaderboardView = "global" | "district" | "week";
 
@@ -25,28 +20,12 @@ export interface LeaderboardAgent {
   x402Revenue: number;
   spriteId: number;
   badges: string[];
+  earnedBadges?: { id: string; rarity: string }[];
+  attestationHash?: string;
   rank: number;
   previousRank: number;
   districtRank: number;
   globalRank: number;
-  id: string
-  name: string
-  district: DistrictId
-  districtName: string
-  districtColor: string
-  tasksCompleted: number
-  weeklyTasks: number
-  level: number
-  xp: number
-  x402Revenue: number
-  spriteId: number
-  badges: string[]
-  earnedBadges: { id: string; rarity: string }[]
-  attestationHash: string
-  rank: number
-  previousRank: number
-  districtRank: number
-  globalRank: number
 }
 
 function spriteIdForAgent(agentId: string): number {
@@ -65,11 +44,7 @@ function toLeaderboardAgent(
   const districtMeta = DISTRICTS.find((item) => item.id === agent.district)!;
   const xp = getAgentXP(agent.agentId);
   const reputation = getReputation(agent.agentId);
-function toLeaderboardAgent(agent: ReturnType<typeof getAgentRegistry>[number]): LeaderboardAgent {
-  const districtMeta = DISTRICTS.find((item) => item.id === agent.district)!
-  const xp = getAgentXP(agent.agentId)
-  const reputation = getReputation(agent.agentId)
-  const attestation = createLocalReputationAttestation(reputation)
+  const attestation = createLocalReputationAttestation(reputation);
 
   return {
     id: agent.agentId,

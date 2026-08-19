@@ -13,6 +13,7 @@ describe('x402 webhooks', () => {
   it('registers, lists, and deletes a webhook callback', async () => {
     const regReq = new Request('http://localhost/api/protocol/x402/webhooks', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'authorization': 'Bearer valid-key' },
       body: JSON.stringify({
         serviceId: 'data-oracle',
         url: 'https://example.com/webhook',
@@ -56,6 +57,7 @@ describe('x402 webhooks', () => {
 
     const webhookReq = new Request('http://localhost/api/protocol/x402/webhooks', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'authorization': 'Bearer valid-key' },
       body: JSON.stringify({
         serviceId: 'price-feed',
         url: 'https://api.my-service.com/x402-callback',

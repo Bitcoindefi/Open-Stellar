@@ -135,11 +135,6 @@ export function ReceiptTable({
                   </td>
                   <td className="px-4 py-3 uppercase">{receipt.chain}</td>
                   <td className="px-4 py-3 font-mono text-slate-400">
-                    {shortHash(receipt.txHash)}
-                  </td>
-                  <td className="px-4 py-3 text-slate-400">
-                    {new Date(receipt.settledAt).toLocaleString()}
-                  </td>
                     {receipt.explorerUrl ? (
                       <a
                         href={receipt.explorerUrl}
@@ -154,7 +149,9 @@ export function ReceiptTable({
                       shortHash(receipt.txHash)
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-400">{new Date(receipt.settledAt).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-slate-400">
+                    {new Date(receipt.settledAt).toLocaleString()}
+                  </td>
                 </tr>
               ))
             )}
@@ -168,14 +165,6 @@ export function ReceiptTable({
             <h2 className="font-mono text-sm uppercase tracking-[0.24em] text-cyan-200">
               Receipt JSON
             </h2>
-            <button
-              type="button"
-              onClick={() => setSelected(null)}
-              className="rounded border border-slate-700 px-2 py-1 font-mono text-xs uppercase text-slate-300"
-            >
-              Close
-            </button>
-            <h2 className="font-mono text-sm uppercase tracking-[0.24em] text-cyan-200">Receipt JSON</h2>
             <div className="flex items-center gap-2">
               {selected.explorerUrl && (
                 <a

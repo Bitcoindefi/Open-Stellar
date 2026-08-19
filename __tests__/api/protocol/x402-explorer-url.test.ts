@@ -34,7 +34,7 @@ describe("getExplorerUrl", () => {
 })
 
 describe("settleX402 explorerUrl", () => {
-  it("includes explorerUrl in settlement receipt for all chains", () => {
+  it("includes explorerUrl in settlement receipt for all chains", async () => {
     for (const chain of ["stellar", "bnb", "base"] as const) {
       const txHash =
         chain === "stellar"
@@ -49,7 +49,7 @@ describe("settleX402 explorerUrl", () => {
         unitPriceUsd: 0.01,
       })
 
-      const result = settleX402({
+      const result = await settleX402({
         paymentRef: quote.paymentRef,
         chain,
         txHash,

@@ -65,12 +65,13 @@ export interface X402Quote {
 }
 
 export interface X402Settlement {
-  quoteId?: string
   paymentRef?: string
+  quoteId?: string
   chain: SettlementChain
   txHash: string
-  paidBy?: string
-  agentId?: string
+  paidBy: string
+  reputationGate?: ReputationGateRequirement
+  attestation?: ReputationAttestation
 }
 
 export interface X402Receipt {
@@ -83,97 +84,160 @@ export interface X402Receipt {
   amountUsd?: number
   amountUnits?: string
   explorerUrl?: string
-}
-
-export interface X402ExplorerReceipt extends X402Receipt {
-  id: string
-  agentId: string
-  service: string
-  amount: string
-  serviceId: string
-  agent: string
-  amountUsd: number
-  amountUnits: string
-  passportVerified: boolean
-  reputationTier: string
   consumed?: boolean
   consumedAt?: string
 }
 
-const CHAIN_DECIMALS: Record<SettlementChain, number> = { bnb: 18, base: 18, stellar: 7 }
-const CHAIN_ASSET: Record<SettlementChain, ChainAsset> = { bnb: 'BNB', base: 'ETH', stellar: 'XLM' }
-const FALLBACK_USD: Record<SettlementChain, number> = { stellar: 0.1, bnb: 550, base: 3000 }
-const COINGECKO_IDS: Record<SettlementChain, string> = { stellar: 'stellar', bnb: 'binancecoin', base: 'ethereum' }
+export interface X402ExplorerReceipt extends X402Receipt {
+  id: string
+  agent: string
+  agentId: string
+  service: string
+  serviceId: string
+  amount: string
+  passportVerified: boolean
+}
+
+export interface X402SettlementResult {
+  ok: boolean
+  receipt?: X402Receipt
+  error?: string
+}
+
+export type SubscriptionPlanId = 'tier-starter' | 'tier-pro' | 'tier-enterprise' | 'tier-custom'
+export type SubscriptionStatus = 'active' | 'grace' | 'paused' | 'exhausted' | 'missing'
+
+export interface X402SubscriptionBillingEvent {
+  id: string
+  type: 'initial_grant' | 'renewal' | 'grace_start' | 'paused'
+  amount: string
+  at: string
+  note?: string
+}
+
+export interface X402Subscription {
+  id: string
+  agentId: string
+  serviceId: string
+  planId: SubscriptionPlanId
+  status: SubscriptionStatus
+  pricePerMonth: string
+  callsPerMonth: number | null
+  callsUsed: number
+  active: boolean
+  renewsAt: string
+  lastChargedAt?: string
+  graceEndsAt?: string
+  pausedAt?: string
+  createdAt: string
+  billingEvents: X402SubscriptionBillingEvent[]
+}
+
+export interface X402SubscriptionAccess {
+  active: boolean
+  callsRemaining: number | null
+  renewsAt: string
+  status: SubscriptionStatus
+  graceEndsAt?: string
+  subscription?: X402Subscription
+}
+
+const FALLBACK_USD: Record<SettlementChain, number> = {
+  stellar: 0.12,
+  bnb: 600,
+  base: 3000,
+}
+
+const CHAIN_DECIMALS: Record<SettlementChain, number> = {
+  stellar: 7,
+  bnb: 18,
+  base: 18,
+}
+
+const CHAIN_ASSET: Record<SettlementChain, string> = {
+  stellar: 'XLM',
+  bnb: 'BNB',
+  base: 'ETH',
+}
+
 const DEFAULT_ADDRESSES: Record<SettlementChain, string> = {
-  stellar: process.env.X402_STELLAR_ADDRESS || 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
-  bnb: process.env.X402_BNB_ADDRESS || process.env.X402_EVM_ADDRESS || '0x0000000000000000000000000000000000000000',
-  base: process.env.X402_BASE_ADDRESS || process.env.X402_EVM_ADDRESS || '0x0000000000000000000000000000000000000000',
+  stellar: process.env.STELLAR_TREASURY_ADDRESS || 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+  bnb: process.env.EVM_TREASURY_ADDRESS || '0x0000000000000000000000000000000000000000',
+  base: process.env.EVM_TREASURY_ADDRESS || '0x0000000000000000000000000000000000000000',
 }
 
-let cachedRates: { rates: Record<SettlementChain, number>; expiresAt: number } | null = null
-
-function parseUnits(value: number, decimals: number): string {
-  const fixed = value.toFixed(decimals)
-  return fixed.replace('.', '').replace(/^0+(?=\d)/, '')
+const globalStore = globalThis as typeof globalThis & {
+  __x402QuoteRegistry__?: Map<string, X402Quote>
+  __x402SubscriptionRegistry__?: Map<string, X402Subscription>
+  __x402RatesCache__?: { rates: Record<SettlementChain, number>; at: number }
 }
+
+const quoteRegistry = (globalStore.__x402QuoteRegistry__ ??= new Map<string, X402Quote>())
+const subscriptionRegistry = (globalStore.__x402SubscriptionRegistry__ ??= new Map<string, X402Subscription>())
 
 function formatNativeAmount(value: number): string {
-  return value.toLocaleString('en-US', { maximumFractionDigits: 8, minimumFractionDigits: 0, useGrouping: false })
+  if (value < 0.000001) return value.toExponential(4)
+  return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })
 }
 
-type QuoteRegistry = Map<string, X402Quote>
-const globalState = globalThis as typeof globalThis & {
-  __x402QuoteRegistry__?: QuoteRegistry
-  __x402SubscriptionRegistry__?: SubscriptionRegistry
+function parseUnits(amount: number, decimals: number): string {
+  const factor = Math.pow(10, decimals)
+  return BigInt(Math.round(amount * factor)).toString()
 }
-
-const quoteRegistry: QuoteRegistry = (globalState.__x402QuoteRegistry__ ??= new Map())
-export interface X402SettlementResult { ok: boolean; receipt?: X402Receipt; error?: string }
-
-export function peekX402Quote(paymentRef: string): X402Quote | undefined { return quoteRegistry.get(paymentRef) }
 
 function generateSecureRandomSuffix(): string {
-  const c = typeof crypto !== "undefined" ? crypto : (globalThis as any).crypto
-  if (c && typeof c.getRandomValues === "function") {
-    const buf = new Uint8Array(4)
-    c.getRandomValues(buf)
-    return Array.from(buf, (b: number) => b.toString(36).padStart(2, "0")).join("").slice(0, 6)
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    const bytes = new Uint8Array(4)
+    globalThis.crypto.getRandomValues(bytes)
+    return Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 5)
   }
-  return Date.now().toString(36).slice(-6)
+  return Math.random().toString(36).slice(2, 7)
 }
 
-async function refreshNativeUsdRates(fetcher: typeof fetch = fetch): Promise<Record<SettlementChain, number>> {
-  const now = Date.now()
-  if (cachedRates && cachedRates.expiresAt > now) return cachedRates.rates
+let cachedRates = globalStore.__x402RatesCache__
+
+export async function refreshNativeUsdRates(): Promise<Record<SettlementChain, number>> {
+  if (cachedRates && Date.now() - cachedRates.at < 60_000) {
+    return cachedRates.rates
+  }
 
   try {
-    const ids = Object.values(COINGECKO_IDS).join(',')
-    const response = await fetcher(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`, { headers: { accept: 'application/json' }, next: { revalidate: 30 } })
-    if (!response.ok) throw new Error('CoinGecko unavailable')
-    const payload = await response.json() as Record<string, { usd?: number }>
-    const rates = { ...FALLBACK_USD }
-    for (const chain of Object.keys(COINGECKO_IDS) as SettlementChain[]) {
-      const usd = Number(payload[COINGECKO_IDS[chain]]?.usd)
-      if (Number.isFinite(usd) && usd > 0) {
-        const fallback = FALLBACK_USD[chain]
-        const deviation = Math.abs(usd - fallback) / fallback
-        if (deviation <= 0.20) {
-          rates[chain] = usd
-        }
+    const res = await fetch(
+      'https://api.coingecko.com/api/v3/simple/price?ids=stellar,binancecoin,ethereum&vs_currencies=usd',
+      { headers: { Accept: 'application/json' } }
+    )
+    if (res.ok) {
+      const data = (await res.json()) as Record<string, { usd?: number }>
+      const rates: Record<SettlementChain, number> = {
+        stellar: data.stellar?.usd ?? FALLBACK_USD.stellar,
+        bnb: data.binancecoin?.usd ?? FALLBACK_USD.bnb,
+        base: data.ethereum?.usd ?? FALLBACK_USD.base,
       }
+      cachedRates = { rates, at: Date.now() }
+      globalStore.__x402RatesCache__ = cachedRates
+      return rates
     }
-    cachedRates = { rates, expiresAt: now + 30_000 }
-    return rates
-  } catch {
-    cachedRates = { rates: FALLBACK_USD, expiresAt: now + 30_000 }
-    return FALLBACK_USD
-  }
+  } catch {}
+
+  cachedRates = { rates: FALLBACK_USD, at: Date.now() }
+  globalStore.__x402RatesCache__ = cachedRates
+  return FALLBACK_USD
 }
 
-export function createX402Quote(input: X402QuoteRequest): X402Quote {
+export function createX402Quote(input: {
+  serviceId: string
+  chain?: SettlementChain
+  payer: string
+  units: number
+  unitPriceUsd: number
+  ttlSeconds?: number
+  reputationGate?: ReputationGateRequirement
+  attestation?: ReputationAttestation
+}): X402Quote {
   const ttlSeconds = input.ttlSeconds ?? 300
-  if (!Number.isFinite(ttlSeconds) || ttlSeconds <= 0) {
-    throw new Error('ttlSeconds must be > 0')
+
+  if (!input.serviceId || input.serviceId.trim().length === 0) {
+    throw new Error('serviceId must not be empty')
   }
 
   if (!Number.isFinite(input.units) || input.units <= 0) {
@@ -207,15 +271,32 @@ export function createX402Quote(input: X402QuoteRequest): X402Quote {
   return quote
 }
 
+export function peekX402Quote(refOrId: string): X402Quote | undefined {
+  return quoteRegistry.get(refOrId)
+}
+
+export function getX402Quote(refOrId: string): X402Quote | undefined {
+  return quoteRegistry.get(refOrId)
+}
+
 export async function verifyX402Settlement(input: X402Settlement, quote?: X402Quote): Promise<X402Receipt> {
   const paymentRef = input.paymentRef || input.quoteId || ''
   const option = quote?.options.find((item) => item.chain === input.chain)
-  const isMock = isMockMode() || process.env.NODE_ENV === 'test' || input.txHash.startsWith('mock_') || input.txHash.startsWith('0x1111') || input.txHash.startsWith('0x2222') || input.txHash.startsWith('0x3333')
+  const isMock = isMockMode() || process.env.NODE_ENV === 'test'
 
   const explorerUrl = getExplorerUrl(input.chain, input.txHash)
   if (input.chain === 'stellar') {
-    const accepted = /^0x[a-fA-F0-9]{64}$/.test(input.txHash) || /^[a-fA-F0-9]{64}$/.test(input.txHash) || /^[A-Z0-9]{64}$/.test(input.txHash)
-    return { accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
+    if (isMock) {
+      const accepted = /^0x[a-fA-F0-9]{64}$/.test(input.txHash) || /^[a-fA-F0-9]{64}$/.test(input.txHash) || /^[A-Z0-9]{64}$/.test(input.txHash)
+      return { accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
+    }
+    const verified = await verifyStellarPayment({
+      txHash: input.txHash,
+      expectedDestination: option?.address,
+      expectedAmount: option?.amountUnits,
+      expectedSource: input.paidBy,
+    })
+    return { accepted: verified.accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
   }
 
   if (!option) return { accepted: false, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain }
@@ -360,10 +441,6 @@ const PLAN_DEFAULTS: Record<X402SubscriptionPlan, { pricePerMonth: string; calls
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 const BILLING_CYCLE_MS = 30 * MS_PER_DAY
 const GRACE_PERIOD_MS = MS_PER_DAY
-
-type SubscriptionRegistry = Map<string, X402Subscription>
-
-const subscriptionRegistry: SubscriptionRegistry = (globalState.__x402SubscriptionRegistry__ ??= new Map())
 
 function subscriptionKey(agentId: string, serviceId: string) {
   return `${agentId}:${serviceId}`
