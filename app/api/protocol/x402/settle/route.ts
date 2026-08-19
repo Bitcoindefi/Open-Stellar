@@ -153,7 +153,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const result = settleX402({
+    const result = await settleX402({
       paymentRef,
       chain,
       txHash: String(body.txHash || ""),

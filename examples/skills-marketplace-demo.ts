@@ -20,7 +20,8 @@ import { createX402Quote, settleX402 } from "../lib/protocols/x402";
 // AGENT SIDE: Register a skill
 // ============================================================================
 
-console.log("=== Agent: Registering Skills ===\n");
+async function runDemo() {
+  console.log("=== Agent: Registering Skills ===\n");
 
 const agentId = "agent-demo-001";
 
@@ -129,7 +130,7 @@ const mockTxHash = "0x" + "a".repeat(64);
 console.log(`📤 Payment sent: ${mockTxHash}`);
 
 // Settle the payment
-const settlement = settleX402({
+const settlement = await settleX402({
   paymentRef: quote.paymentRef,
   chain: "stellar",
   txHash: mockTxHash,
@@ -181,6 +182,9 @@ console.log("\nRevenue will appear in x402 receipts and can be tracked via:");
 console.log("  GET /api/protocol/x402/receipts?agentId=" + agentId);
 
 console.log("\n=== Demo Complete ===");
+}
+
+runDemo().catch(console.error);
 
 /**
  * Example agent endpoint implementation:

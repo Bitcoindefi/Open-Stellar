@@ -27,7 +27,23 @@ export interface X402WebhookDelivery {
 const DB_PATH = process.env.X402_WEBHOOK_DB_PATH ?? join(cwd(), '.data', 'x402-webhooks.json')
 const store = makeJsonStore<X402Webhook>(DB_PATH)
 
-/** Only HTTPS endpoints are accepted to prevent SSRF to internal/local services. */
+function isPrivateOrLocalHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().trim()
+  if (host === 'localhost' || host === '0.0.0.0' || host === '127.0.0.1' || host === '::1' || host === '::') {
+    return true
+  }
+  const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host)
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number)
+    if (a === 127 || a === 10 || a === 0) return true
+    if (a === 172 && b >= 16 && b <= 31) return true
+    if (a === 192 && b === 168) return true
+    if (a === 169 && b === 254) return true
+  }
+  return false
+}
+
+/** Only public HTTPS endpoints are accepted to prevent SSRF to internal/local services. */
 function validateWebhookUrl(raw: string): URL {
   let parsed: URL
   try {
@@ -37,6 +53,9 @@ function validateWebhookUrl(raw: string): URL {
   }
   if (parsed.protocol !== 'https:') {
     throw new Error('Webhook URL must use HTTPS')
+  }
+  if (isPrivateOrLocalHost(parsed.hostname)) {
+    throw new Error('Webhook URL cannot target local or private network addresses')
   }
   return parsed
 }
@@ -84,8 +103,9 @@ export function registerX402Webhook(input: { serviceId: string; url: string; sec
 
 export function listX402Webhooks(serviceId?: string): X402Webhook[] {
   const all = store.read()
-  if (!serviceId) return all
+  if (serviceId === undefined) return all
   const clean = serviceId.trim().toLowerCase()
+  if (!clean) return []
   return all.filter((w) => w.serviceId.toLowerCase() === clean || w.serviceId === 'all')
 }
 
@@ -107,7 +127,8 @@ export async function dispatchX402Webhooks(
   receipt: X402Receipt | X402ExplorerReceipt,
   fetcher: typeof fetch = fetch,
 ): Promise<X402WebhookDelivery[]> {
-  const serviceId = (receipt as X402ExplorerReceipt).serviceId || (receipt as X402ExplorerReceipt).service || ''
+  const serviceId = ((receipt as X402ExplorerReceipt).serviceId || (receipt as X402ExplorerReceipt).service || '').trim()
+  if (!serviceId) return []
   const targets = listX402Webhooks(serviceId).filter((w) => w.active)
   if (targets.length === 0) return []
 

@@ -39,6 +39,16 @@ export function getX402Receipt(receiptId: string): X402ExplorerReceipt | undefin
   return store.read().find((receipt) => receipt.id === receiptId)
 }
 
+export function consumeX402Receipt(receiptId: string): boolean {
+  const receipts = store.read()
+  const target = receipts.find((receipt) => receipt.id === receiptId)
+  if (!target || target.consumed) return false
+  target.consumed = true
+  target.consumedAt = new Date().toISOString()
+  store.write(receipts)
+  return true
+}
+
 export function listX402Receipts(filters: X402ReceiptQuery = {}): X402ReceiptPage {
   const pageSize = Math.max(1, Math.min(50, Math.floor(filters.pageSize ?? 50)))
   const page = Math.max(1, Math.floor(filters.page ?? 1))

@@ -136,7 +136,7 @@ export async function POST(req: Request, context: RouteContext) {
     }
 
     // Verify payment
-    const result = settleX402({
+    const result = await settleX402({
       paymentRef,
       chain,
       txHash,

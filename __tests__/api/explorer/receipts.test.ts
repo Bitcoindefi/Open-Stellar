@@ -6,7 +6,7 @@ import {
 } from "@/lib/protocols/x402";
 
 describe("x402 explorer receipts", () => {
-  it("records accepted settlements for explorer queries", () => {
+  it("records accepted settlements for explorer queries", async () => {
     const quote = createX402Quote({
       serviceId: "data-api",
       chain: "stellar",
@@ -15,7 +15,7 @@ describe("x402 explorer receipts", () => {
       unitPriceUsd: 0.05,
     });
 
-    const result = settleX402({
+    const result = await settleX402({
       paymentRef: quote.paymentRef,
       chain: quote.chain,
       txHash: `0x${"a".repeat(64)}`,

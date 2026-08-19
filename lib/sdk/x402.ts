@@ -1,5 +1,5 @@
 import { checkX402Subscription, createX402Quote, type SettlementChain, type X402Quote } from '@/lib/protocols/x402'
-import { getX402Receipt } from '@/lib/protocols/x402-receipt-store'
+import { consumeX402Receipt, getX402Receipt } from '@/lib/protocols/x402-receipt-store'
 
 export interface X402GateConfig {
   serviceId: string
@@ -21,9 +21,10 @@ export function withX402(config: X402GateConfig, handler: X402NextHandler): X402
   return async (req: Request, context?: unknown) => {
     const receiptId = req.headers.get('x-x402-receipt-id') || req.headers.get('x-receipt-id')
     const subscriptionId = req.headers.get('x-x402-subscription-id') || req.headers.get('x-subscription-id')
+    const subscriptionProof = req.headers.get('x-x402-subscription-proof') || req.headers.get('x-subscription-proof') || req.headers.get('authorization')
     const agentId = req.headers.get('x-x402-agent-id') || req.headers.get('x-agent-id') || 'anonymous'
 
-    if (subscriptionId || (agentId && agentId !== 'anonymous')) {
+    if (subscriptionId || (subscriptionProof && agentId && agentId !== 'anonymous')) {
       const subCheck = checkX402Subscription(agentId, config.serviceId, { consumeCall: true })
       if (subCheck.active) {
         const response = await handler(req, context)
@@ -38,12 +39,24 @@ export function withX402(config: X402GateConfig, handler: X402NextHandler): X402
 
     if (receiptId) {
       const receipt = getX402Receipt(receiptId)
-      if (receipt && receipt.accepted && (receipt.serviceId === config.serviceId || receipt.service === config.serviceId)) {
-        const response = await handler(req, context)
-        const res = response instanceof Response ? response : Response.json(response)
-        res.headers.set('X-X402-Receipt-Id', receipt.id)
-        res.headers.set('X-X402-Status', 'receipt_verified')
-        return res
+      if (
+        receipt &&
+        receipt.accepted &&
+        !receipt.consumed &&
+        (receipt.serviceId === config.serviceId || receipt.service === config.serviceId)
+      ) {
+        const settledTime = new Date(receipt.settledAt).getTime()
+        const isExpired = Number.isNaN(settledTime) || Date.now() - settledTime > 3600_000
+        if (!isExpired) {
+          const consumed = consumeX402Receipt(receipt.id)
+          if (consumed) {
+            const response = await handler(req, context)
+            const res = response instanceof Response ? response : Response.json(response)
+            res.headers.set('X-X402-Receipt-Id', receipt.id)
+            res.headers.set('X-X402-Status', 'receipt_verified')
+            return res
+          }
+        }
       }
     }
 

@@ -64,7 +64,7 @@ describe('x402 webhooks', () => {
     })
     await registerWebhook(webhookReq)
 
-    const settleResult = settleX402({
+    const settleResult = await settleX402({
       paymentRef: quote.paymentRef,
       chain: 'stellar',
       txHash: '0x' + 'a'.repeat(64),

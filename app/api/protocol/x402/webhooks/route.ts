@@ -31,6 +31,15 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const api = createApiRouteLogger(req, '/api/protocol/x402/webhooks')
   try {
+    const authHeader = req.headers.get('authorization') || req.headers.get('x-api-key') || req.headers.get('x-agent-id')
+    if (!authHeader && process.env.NODE_ENV === 'production') {
+      return await api.json(
+        { ok: false, error: 'Authentication required to register webhooks' },
+        { status: 401 },
+        { event: 'x402.webhook.unauthorized' }
+      )
+    }
+
     const body = await req.json()
     const webhook = registerX402Webhook({
       serviceId: String(body.serviceId || ''),

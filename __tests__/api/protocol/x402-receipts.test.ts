@@ -17,7 +17,7 @@ describe("GET /api/protocol/x402/receipts", () => {
       units: 1,
       unitPriceUsd: 0.01,
     });
-    const settlement = settleX402({
+    const settlement = await settleX402({
       paymentRef: quote.paymentRef,
       chain: quote.chain,
       txHash: `0x${"b".repeat(64)}`,
