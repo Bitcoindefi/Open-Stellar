@@ -79,7 +79,23 @@ const globalStore = globalThis as typeof globalThis & ApiKeyGlobalStore;
 
 let persistTimer: NodeJS.Timeout | null = null;
 
-export function schedulePersistKeyStore(delayMs = 1000): void {
+/**
+ * Schedules an asynchronous, debounced flush of lastUsedAt / requestCount
+ * updates to disk. Security-critical mutations (create / revoke / rotate)
+ * always call persistKeyStoreImmediate() and are unaffected by this timer.
+ *
+ * Trade-off: in serverless deployments the invocation may be frozen before
+ * the 200 ms window elapses, causing in-flight counter updates to be lost.
+ * Set `FLUSH_USAGE_SYNC=true` in your environment to force synchronous writes
+ * on every authenticated request when accurate usage accounting is required.
+ */
+export function schedulePersistKeyStore(delayMs = 200): void {
+  // Opt-in synchronous flush for environments requiring accurate usage counters.
+  if (process.env.FLUSH_USAGE_SYNC === "true") {
+    persistKeyStoreImmediate();
+    return;
+  }
+
   if (persistTimer) return;
   persistTimer = setTimeout(() => {
     persistTimer = null;
@@ -87,7 +103,7 @@ export function schedulePersistKeyStore(delayMs = 1000): void {
       const store = getKeyStore();
       writePersistedKeys(Array.from(store.values()));
     } catch {
-      // Ignore background persistence errors
+      // Background persistence errors are non-fatal.
     }
   }, delayMs);
   if (typeof persistTimer?.unref === "function") {

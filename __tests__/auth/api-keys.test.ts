@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   createApiKey,
   listApiKeys,
@@ -193,15 +193,57 @@ describe("API Key Authentication and Zero-Trust Protection", () => {
     expect(result.headers?.["X-Api-Tier"]).toBe("free");
   });
 
-  it("extracts real client IP by skipping trusted proxy hops in X-Forwarded-For", () => {
-    const req = new Request("http://localhost:3000/api/feed", {
-      headers: {
-        "x-forwarded-for": "198.51.100.22, 10.0.0.1, 127.0.0.1",
-      },
+  describe("getClientIp — IP normalisation and XFF strategies", () => {
+    afterEach(() => {
+      delete process.env.TRUSTED_PROXY_COUNT;
     });
 
-    const extracted = getClientIp(req);
-    expect(extracted).toBe("198.51.100.22");
+    it("extracts real client IP by skipping internal proxy hops (best-effort)", () => {
+      const req = new Request("http://localhost:3000/api/feed", {
+        headers: { "x-forwarded-for": "198.51.100.22, 10.0.0.1, 127.0.0.1" },
+      });
+      expect(getClientIp(req)).toBe("198.51.100.22");
+    });
+
+    it("normalises uppercase IPv6 loopback (FE80::1) as private and skips it", () => {
+      const req = new Request("http://localhost:3000/api/feed", {
+        headers: {
+          "x-forwarded-for": "203.0.113.5, FE80::1",
+        },
+      });
+      expect(getClientIp(req)).toBe("203.0.113.5");
+    });
+
+    it("normalises bracket+port IPv6 loopback ([::1]:80) as private and skips it", () => {
+      const req = new Request("http://localhost:3000/api/feed", {
+        headers: {
+          "x-forwarded-for": "198.51.100.99, [::1]:80",
+        },
+      });
+      expect(getClientIp(req)).toBe("198.51.100.99");
+    });
+
+    it("normalises IPv4+port suffix (127.0.0.1:8080) as loopback and skips it", () => {
+      const req = new Request("http://localhost:3000/api/feed", {
+        headers: {
+          "x-forwarded-for": "203.0.113.10, 127.0.0.1:8080",
+        },
+      });
+      expect(getClientIp(req)).toBe("203.0.113.10");
+    });
+
+    it("uses TRUSTED_PROXY_COUNT to take the correct XFF hop on known infrastructure", () => {
+      process.env.TRUSTED_PROXY_COUNT = "2";
+      // Chain: [client, middle-proxy, infra-proxy-1, infra-proxy-2]
+      // With TRUSTED_PROXY_COUNT=2, skip rightmost 2 → index = 4-1-2 = 1 = "10.20.30.40"
+      const req = new Request("http://localhost:3000/api/feed", {
+        headers: {
+          "x-forwarded-for":
+            "203.0.113.77, 10.20.30.40, 192.168.1.1, 10.0.0.2",
+        },
+      });
+      expect(getClientIp(req)).toBe("10.20.30.40");
+    });
   });
 
   it("stores only SHA-256 hashes and does not persist raw plaintext secrets", async () => {

@@ -44,9 +44,16 @@ export function writePersistedKeys(records: ApiKeyRecord[]): void {
     try {
       renameSync(tmpPath, dbPath);
     } catch {
+      // Rename may fail on cross-device moves; fall back to direct write.
       writeFileSync(dbPath, payload, "utf8");
     }
-  } catch {
-    // Non-fatal if filesystem is temporarily locked
+  } catch (err) {
+    // Surface write failures (e.g. EROFS on read-only serverless filesystems)
+    // so operators are not silently surprised by missing key persistence.
+    console.error(
+      "[open-stellar] api-keys: failed to persist key store to",
+      getDbPath(),
+      err instanceof Error ? err.message : err,
+    );
   }
 }

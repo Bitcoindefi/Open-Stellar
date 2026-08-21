@@ -37,24 +37,46 @@ export function extractApiKey(req: Request | NextRequest): string | null {
 }
 
 /**
+ * Normalises an IP string for safe comparison:
+ * - Lowercases (IPv6 hex digits can be upper-case: FE80::1)
+ * - Strips IPv6 bracket+port suffix: [::1]:80 → ::1
+ * - Strips IPv4 port suffix: 1.2.3.4:8080 → 1.2.3.4
+ */
+function normalizeIp(ip: string): string {
+  const t = ip.trim().toLowerCase();
+  // IPv6 bracket-port: [fe80::1]:80
+  if (t.startsWith("[")) {
+    const bracket = t.indexOf("]");
+    return bracket !== -1 ? t.slice(1, bracket) : t;
+  }
+  // IPv4 with port: 1.2.3.4:443 — only strip if there is exactly one colon
+  const colonCount = (t.match(/:/g) || []).length;
+  if (colonCount === 1) {
+    return t.split(":")[0]!;
+  }
+  return t;
+}
+
+/**
  * Checks if an IP is a known internal/loopback/private network address.
+ * Always call with a normalised (lowercase, port-stripped) IP.
  */
 function isPrivateOrProxyIp(ip: string): boolean {
-  const trimmed = ip.trim();
+  const n = normalizeIp(ip);
   if (
-    trimmed === "127.0.0.1" ||
-    trimmed === "::1" ||
-    trimmed === "localhost" ||
-    trimmed.startsWith("10.") ||
-    trimmed.startsWith("192.168.") ||
-    trimmed.startsWith("169.254.") ||
-    trimmed.startsWith("fc00:") ||
-    trimmed.startsWith("fe80:")
+    n === "127.0.0.1" ||
+    n === "::1" ||
+    n === "localhost" ||
+    n.startsWith("10.") ||
+    n.startsWith("192.168.") ||
+    n.startsWith("169.254.") ||
+    n.startsWith("fc00:") ||
+    n.startsWith("fe80:")
   ) {
     return true;
   }
-  if (trimmed.startsWith("172.")) {
-    const parts = trimmed.split(".");
+  if (n.startsWith("172.")) {
+    const parts = n.split(".");
     const second = Number.parseInt(parts[1] || "0", 10);
     if (second >= 16 && second <= 31) return true;
   }
@@ -62,26 +84,47 @@ function isPrivateOrProxyIp(ip: string): boolean {
 }
 
 /**
- * Robust Client IP extraction utilizing trusted edge headers and filtering out internal proxy hops.
+ * Robust client IP extraction.
+ *
+ * Priority order:
+ *   1. `cf-connecting-ip` — set by Cloudflare, not client-controlled.
+ *   2. `x-real-ip` — set by Nginx/trusted reverse proxy.
+ *   3. `x-forwarded-for` via TRUSTED_PROXY_COUNT strategy:
+ *      - If `TRUSTED_PROXY_COUNT` env var is set (e.g. "1" on Vercel), take
+ *        the Nth-from-right entry where N = trustedProxyCount. This is safe
+ *        because all N rightmost hops are added by your own infrastructure.
+ *      - Otherwise fall back to the right-most non-private hop (best effort).
  */
 export function getClientIp(req: Request | NextRequest): string {
   const cfConnectingIp = req.headers.get("cf-connecting-ip");
   if (cfConnectingIp?.trim()) {
-    return cfConnectingIp.trim();
+    return normalizeIp(cfConnectingIp);
   }
 
   const xRealIp = req.headers.get("x-real-ip");
   if (xRealIp?.trim()) {
-    return xRealIp.trim();
+    return normalizeIp(xRealIp);
   }
 
   const xForwardedFor = req.headers.get("x-forwarded-for");
   if (xForwardedFor) {
     const ips = xForwardedFor
       .split(",")
-      .map((ip) => ip.trim())
+      .map((ip) => normalizeIp(ip))
       .filter(Boolean);
-    // Find the right-most IP not belonging to an internal proxy hop
+
+    // TRUSTED_PROXY_COUNT: when set, the infrastructure appended exactly that
+    // many hops. Pick the entry immediately before those trusted hops.
+    const trustedProxyCount = Number.parseInt(
+      process.env.TRUSTED_PROXY_COUNT || "0",
+      10,
+    );
+    if (trustedProxyCount > 0 && ips.length > 0) {
+      const idx = Math.max(0, ips.length - 1 - trustedProxyCount);
+      return ips[idx]!;
+    }
+
+    // Best-effort fallback: rightmost non-private hop.
     const clientIp = [...ips].reverse().find((ip) => !isPrivateOrProxyIp(ip));
     if (clientIp) return clientIp;
     if (ips.length > 0) return ips[0]!;
