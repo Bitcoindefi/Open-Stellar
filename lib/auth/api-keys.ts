@@ -1,5 +1,10 @@
 import { getAdminApiKey } from "@/lib/admin-api-key";
-import { readPersistedKeys, writePersistedKeys } from "./storage";
+import {
+  clearStorageCache,
+  initStorage,
+  readPersistedKeys,
+  writePersistedKeys,
+} from "./storage";
 
 export type ApiKeyTier = "no_key" | "free" | "pro" | "admin";
 
@@ -81,37 +86,37 @@ let persistTimer: NodeJS.Timeout | null = null;
 
 /**
  * Schedules an asynchronous, debounced flush of lastUsedAt / requestCount
- * updates to disk. Security-critical mutations (create / revoke / rotate)
- * always call persistKeyStoreImmediate() and are unaffected by this timer.
+ * updates to the configured backend. Security-critical mutations (create /
+ * revoke / rotate) always call persistKeyStoreImmediate() instead.
  *
  * Trade-off: in serverless deployments the invocation may be frozen before
  * the 200 ms window elapses, causing in-flight counter updates to be lost.
- * Set `FLUSH_USAGE_SYNC=true` in your environment to force synchronous writes
- * on every authenticated request when accurate usage accounting is required.
+ * Set `FLUSH_USAGE_SYNC=true` to force an immediate flush instead.
  */
 export function schedulePersistKeyStore(delayMs = 200): void {
-  // Opt-in synchronous flush for environments requiring accurate usage counters.
   if (process.env.FLUSH_USAGE_SYNC === "true") {
-    persistKeyStoreImmediate();
+    // Fire-and-forget; errors surfaced inside writePersistedKeys.
+    void persistKeyStoreImmediate();
     return;
   }
 
   if (persistTimer) return;
   persistTimer = setTimeout(() => {
     persistTimer = null;
-    try {
-      const store = getKeyStore();
-      writePersistedKeys(Array.from(store.values()));
-    } catch {
-      // Background persistence errors are non-fatal.
-    }
+    // Fire-and-forget async write; errors logged inside writePersistedKeys.
+    void getKeyStore().then((store) =>
+      writePersistedKeys(Array.from(store.values())),
+    );
   }, delayMs);
   if (typeof persistTimer?.unref === "function") {
     persistTimer.unref();
   }
 }
 
-export function getKeyStore(): Map<string, ApiKeyRecord> {
+export async function getKeyStore(): Promise<Map<string, ApiKeyRecord>> {
+  // Hydrate from the configured backend (KV or file) on first call per invocation.
+  await initStorage();
+
   if (!globalStore.__openStellarApiKeys__) {
     const store = new Map<string, ApiKeyRecord>();
     const persisted = readPersistedKeys();
@@ -125,9 +130,9 @@ export function getKeyStore(): Map<string, ApiKeyRecord> {
   return globalStore.__openStellarApiKeys__;
 }
 
-export function persistKeyStoreImmediate(): void {
-  const store = getKeyStore();
-  writePersistedKeys(Array.from(store.values()));
+export async function persistKeyStoreImmediate(): Promise<void> {
+  const store = await getKeyStore();
+  await writePersistedKeys(Array.from(store.values()));
 }
 
 function getRateLimitStore(): Map<string, number[]> {
@@ -136,16 +141,22 @@ function getRateLimitStore(): Map<string, number[]> {
 }
 
 /**
- * Resets stores for test isolation and clears persisted files.
+ * Resets in-memory stores and the storage cache for test isolation.
+ * Also synchronously flushes the empty state to the file backend when
+ * KV is not configured (tests run without KV env vars).
  */
 export function resetApiKeyStore(): void {
   if (persistTimer) {
     clearTimeout(persistTimer);
     persistTimer = null;
   }
-  const store = getKeyStore();
-  store.clear();
-  persistKeyStoreImmediate();
+  // Reset the warm storage cache so the next getKeyStore() re-reads from scratch.
+  clearStorageCache();
+  globalStore.__openStellarApiKeys__ = undefined;
+  // Synchronously clear the file backend (no-op when KV is configured).
+  import("./storage").then(({ writePersistedKeys: write }) =>
+    write([]),
+  );
   const rateLimitStore = getRateLimitStore();
   rateLimitStore.clear();
 }
@@ -283,9 +294,9 @@ export async function createApiKey(
     requestCount: 0,
   };
 
-  const store = getKeyStore();
+  const store = await getKeyStore();
   store.set(id, record);
-  persistKeyStoreImmediate();
+  await persistKeyStoreImmediate();
 
   return {
     id,
@@ -303,7 +314,7 @@ export async function createApiKey(
  * Lists all API keys in sanitized format.
  */
 export async function listApiKeys(): Promise<SanitizedApiKey[]> {
-  const store = getKeyStore();
+  const store = await getKeyStore();
   const list: SanitizedApiKey[] = [];
 
   for (const record of store.values()) {
@@ -318,15 +329,19 @@ export async function listApiKeys(): Promise<SanitizedApiKey[]> {
 /**
  * Internal lookup for test verification of hashed storage.
  */
+/**
+ * Synchronous lookup for test use (store must already be warm).
+ * In application code, prefer verifyApiKey() which ensures hydration.
+ */
 export function getApiKeyRecord(id: string): ApiKeyRecord | undefined {
-  return getKeyStore().get(id);
+  return globalStore.__openStellarApiKeys__?.get(id);
 }
 
 /**
  * Revokes an existing API key immediately.
  */
 export async function revokeApiKey(id: string): Promise<boolean> {
-  const store = getKeyStore();
+  const store = await getKeyStore();
   const record = store.get(id);
   if (!record) {
     return false;
@@ -334,7 +349,7 @@ export async function revokeApiKey(id: string): Promise<boolean> {
 
   record.revokedAt = new Date().toISOString();
   store.set(id, record);
-  persistKeyStoreImmediate();
+  await persistKeyStoreImmediate();
   return true;
 }
 
@@ -345,7 +360,7 @@ export async function revokeApiKey(id: string): Promise<boolean> {
 export async function rotateApiKey(
   id: string,
 ): Promise<{ id: string; key: string; keyPrefix: string } | null> {
-  const store = getKeyStore();
+  const store = await getKeyStore();
   const record = store.get(id);
   if (!record) {
     return null;
@@ -366,7 +381,7 @@ export async function rotateApiKey(
   record.lastUsedAt = null;
 
   store.set(id, record);
-  persistKeyStoreImmediate();
+  await persistKeyStoreImmediate();
 
   return {
     id,
@@ -392,8 +407,10 @@ function verifyAdminKey(trimmedKey: string): VerificationResult | null {
   return null;
 }
 
-function findRecordByHash(candidateHash: string): ApiKeyRecord | undefined {
-  const store = getKeyStore();
+async function findRecordByHash(
+  candidateHash: string,
+): Promise<ApiKeyRecord | undefined> {
+  const store = await getKeyStore();
   for (const record of store.values()) {
     if (timingSafeEqual(candidateHash, record.hashedKey)) {
       return record;
@@ -469,7 +486,7 @@ export async function verifyApiKey(
   }
 
   const candidateHash = await hashKey(trimmedKey);
-  const matchedRecord = findRecordByHash(candidateHash);
+  const matchedRecord = await findRecordByHash(candidateHash);
 
   if (matchedRecord) {
     return validateMatchedRecord(matchedRecord, Date.now());

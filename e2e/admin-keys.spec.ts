@@ -39,7 +39,8 @@ test.describe("admin API keys management", () => {
     await page.getByRole("button", { name: /Dismiss/i }).click();
     await expect(page.getByText("Save this key immediately")).not.toBeVisible();
 
-    // Verify key appears in active keys table
-    await expect(page.getByText("e2e-test-key")).toBeVisible();
+    // Verify key appears in active keys table (scoped to avoid matching banner)
+    const keysTable = page.locator("table tbody");
+    await expect(keysTable.getByText("e2e-test-key").first()).toBeVisible();
   });
 });
