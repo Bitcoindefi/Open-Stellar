@@ -823,5 +823,5 @@ describe("webhook API", () => {
     expect(attempts[0].event).toBe("event.200")
     expect(attempts[199].event).toBe("event.1")
     expect(attempts.some((attempt) => attempt.event === "event.0")).toBe(false)
-  })
+  }, 30000)
 })

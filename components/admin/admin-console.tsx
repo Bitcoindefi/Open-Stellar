@@ -177,6 +177,13 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
             Receipts
           </TabButton>
           <a
+            href="/admin/keys"
+            className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-xs uppercase tracking-[0.2em] text-cyan-300 transition hover:border-cyan-400 hover:text-cyan-100"
+          >
+            <KeyRound className="h-3.5 w-3.5" />
+            API Keys
+          </a>
+          <a
             href="/admin/runs"
             className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-400 transition hover:border-slate-700 hover:text-slate-200"
           >

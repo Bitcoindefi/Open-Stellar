@@ -8,6 +8,14 @@ vi.mock("next/navigation", () => ({
   })
 }))
 
+// Mock fetch to resolve immediately in tests
+global.fetch = vi.fn().mockImplementation(() =>
+  Promise.resolve({
+    ok: false,
+    json: () => Promise.resolve({}),
+  })
+)
+
 describe("Agent Profile Page", () => {
   it("renders 404 when agent does not exist", async () => {
     resetAgentRegistryForTests()

@@ -380,6 +380,61 @@ vercel.json              build config para Vercel
 
 ---
 
+## API Key Management & Production Auth
+
+Open Stellar includes machine-to-machine API authentication and sliding-window rate limiting.
+
+### Admin Key
+- Configured via `ADMIN_API_KEY` environment variable (required in production).
+- Grants full root access to `/admin/*`, `/api/admin/*`, and write operations on agent registry.
+
+### Service Keys (Scoped)
+Create scoped API keys via the admin console at `/admin/keys` or via API:
+```bash
+POST /api/admin/keys
+Authorization: Bearer <ADMIN_API_KEY>
+Content-Type: application/json
+
+{
+  "name": "my-integration",
+  "scopes": ["x402:quote", "x402:settle", "agents:read"],
+  "tier": "free",
+  "expiresAt": "2027-01-01"
+}
+```
+
+Returns:
+```json
+{
+  "ok": true,
+  "id": "key_123",
+  "key": "osk_live_...",
+  "keyPrefix": "osk_live_1234...",
+  "scopes": ["x402:quote", "x402:settle", "agents:read"],
+  "tier": "free"
+}
+```
+*Note: The plaintext secret key is displayed only once upon creation/rotation. Storage persists only the SHA-256 hash.*
+
+### Authentication & Rate Limits
+Authenticate requests via Bearer token:
+```bash
+Authorization: Bearer osk_live_...
+```
+Or via query parameter:
+```bash
+GET /api/protocol/x402/quote?apiKey=osk_live_...
+```
+
+| Tier | Rate Limit | Description |
+|------|------------|-------------|
+| No key | 10 req / min | Unauthenticated public requests (IP-based) |
+| Free | 60 req / min | Standard machine-to-machine integrations |
+| Pro | 600 req / min | High-throughput data feeds and trading relays |
+| Admin | Unlimited | Full root administration |
+
+---
+
 ## Repositorios relacionados
 
 - [open-stellar-passport](https://github.com/bitcoindefi/open-stellar-passport) — fuente original del sistema ZK passport (Vite standalone), portado a este repo en `lib/passport/`
