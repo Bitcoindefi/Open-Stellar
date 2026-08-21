@@ -1,14 +1,14 @@
-"use client"
+"use client";
 
-import { formatUsd, xlmToUsd } from "@/lib/prices/coingecko"
-import { usePrices } from "@/hooks/use-prices"
+import { formatUsd, xlmToUsd } from "@/lib/prices/coingecko";
+import { usePrices } from "@/hooks/use-prices";
 
 export function PriceTicker() {
-  const { prices, isLoading, error } = usePrices()
+  const { prices, isLoading, error } = usePrices();
 
-  const status = error ? "offline" : isLoading ? "loading" : "live"
-  const xlm = prices ? formatUsd(prices.xlm) : "--"
-  const btc = prices ? formatUsd(prices.btc) : "--"
+  const status = error ? "offline" : isLoading ? "loading" : "live";
+  const xlm = prices ? formatUsd(prices.xlm) : "--";
+  const btc = prices ? formatUsd(prices.btc) : "--";
 
   return (
     <div
@@ -32,25 +32,33 @@ export function PriceTicker() {
         backdropFilter: "blur(8px)",
       }}
     >
-      <span style={{ color: status === "live" ? "#34d399" : status === "offline" ? "#f87171" : "#fbbf24" }}>
+      <span
+        style={{
+          color:
+            status === "live"
+              ? "#34d399"
+              : status === "offline"
+                ? "#f87171"
+                : "#fbbf24",
+        }}
+      >
         {status.toUpperCase()}
       </span>
       <span>XLM {xlm}</span>
       <span style={{ color: "#64748b" }}>|</span>
       <span>BTC {btc}</span>
     </div>
-  )
+  );
 }
 
 export function XlmUsdValue({ amount }: { amount: number }) {
-  const { prices } = usePrices()
+  const { prices } = usePrices();
 
-  if (!prices) return null
+  if (!prices) return null;
 
   return (
     <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>
       {" â‰ˆ " + formatUsd(xlmToUsd(amount, prices))}
     </span>
-  )
+  );
 }
-

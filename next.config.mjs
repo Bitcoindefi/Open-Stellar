@@ -1,12 +1,15 @@
-import webpack from 'webpack'
-import { withLogtail } from '@logtail/next'
+import webpack from "webpack";
+import { withLogtail } from "@logtail/next";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
     return [
-      { source: "/agents/:id(cloud-[^/]+)", destination: "/agent-functions/:id" },
-    ]
+      {
+        source: "/agents/:id(cloud-[^/]+)",
+        destination: "/agent-functions/:id",
+      },
+    ];
   },
   images: {
     unoptimized: true,
@@ -25,17 +28,17 @@ const nextConfig = {
         worker_threads: false,
         // Optional peer deps of @wagmi/connectors — not installed, stub them out
         // to suppress "Module not found" build warnings.
-        '@base-org/account': false,
-        '@metamask/connect-evm': false,
-      }
+        "@base-org/account": false,
+        "@metamask/connect-evm": false,
+      };
       config.plugins.push(
         new webpack.ProvidePlugin({
-          Buffer: ['buffer', 'Buffer'],
+          Buffer: ["buffer", "Buffer"],
         }),
-      )
+      );
     }
-    return config
+    return config;
   },
-}
+};
 
-export default withLogtail(nextConfig)
+export default withLogtail(nextConfig);

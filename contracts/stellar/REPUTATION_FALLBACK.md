@@ -20,8 +20,8 @@ En este repositorio, cuando el track 8004 no esta disponible en Stellar, se usa 
 Payload:
 
 {
-  "actorId": "agent-7",
-  "delta": 25,
-  "reason": "successful escrow release",
-  "scope": "tx"
+"actorId": "agent-7",
+"delta": 25,
+"reason": "successful escrow release",
+"scope": "tx"
 }

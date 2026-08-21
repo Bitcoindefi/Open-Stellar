@@ -6,11 +6,10 @@
  * Configuración de Soroban para Stellar Testnet
  */
 export const STELLAR_SOROBAN_CONFIG = {
-  network: 'TESTNET',
-  networkPassphrase:
-    'Test SDF Network ; September 2015',
-  rpcUrl: 'https://soroban-testnet.stellar.org',
-  friendbotUrl: 'https://friendbot.stellar.org',
+  network: "TESTNET",
+  networkPassphrase: "Test SDF Network ; September 2015",
+  rpcUrl: "https://soroban-testnet.stellar.org",
+  friendbotUrl: "https://friendbot.stellar.org",
 };
 
 /**
@@ -65,22 +64,22 @@ export async function getFreighterPublicKey(): Promise<string | null> {
   try {
     const freighter = (window as any).freighter;
     if (!freighter) {
-      throw new Error('Freighter not installed');
+      throw new Error("Freighter not installed");
     }
     return await freighter.getPublicKey();
   } catch (error) {
-    console.error('Error getting Freighter public key:', error);
+    console.error("Error getting Freighter public key:", error);
     return null;
   }
 }
 
 export async function signStellarTransaction(
-  transactionXdr: string
+  transactionXdr: string,
 ): Promise<string | null> {
   try {
     const freighter = (window as any).freighter;
     if (!freighter) {
-      throw new Error('Freighter not installed');
+      throw new Error("Freighter not installed");
     }
 
     const result = await freighter.signTransaction(transactionXdr, {
@@ -89,26 +88,26 @@ export async function signStellarTransaction(
 
     return result;
   } catch (error) {
-    console.error('Error signing Stellar transaction:', error);
+    console.error("Error signing Stellar transaction:", error);
     return null;
   }
 }
 
 export async function submitStellarTransaction(
-  transactionXdr: string
+  transactionXdr: string,
 ): Promise<string | null> {
   try {
     const response = await fetch(
       `${STELLAR_SOROBAN_CONFIG.rpcUrl}/api/v1/transactions`,
       {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           tx: transactionXdr,
         }),
-      }
+      },
     );
 
     if (!response.ok) {
@@ -118,13 +117,13 @@ export async function submitStellarTransaction(
     const data = await response.json();
     return data.hash || null;
   } catch (error) {
-    console.error('Error submitting Stellar transaction:', error);
+    console.error("Error submitting Stellar transaction:", error);
     return null;
   }
 }
 
 export function formatStellarAddress(address: string): string {
-  if (!address) return '';
+  if (!address) return "";
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
@@ -185,10 +184,10 @@ soroban contract invoke \\
  * Tipos de eventos de Soroban
  */
 export enum SorobanEventType {
-  TRANSFER = 'transfer',
-  MINT = 'mint',
-  BURN = 'burn',
-  APPROVE = 'approve',
+  TRANSFER = "transfer",
+  MINT = "mint",
+  BURN = "burn",
+  APPROVE = "approve",
 }
 
 export interface SorobanEvent {

@@ -40,12 +40,14 @@ Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
 ## Configuración de Redes
 
 ### BNB Smart Chain Testnet
+
 - **Chain ID**: 97
 - **RPC**: https://data-seed-prebsc-1-b.binance.org:8545
 - **Explorer**: https://testnet.bscscan.com
 - **Faucet**: https://testnet.binance.org/faucet-smart
 
 ### Stellar Testnet
+
 - **Network**: Test SDF Network
 - **RPC**: https://soroban-testnet.stellar.org
 - **Explorer**: https://stellar.expert/explorer/testnet
@@ -71,6 +73,7 @@ contract SimpleToken {
 ```
 
 **Para desplegar:**
+
 1. Ir a [Remix IDE](https://remix.ethereum.org)
 2. Copiar código de `lib/bnb-contracts.ts` (SIMPLE_TOKEN_SOLIDITY)
 3. Compilar y desplegar a BNB Testnet
@@ -99,11 +102,13 @@ Ver instrucciones completas en `lib/soroban-contracts.ts` (SOROBAN_DEPLOYMENT_GU
 ## Componentes Principales
 
 ### `/components/wallet/`
+
 - **wallet-provider.tsx**: Proveedor de contexto Wagmi + Freighter
 - **wallet-button.tsx**: Botón multi-chain para conectar wallets
 - **transaction-panel.tsx**: Panel para ejecutar transacciones
 
 ### `/lib/`
+
 - **wallet-config.ts**: Configuración de Wagmi para BNB testnet
 - **stellar-utils.ts**: Utilidades para Freighter y Stellar
 - **bnb-contracts.ts**: ABIs y utilidades de smart contracts BNB
@@ -160,14 +165,17 @@ Open-Stellar/
 ## Troubleshooting
 
 ### "WalletConnect Project ID not found"
+
 - Verificar que NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID está en `.env.local`
 - Recrear en https://cloud.reown.com si es necesario
 
 ### "Freighter no disponible"
+
 - Instalar extensión Freighter: https://freighter.app
 - Asegurarse de que esté habilitada en el navegador
 
 ### Error de red (RPC)
+
 - Verificar que tienes fondos en testnet (usa faucets)
 - Verificar que el RPC no está rate-limited
 - Cambiar a otro RPC si es necesario

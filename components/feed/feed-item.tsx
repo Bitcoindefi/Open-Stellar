@@ -1,6 +1,10 @@
-import Image from "next/image"
-import Link from "next/link"
-import { feedAgentUrl, feedEventUrl, type FeedEvent } from "@/lib/feed/activity-feed"
+import Image from "next/image";
+import Link from "next/link";
+import {
+  feedAgentUrl,
+  feedEventUrl,
+  type FeedEvent,
+} from "@/lib/feed/activity-feed";
 
 const KIND_COLORS: Record<FeedEvent["kind"], string> = {
   payment: "#34d399",
@@ -8,19 +12,28 @@ const KIND_COLORS: Record<FeedEvent["kind"], string> = {
   badge: "#a78bfa",
   district: "#fbbf24",
   task: "#60a5fa",
-}
+};
 
 function relativeTime(iso: string) {
-  const minutes = Math.max(1, Math.round((Date.now() - Date.parse(iso)) / 60000))
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.round(hours / 24)}d ago`
+  const minutes = Math.max(
+    1,
+    Math.round((Date.now() - Date.parse(iso)) / 60000),
+  );
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }
 
-export function FeedItem({ event, compact = false }: { event: FeedEvent; compact?: boolean }) {
-  const accent = KIND_COLORS[event.kind]
-  const sprite = event.spritePath
+export function FeedItem({
+  event,
+  compact = false,
+}: {
+  event: FeedEvent;
+  compact?: boolean;
+}) {
+  const accent = KIND_COLORS[event.kind];
+  const sprite = event.spritePath;
 
   return (
     <article
@@ -51,14 +64,35 @@ export function FeedItem({ event, compact = false }: { event: FeedEvent; compact
         }}
       >
         {sprite ? (
-          <Image src={sprite} alt="" width={compact ? 28 : 38} height={compact ? 28 : 38} unoptimized />
+          <Image
+            src={sprite}
+            alt=""
+            width={compact ? 28 : 38}
+            height={compact ? 28 : 38}
+            unoptimized
+          />
         ) : (
-          <span style={{ color: accent, fontFamily: "monospace", fontSize: compact ? 14 : 18 }}>#</span>
+          <span
+            style={{
+              color: accent,
+              fontFamily: "monospace",
+              fontSize: compact ? 14 : 18,
+            }}
+          >
+            #
+          </span>
         )}
       </div>
 
       <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
           <Link
             href={feedEventUrl(event)}
             style={{
@@ -72,17 +106,50 @@ export function FeedItem({ event, compact = false }: { event: FeedEvent; compact
           >
             {event.title}
           </Link>
-          <span style={{ color: accent, fontFamily: "monospace", fontSize: 10, textTransform: "uppercase" }}>
+          <span
+            style={{
+              color: accent,
+              fontFamily: "monospace",
+              fontSize: 10,
+              textTransform: "uppercase",
+            }}
+          >
             {event.highlight}
           </span>
         </div>
-        <div style={{ color: "#94a3b8", fontSize: compact ? 11 : 12, lineHeight: 1.6, marginTop: 4 }}>
+        <div
+          style={{
+            color: "#94a3b8",
+            fontSize: compact ? 11 : 12,
+            lineHeight: 1.6,
+            marginTop: 4,
+          }}
+        >
           {event.detail}
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6, color: "#64748b", fontFamily: "monospace", fontSize: 10 }}>
-          {event.agentName && <Link href={feedAgentUrl(event)} style={{ color: "#67e8f9", textDecoration: "none" }}>{event.agentName}</Link>}
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            marginTop: 6,
+            color: "#64748b",
+            fontFamily: "monospace",
+            fontSize: 10,
+          }}
+        >
+          {event.agentName && (
+            <Link
+              href={feedAgentUrl(event)}
+              style={{ color: "#67e8f9", textDecoration: "none" }}
+            >
+              {event.agentName}
+            </Link>
+          )}
           {event.districtName && <span>{event.districtName}</span>}
-          <time dateTime={event.occurredAt}>{relativeTime(event.occurredAt)}</time>
+          <time dateTime={event.occurredAt}>
+            {relativeTime(event.occurredAt)}
+          </time>
         </div>
       </div>
 
@@ -104,5 +171,5 @@ export function FeedItem({ event, compact = false }: { event: FeedEvent; compact
         </a>
       )}
     </article>
-  )
+  );
 }

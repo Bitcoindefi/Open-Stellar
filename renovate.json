@@ -6,54 +6,34 @@
     ":semanticCommits",
     ":separateMajorReleases"
   ],
-  "labels": [
-    "dependencies",
-    "automated"
-  ],
+  "labels": ["dependencies", "automated"],
   "rangeStrategy": "bump",
-  "schedule": [
-    "before 10am on monday"
-  ],
+  "schedule": ["before 10am on monday"],
   "timezone": "Etc/UTC",
   "packageRules": [
     {
       "description": "Keep ZK artifacts stable until they are regenerated.",
-      "matchPackageNames": [
-        "snarkjs"
-      ],
+      "matchPackageNames": ["snarkjs"],
       "enabled": false
     },
     {
       "description": "Group Stellar SDK updates for focused wallet/protocol review.",
-      "matchPackageNames": [
-        "@stellar/**",
-        "stellar-sdk"
-      ],
+      "matchPackageNames": ["@stellar/**", "stellar-sdk"],
       "groupName": "stellar packages"
     },
     {
       "description": "Group wallet connector updates together.",
-      "matchPackageNames": [
-        "wagmi",
-        "viem",
-        "@wagmi/**",
-        "@reown/**"
-      ],
+      "matchPackageNames": ["wagmi", "viem", "@wagmi/**", "@reown/**"],
       "groupName": "wallet connector packages"
     },
     {
       "description": "Group Radix UI packages together.",
-      "matchPackageNames": [
-        "@radix-ui/**"
-      ],
+      "matchPackageNames": ["@radix-ui/**"],
       "groupName": "radix ui packages"
     },
     {
       "description": "Auto-merge patch updates after CI passes.",
-      "matchUpdateTypes": [
-        "patch",
-        "digest"
-      ],
+      "matchUpdateTypes": ["patch", "digest"],
       "automerge": true,
       "automergeType": "pr",
       "platformAutomerge": true,
@@ -61,26 +41,19 @@
     },
     {
       "description": "Keep minor updates reviewable while still grouped by package family.",
-      "matchUpdateTypes": [
-        "minor"
-      ],
+      "matchUpdateTypes": ["minor"],
       "automerge": false,
       "minimumReleaseAge": "3 days"
     },
     {
       "description": "Major updates always require manual review.",
-      "matchUpdateTypes": [
-        "major"
-      ],
+      "matchUpdateTypes": ["major"],
       "automerge": false,
       "dependencyDashboardApproval": true
     }
   ],
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": [
-      "security",
-      "dependencies"
-    ]
+    "labels": ["security", "dependencies"]
   }
 }

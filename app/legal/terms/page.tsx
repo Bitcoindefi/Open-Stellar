@@ -1,8 +1,8 @@
-import { LegalPage } from "../legal-page"
+import { LegalPage } from "../legal-page";
 
 export const metadata = {
   title: "Terms of Service | Open Stellar",
-}
+};
 
 export default function TermsPage() {
   return (
@@ -52,5 +52,5 @@ export default function TermsPage() {
         },
       ]}
     />
-  )
+  );
 }

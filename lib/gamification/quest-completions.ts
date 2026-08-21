@@ -7,34 +7,34 @@
  * tracks which (questId, actorId) pairs have already claimed completion.
  */
 
-type CompletionStore = Set<string>
+type CompletionStore = Set<string>;
 
 const globalState = globalThis as typeof globalThis & {
-  __openStellarQuestCompletions__?: CompletionStore
-}
+  __openStellarQuestCompletions__?: CompletionStore;
+};
 
 function store(): CompletionStore {
   if (!globalState.__openStellarQuestCompletions__) {
-    globalState.__openStellarQuestCompletions__ = new Set<string>()
+    globalState.__openStellarQuestCompletions__ = new Set<string>();
   }
-  return globalState.__openStellarQuestCompletions__
+  return globalState.__openStellarQuestCompletions__;
 }
 
 function key(questId: string, actorId: string): string {
-  return `${questId}::${actorId}`
+  return `${questId}::${actorId}`;
 }
 
 /** True if this actor has already claimed completion of this quest. */
 export function hasClaimedQuest(questId: string, actorId: string): boolean {
-  return store().has(key(questId, actorId))
+  return store().has(key(questId, actorId));
 }
 
 /** Record that this actor has claimed completion of this quest. */
 export function markQuestClaimed(questId: string, actorId: string): void {
-  store().add(key(questId, actorId))
+  store().add(key(questId, actorId));
 }
 
 /** Test helper — clears all recorded completions. */
 export function resetQuestCompletions(): void {
-  store().clear()
+  store().clear();
 }

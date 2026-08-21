@@ -1,88 +1,113 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
-import { randomBytes } from "node:crypto"
-import { dirname, join } from "node:path"
-import { publishSystemEvent } from "@/lib/events/system-events"
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
+import { randomBytes } from "node:crypto";
+import { dirname, join } from "node:path";
+import { publishSystemEvent } from "@/lib/events/system-events";
 
 export interface AgentErrorLogEntry {
-  date: string
-  agentId: string
-  error: string
-  taskExcerpt: string
+  date: string;
+  agentId: string;
+  error: string;
+  taskExcerpt: string;
 }
 
 export interface AgentHealthSummary {
-  agentId: string
-  status: "active" | "degraded"
-  lastSeen: string | null
-  errorCount24h: number
-  degraded: boolean
+  agentId: string;
+  status: "active" | "degraded";
+  lastSeen: string | null;
+  errorCount24h: number;
+  degraded: boolean;
 }
 
-const ERROR_LOG_PATH = join(process.cwd(), ".data", "agent-errors.json")
-const MAX_ERROR_LOG_ENTRIES = 1000
-const DAY_MS = 24 * 60 * 60 * 1000
+const ERROR_LOG_PATH = join(process.cwd(), ".data", "agent-errors.json");
+const MAX_ERROR_LOG_ENTRIES = 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const globalErrors = globalThis as typeof globalThis & {
-  __openStellarAgentErrorState__?: Map<string, { lastSeen: string | null; degraded: boolean; consecutiveErrors: number }>
-}
+  __openStellarAgentErrorState__?: Map<
+    string,
+    { lastSeen: string | null; degraded: boolean; consecutiveErrors: number }
+  >;
+};
 
-const state = (globalErrors.__openStellarAgentErrorState__ ??= new Map<string, { lastSeen: string | null; degraded: boolean; consecutiveErrors: number }>())
+const state = (globalErrors.__openStellarAgentErrorState__ ??= new Map<
+  string,
+  { lastSeen: string | null; degraded: boolean; consecutiveErrors: number }
+>());
 
 function normalizeAgentId(agentId: string): string {
-  const cleanId = agentId.trim()
-  if (!cleanId) throw new Error("agentId must not be empty")
-  return cleanId.slice(0, 200)
+  const cleanId = agentId.trim();
+  if (!cleanId) throw new Error("agentId must not be empty");
+  return cleanId.slice(0, 200);
 }
 
 function truncate(value: string, length: number): string {
-  return value.replace(/\s+/g, " ").trim().slice(0, length)
+  return value.replace(/\s+/g, " ").trim().slice(0, length);
 }
 
 function formatErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  if (typeof error === "string" && error.trim()) return error
-  if (typeof error === "number" || typeof error === "boolean" || typeof error === "bigint" || typeof error === "symbol") {
-    return String(error)
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  if (
+    typeof error === "number" ||
+    typeof error === "boolean" ||
+    typeof error === "bigint" ||
+    typeof error === "symbol"
+  ) {
+    return String(error);
   }
   if (typeof error === "object" && error !== null) {
-    if ("message" in error && typeof (error as { message?: unknown }).message === "string") {
-      const msg = (error as { message: string }).message.trim()
-      if (msg) return msg
+    if (
+      "message" in error &&
+      typeof (error as { message?: unknown }).message === "string"
+    ) {
+      const msg = (error as { message: string }).message.trim();
+      if (msg) return msg;
     }
     try {
-      return JSON.stringify(error)
+      return JSON.stringify(error);
     } catch {
-      return "[Unserializable Object]"
+      return "[Unserializable Object]";
     }
   }
-  return "Unknown error"
+  return "Unknown error";
 }
 
 function readErrorLog(): AgentErrorLogEntry[] {
-  if (!existsSync(ERROR_LOG_PATH)) return []
+  if (!existsSync(ERROR_LOG_PATH)) return [];
   try {
-    const parsed = JSON.parse(readFileSync(ERROR_LOG_PATH, "utf8"))
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((entry): entry is AgentErrorLogEntry => (
-      typeof entry?.date === "string" &&
-      typeof entry.agentId === "string" &&
-      typeof entry.error === "string" &&
-      typeof entry.taskExcerpt === "string"
-    ))
+    const parsed = JSON.parse(readFileSync(ERROR_LOG_PATH, "utf8"));
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is AgentErrorLogEntry =>
+        typeof entry?.date === "string" &&
+        typeof entry.agentId === "string" &&
+        typeof entry.error === "string" &&
+        typeof entry.taskExcerpt === "string",
+    );
   } catch {
-    return []
+    return [];
   }
 }
 
 function writeErrorLogAtomically(entries: AgentErrorLogEntry[]): void {
-  mkdirSync(dirname(ERROR_LOG_PATH), { recursive: true })
+  mkdirSync(dirname(ERROR_LOG_PATH), { recursive: true });
   try {
-    const tmpPath = `${ERROR_LOG_PATH}.${process.pid}.${Date.now()}.${randomBytes(8).toString("hex")}.tmp`
-    writeFileSync(tmpPath, `${JSON.stringify(entries, null, 2)}\n`, "utf8")
-    renameSync(tmpPath, ERROR_LOG_PATH)
+    const tmpPath = `${ERROR_LOG_PATH}.${process.pid}.${Date.now()}.${randomBytes(8).toString("hex")}.tmp`;
+    writeFileSync(tmpPath, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
+    renameSync(tmpPath, ERROR_LOG_PATH);
   } catch {
     try {
-      writeFileSync(ERROR_LOG_PATH, `${JSON.stringify(entries, null, 2)}\n`, "utf8")
+      writeFileSync(
+        ERROR_LOG_PATH,
+        `${JSON.stringify(entries, null, 2)}\n`,
+        "utf8",
+      );
     } catch {
       // ignore concurrent file lock errors in tests
     }
@@ -90,66 +115,109 @@ function writeErrorLogAtomically(entries: AgentErrorLogEntry[]): void {
 }
 
 function recentEntries(agentId: string, nowMs: number): AgentErrorLogEntry[] {
-  const cutoff = nowMs - DAY_MS
-  return readErrorLog().filter((entry) => entry.agentId === agentId && Date.parse(entry.date) >= cutoff)
+  const cutoff = nowMs - DAY_MS;
+  return readErrorLog().filter(
+    (entry) => entry.agentId === agentId && Date.parse(entry.date) >= cutoff,
+  );
 }
 
 export function recordAgentInvocation(agentId: string, now = new Date()): void {
-  const cleanId = normalizeAgentId(agentId)
-  const current = state.get(cleanId) ?? { lastSeen: null, degraded: false, consecutiveErrors: 0 }
-  state.set(cleanId, { ...current, lastSeen: now.toISOString() })
+  const cleanId = normalizeAgentId(agentId);
+  const current = state.get(cleanId) ?? {
+    lastSeen: null,
+    degraded: false,
+    consecutiveErrors: 0,
+  };
+  state.set(cleanId, { ...current, lastSeen: now.toISOString() });
 }
 
-export function recordAgentExecutionSuccess(agentId: string, now = new Date()): AgentHealthSummary {
-  const cleanId = normalizeAgentId(agentId)
-  const current = state.get(cleanId) ?? { lastSeen: null, degraded: false, consecutiveErrors: 0 }
-  state.set(cleanId, { ...current, lastSeen: now.toISOString(), consecutiveErrors: 0 })
-  return getAgentHealthSummary(cleanId, now.getTime())
+export function recordAgentExecutionSuccess(
+  agentId: string,
+  now = new Date(),
+): AgentHealthSummary {
+  const cleanId = normalizeAgentId(agentId);
+  const current = state.get(cleanId) ?? {
+    lastSeen: null,
+    degraded: false,
+    consecutiveErrors: 0,
+  };
+  state.set(cleanId, {
+    ...current,
+    lastSeen: now.toISOString(),
+    consecutiveErrors: 0,
+  });
+  return getAgentHealthSummary(cleanId, now.getTime());
 }
 
-export function recordAgentExecutionError(input: { agentId: string; error: unknown; taskExcerpt?: string; date?: Date }): AgentHealthSummary {
-  const cleanId = normalizeAgentId(input.agentId)
-  const date = input.date ?? new Date()
+export function recordAgentExecutionError(input: {
+  agentId: string;
+  error: unknown;
+  taskExcerpt?: string;
+  date?: Date;
+}): AgentHealthSummary {
+  const cleanId = normalizeAgentId(input.agentId);
+  const date = input.date ?? new Date();
   const entry: AgentErrorLogEntry = {
     date: date.toISOString(),
     agentId: cleanId,
     error: truncate(formatErrorMessage(input.error), 500),
     taskExcerpt: truncate(input.taskExcerpt ?? "", 240),
-  }
+  };
 
-  const entries = [...readErrorLog(), entry].slice(-MAX_ERROR_LOG_ENTRIES)
-  writeErrorLogAtomically(entries)
+  const entries = [...readErrorLog(), entry].slice(-MAX_ERROR_LOG_ENTRIES);
+  writeErrorLogAtomically(entries);
 
-  const current = state.get(cleanId) ?? { lastSeen: null, degraded: false, consecutiveErrors: 0 }
-  const consecutiveErrors = current.consecutiveErrors + 1
-  const degraded = current.degraded || consecutiveErrors >= 3
-  state.set(cleanId, { lastSeen: entry.date, degraded, consecutiveErrors })
+  const current = state.get(cleanId) ?? {
+    lastSeen: null,
+    degraded: false,
+    consecutiveErrors: 0,
+  };
+  const consecutiveErrors = current.consecutiveErrors + 1;
+  const degraded = current.degraded || consecutiveErrors >= 3;
+  state.set(cleanId, { lastSeen: entry.date, degraded, consecutiveErrors });
 
   if (!current.degraded && degraded) {
-    console.warn(`[agent-health] ${cleanId} marked degraded after 3 consecutive failed invocations`)
-    publishSystemEvent({ type: "agent.status", agentId: cleanId, status: "degraded", occurredAt: entry.date })
+    console.warn(
+      `[agent-health] ${cleanId} marked degraded after 3 consecutive failed invocations`,
+    );
+    publishSystemEvent({
+      type: "agent.status",
+      agentId: cleanId,
+      status: "degraded",
+      occurredAt: entry.date,
+    });
   }
 
-  return getAgentHealthSummary(cleanId, date.getTime())
+  return getAgentHealthSummary(cleanId, date.getTime());
 }
 
-export function getAgentErrorCount24h(agentId: string, nowMs = Date.now()): number {
-  return recentEntries(normalizeAgentId(agentId), nowMs).length
+export function getAgentErrorCount24h(
+  agentId: string,
+  nowMs = Date.now(),
+): number {
+  return recentEntries(normalizeAgentId(agentId), nowMs).length;
 }
 
-export function getAgentHealthSummary(agentId: string, nowMs = Date.now()): AgentHealthSummary {
-  const cleanId = normalizeAgentId(agentId)
-  const current = state.get(cleanId) ?? { lastSeen: null, degraded: false, consecutiveErrors: 0 }
+export function getAgentHealthSummary(
+  agentId: string,
+  nowMs = Date.now(),
+): AgentHealthSummary {
+  const cleanId = normalizeAgentId(agentId);
+  const current = state.get(cleanId) ?? {
+    lastSeen: null,
+    degraded: false,
+    consecutiveErrors: 0,
+  };
   return {
     agentId: cleanId,
     status: current.degraded ? "degraded" : "active",
     lastSeen: current.lastSeen,
     errorCount24h: getAgentErrorCount24h(cleanId, nowMs),
     degraded: current.degraded,
-  }
+  };
 }
 
 export function resetAgentErrorStoreForTests(): void {
-  state.clear()
-  writeErrorLogAtomically([])
+  state.clear();
+  writeErrorLogAtomically([]);
 }

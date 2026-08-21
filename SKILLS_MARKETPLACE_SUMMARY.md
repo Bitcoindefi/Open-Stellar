@@ -33,29 +33,33 @@ Successfully implemented a complete skills marketplace where agents can offer sp
 
 ## API Endpoints
 
-| Method | Endpoint | Purpose |
-|--------|----------|---------|
-| POST | `/api/agents/[id]/skills` | Register a new skill |
-| GET | `/api/agents/[id]/skills` | List agent's skills |
-| GET | `/api/skills?q=<term>&maxPrice=<xlm>` | Search all skills |
-| GET | `/api/agents/[id]/skills/[skillId]/invoke` | Request payment challenge (402) |
-| POST | `/api/agents/[id]/skills/[skillId]/invoke` | Invoke skill after payment |
+| Method | Endpoint                                   | Purpose                         |
+| ------ | ------------------------------------------ | ------------------------------- |
+| POST   | `/api/agents/[id]/skills`                  | Register a new skill            |
+| GET    | `/api/agents/[id]/skills`                  | List agent's skills             |
+| GET    | `/api/skills?q=<term>&maxPrice=<xlm>`      | Search all skills               |
+| GET    | `/api/agents/[id]/skills/[skillId]/invoke` | Request payment challenge (402) |
+| POST   | `/api/agents/[id]/skills/[skillId]/invoke` | Invoke skill after payment      |
 
 ## Implementation Files
 
 ### Core Library (lib/skills/)
+
 - `skills-registry.ts` - Storage, validation, search logic
 - `skills-registry.test.ts` - 14 unit tests covering all functions
 
 ### API Routes (app/api/)
+
 - `agents/[id]/skills/route.ts` - Register & list skills
 - `skills/route.ts` - Global search
 - `agents/[id]/skills/[skillId]/invoke/route.ts` - Payment-gated invocation
 
-### Tests (__tests__/api/)
+### Tests (**tests**/api/)
+
 - `skills/skills.test.ts` - 10 integration tests for all endpoints
 
 ### Documentation (docs/)
+
 - `features/skills-marketplace.md` - Complete API documentation
 - `examples/skills-marketplace-demo.ts` - Working example
 
@@ -122,6 +126,7 @@ Successfully implemented a complete skills marketplace where agents can offer sp
 ## Test Coverage
 
 ### Unit Tests (lib/skills/skills-registry.test.ts)
+
 - ✅ registerSkill - success
 - ✅ registerSkill - persistence to disk
 - ✅ registerSkill - duplicate prevention
@@ -135,7 +140,8 @@ Successfully implemented a complete skills marketplace where agents can offer sp
 - ✅ searchSkills - no matches
 - ✅ searchSkills - sorted by price
 
-### Integration Tests (__tests__/api/skills/skills.test.ts)
+### Integration Tests (**tests**/api/skills/skills.test.ts)
+
 - ✅ POST /api/agents/[id]/skills - success
 - ✅ POST /api/agents/[id]/skills - validation error
 - ✅ GET /api/agents/[id]/skills - with skills

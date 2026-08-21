@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   createApiKey,
   getAdminApiKey,
@@ -11,260 +11,277 @@ import {
   timingSafeEqual,
   verifyApiKey,
   checkTierRateLimit,
-} from '@/lib/auth/api-keys'
-import { evaluateAuth } from '@/lib/auth/middleware'
+} from "@/lib/auth/api-keys";
+import { evaluateAuth } from "@/lib/auth/middleware";
 
-describe('API Key Management & Authentication', () => {
-  const originalEnv = process.env
+describe("API Key Management & Authentication", () => {
+  const originalEnv = process.env;
 
   beforeEach(() => {
-    process.env = { ...originalEnv }
-    ;(process.env as any).NODE_ENV = 'test'
-    process.env.ADMIN_API_KEY = 'osk_admin_supersecret1234567890abcdef'
-    delete process.env.DEV_MODE
-    resetApiKeyStore()
-  })
+    process.env = { ...originalEnv };
+    (process.env as any).NODE_ENV = "test";
+    process.env.ADMIN_API_KEY = "osk_admin_supersecret1234567890abcdef";
+    delete process.env.DEV_MODE;
+    resetApiKeyStore();
+  });
 
   // 1. Sin clave da 401 sobre ruta admin
-  it('rejects unauthenticated requests to admin routes with 401', async () => {
-    const req = new Request('http://localhost:3000/admin', {
-      method: 'GET',
-    })
-    const result = await evaluateAuth(req)
+  it("rejects unauthenticated requests to admin routes with 401", async () => {
+    const req = new Request("http://localhost:3000/admin", {
+      method: "GET",
+    });
+    const result = await evaluateAuth(req);
 
-    expect(result.allowed).toBe(false)
-    expect(result.status).toBe(401)
-    expect(result.error).toMatch(/Unauthorized/i)
-  })
+    expect(result.allowed).toBe(false);
+    expect(result.status).toBe(401);
+    expect(result.error).toMatch(/Unauthorized/i);
+  });
 
-  it('rejects unauthenticated requests to /api/admin/* with 401', async () => {
-    const req = new Request('http://localhost:3000/api/admin/keys', {
-      method: 'GET',
-    })
-    const result = await evaluateAuth(req)
+  it("rejects unauthenticated requests to /api/admin/* with 401", async () => {
+    const req = new Request("http://localhost:3000/api/admin/keys", {
+      method: "GET",
+    });
+    const result = await evaluateAuth(req);
 
-    expect(result.allowed).toBe(false)
-    expect(result.status).toBe(401)
-  })
+    expect(result.allowed).toBe(false);
+    expect(result.status).toBe(401);
+  });
 
   // 2. Clave inválida da 401 en ruta protegida
-  it('rejects invalid API keys on protected routes with 401', async () => {
-    const req = new Request('http://localhost:3000/api/admin/keys', {
-      method: 'GET',
+  it("rejects invalid API keys on protected routes with 401", async () => {
+    const req = new Request("http://localhost:3000/api/admin/keys", {
+      method: "GET",
       headers: {
-        Authorization: 'Bearer osk_live_invalidkeythatdoesnotexist',
+        Authorization: "Bearer osk_live_invalidkeythatdoesnotexist",
       },
-    })
-    const result = await evaluateAuth(req)
+    });
+    const result = await evaluateAuth(req);
 
-    expect(result.allowed).toBe(false)
-    expect(result.status).toBe(401)
-    expect(result.error).toMatch(/Invalid or revoked API key/i)
-  })
+    expect(result.allowed).toBe(false);
+    expect(result.status).toBe(401);
+    expect(result.error).toMatch(/Invalid or revoked API key/i);
+  });
 
   // 3. Clave válida pasa
-  it('accepts valid admin API key via Bearer token', async () => {
-    const req = new Request('http://localhost:3000/api/admin/keys', {
-      method: 'GET',
+  it("accepts valid admin API key via Bearer token", async () => {
+    const req = new Request("http://localhost:3000/api/admin/keys", {
+      method: "GET",
       headers: {
         Authorization: `Bearer ${process.env.ADMIN_API_KEY}`,
       },
-    })
-    const result = await evaluateAuth(req)
+    });
+    const result = await evaluateAuth(req);
 
-    expect(result.allowed).toBe(true)
-    expect(result.status).toBe(200)
-    expect(result.isAdmin).toBe(true)
-  })
+    expect(result.allowed).toBe(true);
+    expect(result.status).toBe(200);
+    expect(result.isAdmin).toBe(true);
+  });
 
-  it('accepts valid admin API key via ?apiKey query param', async () => {
-    const req = new Request(`http://localhost:3000/api/admin/keys?apiKey=${process.env.ADMIN_API_KEY}`, {
-      method: 'GET',
-    })
-    const result = await evaluateAuth(req)
+  it("accepts valid admin API key via ?apiKey query param", async () => {
+    const req = new Request(
+      `http://localhost:3000/api/admin/keys?apiKey=${process.env.ADMIN_API_KEY}`,
+      {
+        method: "GET",
+      },
+    );
+    const result = await evaluateAuth(req);
 
-    expect(result.allowed).toBe(true)
-    expect(result.status).toBe(200)
-    expect(result.isAdmin).toBe(true)
-  })
+    expect(result.allowed).toBe(true);
+    expect(result.status).toBe(200);
+    expect(result.isAdmin).toBe(true);
+  });
 
   // 4. Una clave revocada deja de funcionar de inmediato
-  it('immediately invalidates revoked API keys', async () => {
+  it("immediately invalidates revoked API keys", async () => {
     const created = await createApiKey({
-      name: 'integration-test',
-      scopes: ['x402:quote', 'agents:read'],
-      tier: 'free',
-    })
+      name: "integration-test",
+      scopes: ["x402:quote", "agents:read"],
+      tier: "free",
+    });
 
     // Verify key works initially
-    const verifyBefore = await verifyApiKey(created.key)
-    expect(verifyBefore.valid).toBe(true)
+    const verifyBefore = await verifyApiKey(created.key);
+    expect(verifyBefore.valid).toBe(true);
 
     // Revoke the key
-    const revoked = await revokeApiKey(created.id)
-    expect(revoked).toBe(true)
+    const revoked = await revokeApiKey(created.id);
+    expect(revoked).toBe(true);
 
     // Verify key fails immediately
-    const verifyAfter = await verifyApiKey(created.key)
-    expect(verifyAfter.valid).toBe(false)
-    expect(verifyAfter.error).toBe('key_revoked')
+    const verifyAfter = await verifyApiKey(created.key);
+    expect(verifyAfter.valid).toBe(false);
+    expect(verifyAfter.error).toBe("key_revoked");
 
     // Middleware check with revoked key on protected write route returns 401
-    const req = new Request('http://localhost:3000/api/agents', {
-      method: 'POST',
+    const req = new Request("http://localhost:3000/api/agents", {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${created.key}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name: 'agent-x' }),
-    })
-    const result = await evaluateAuth(req)
-    expect(result.allowed).toBe(false)
-    expect(result.status).toBe(401)
-  })
+      body: JSON.stringify({ name: "agent-x" }),
+    });
+    const result = await evaluateAuth(req);
+    expect(result.allowed).toBe(false);
+    expect(result.status).toBe(401);
+  });
 
-  it('rejects rotation on an already revoked key to prevent resurrection', async () => {
+  it("rejects rotation on an already revoked key to prevent resurrection", async () => {
     const created = await createApiKey({
-      name: 'revoke-then-rotate',
-      scopes: ['x402:quote'],
-    })
+      name: "revoke-then-rotate",
+      scopes: ["x402:quote"],
+    });
 
-    await revokeApiKey(created.id)
-    await expect(rotateApiKey(created.id)).rejects.toThrow(/Cannot rotate a revoked API key/i)
-  })
+    await revokeApiKey(created.id);
+    await expect(rotateApiKey(created.id)).rejects.toThrow(
+      /Cannot rotate a revoked API key/i,
+    );
+  });
 
   // 5. El almacenamiento no contiene el secreto en claro (solo hash)
-  it('stores only the SHA-256 hashed secret in storage and never the plaintext key', async () => {
+  it("stores only the SHA-256 hashed secret in storage and never the plaintext key", async () => {
     const created = await createApiKey({
-      name: 'secure-vault-service',
-      scopes: ['x402:settle'],
-      tier: 'pro',
-    })
+      name: "secure-vault-service",
+      scopes: ["x402:settle"],
+      tier: "pro",
+    });
 
-    expect(created.key).toMatch(/^osk_live_[a-f0-9]{48}$/)
+    expect(created.key).toMatch(/^osk_live_[a-f0-9]{48}$/);
 
     // Direct store inspection
-    const storedRecord = getApiKeyRecord(created.id)
-    expect(storedRecord).toBeDefined()
-    expect(storedRecord?.hashedKey).toBe(await hashKey(created.key))
-    expect((storedRecord as any).key).toBeUndefined()
-    expect(JSON.stringify(storedRecord)).not.toContain(created.key)
+    const storedRecord = getApiKeyRecord(created.id);
+    expect(storedRecord).toBeDefined();
+    expect(storedRecord?.hashedKey).toBe(await hashKey(created.key));
+    expect((storedRecord as any).key).toBeUndefined();
+    expect(JSON.stringify(storedRecord)).not.toContain(created.key);
 
     // Sanitized listing inspection
-    const list = await listApiKeys()
-    const found = list.find((k) => k.id === created.id)
-    expect(found).toBeDefined()
-    expect(found?.keyPrefix).toBe(`${created.key.slice(0, 14)}...`)
-    expect((found as any).hashedKey).toBeUndefined()
-    expect(JSON.stringify(list)).not.toContain(created.key)
-  })
+    const list = await listApiKeys();
+    const found = list.find((k) => k.id === created.id);
+    expect(found).toBeDefined();
+    expect(found?.keyPrefix).toBe(`${created.key.slice(0, 14)}...`);
+    expect((found as any).hashedKey).toBeUndefined();
+    expect(JSON.stringify(list)).not.toContain(created.key);
+  });
 
   // 6. Rotación de clave invalida la anterior y devuelve nuevo secreto
-  it('rotates API keys by invalidating old hash and returning a new secret', async () => {
+  it("rotates API keys by invalidating old hash and returning a new secret", async () => {
     const created = await createApiKey({
-      name: 'rotating-client',
-      scopes: ['agents:read'],
-      tier: 'free',
-    })
+      name: "rotating-client",
+      scopes: ["agents:read"],
+      tier: "free",
+    });
 
-    const rotated = await rotateApiKey(created.id)
-    expect(rotated).toBeDefined()
-    expect(rotated?.key).not.toBe(created.key)
+    const rotated = await rotateApiKey(created.id);
+    expect(rotated).toBeDefined();
+    expect(rotated?.key).not.toBe(created.key);
 
     // Old secret fails
-    const verifyOld = await verifyApiKey(created.key)
-    expect(verifyOld.valid).toBe(false)
+    const verifyOld = await verifyApiKey(created.key);
+    expect(verifyOld.valid).toBe(false);
 
     // New secret succeeds
-    const verifyNew = await verifyApiKey(rotated!.key)
-    expect(verifyNew.valid).toBe(true)
-    expect(verifyNew.record?.id).toBe(created.id)
-  })
+    const verifyNew = await verifyApiKey(rotated!.key);
+    expect(verifyNew.valid).toBe(true);
+    expect(verifyNew.record?.id).toBe(created.id);
+  });
 
   // 7. Rate limiting per tier
-  it('enforces tier rate limits correctly', () => {
-    const windowMs = 60_000
+  it("enforces tier rate limits correctly", () => {
+    const windowMs = 60_000;
+
+    // No key (anonymous): limit 10
+    const noKeyId = "ip-1.2.3.4";
+    for (let i = 0; i < 10; i++) {
+      const res = checkTierRateLimit(noKeyId, "no_key", windowMs);
+      expect(res.allowed).toBe(true);
+    }
+    const noKeyExceeded = checkTierRateLimit(noKeyId, "no_key", windowMs);
+    expect(noKeyExceeded.allowed).toBe(false);
+    expect(noKeyExceeded.retryAfterSeconds).toBeGreaterThan(0);
 
     // Free tier: limit 60
-    const freeKeyId = 'key_free_123'
+    const freeKeyId = "key_free_123";
     for (let i = 0; i < 60; i++) {
-      const res = checkTierRateLimit(freeKeyId, 'free', windowMs)
-      expect(res.allowed).toBe(true)
+      const res = checkTierRateLimit(freeKeyId, "free", windowMs);
+      expect(res.allowed).toBe(true);
     }
-    const freeExceeded = checkTierRateLimit(freeKeyId, 'free', windowMs)
-    expect(freeExceeded.allowed).toBe(false)
+    const freeExceeded = checkTierRateLimit(freeKeyId, "free", windowMs);
+    expect(freeExceeded.allowed).toBe(false);
 
     // Admin: unlimited
-    const adminId = 'admin-user'
+    const adminId = "admin-user";
     for (let i = 0; i < 1000; i++) {
-      const res = checkTierRateLimit(adminId, 'admin', windowMs)
-      expect(res.allowed).toBe(true)
-      expect(res.limit).toBe('unlimited')
+      const res = checkTierRateLimit(adminId, "admin", windowMs);
+      expect(res.allowed).toBe(true);
+      expect(res.limit).toBe("unlimited");
     }
-  })
+  });
 
   // 8. Scoped access and permissions
-  it('enforces scoped permissions on agent write operations', async () => {
+  it("enforces scoped permissions on agent write operations", async () => {
     // Key without agents:write
     const readOnlyKey = await createApiKey({
-      name: 'read-only-integration',
-      scopes: ['agents:read', 'x402:quote'],
-    })
+      name: "read-only-integration",
+      scopes: ["agents:read", "x402:quote"],
+    });
 
-    const writeReq = new Request('http://localhost:3000/api/agents', {
-      method: 'POST',
+    const writeReq = new Request("http://localhost:3000/api/agents", {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${readOnlyKey.key}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name: 'agent-x' }),
-    })
+      body: JSON.stringify({ name: "agent-x" }),
+    });
 
-    const result = await evaluateAuth(writeReq)
-    expect(result.allowed).toBe(false)
-    expect(result.status).toBe(403)
-    expect(result.error).toMatch(/Missing required scope agents:write/i)
+    const result = await evaluateAuth(writeReq);
+    expect(result.allowed).toBe(false);
+    expect(result.status).toBe(403);
+    expect(result.error).toMatch(/Missing required scope agents:write/i);
 
     // Key with agents:write
     const writeKey = await createApiKey({
-      name: 'write-integration',
-      scopes: ['agents:write'],
-    })
+      name: "write-integration",
+      scopes: ["agents:write"],
+    });
 
-    const writeReq2 = new Request('http://localhost:3000/api/agents', {
-      method: 'POST',
+    const writeReq2 = new Request("http://localhost:3000/api/agents", {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${writeKey.key}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name: 'agent-x' }),
-    })
+      body: JSON.stringify({ name: "agent-x" }),
+    });
 
-    const result2 = await evaluateAuth(writeReq2)
-    expect(result2.allowed).toBe(true)
-    expect(result2.status).toBe(200)
-  })
+    const result2 = await evaluateAuth(writeReq2);
+    expect(result2.allowed).toBe(true);
+    expect(result2.status).toBe(200);
+  });
 
   // 9. Constant-time comparison & Unicode safety
-  it('uses constant time comparison for secrets and handles Unicode strings correctly', async () => {
-    const secret = 'osk_live_abcdef123456_🔑'
-    expect(timingSafeEqual(secret, secret)).toBe(true)
-    expect(timingSafeEqual(secret, 'osk_live_abcdef123457_🔑')).toBe(false)
-    expect(timingSafeEqual(secret, 'different_length')).toBe(false)
+  it("uses constant time comparison for secrets and handles Unicode strings correctly", async () => {
+    const secret = "osk_live_abcdef123456_🔑";
+    expect(timingSafeEqual(secret, secret)).toBe(true);
+    expect(timingSafeEqual(secret, "osk_live_abcdef123457_🔑")).toBe(false);
+    expect(timingSafeEqual(secret, "different_length")).toBe(false);
 
     // Non-ASCII hashing
-    const hash1 = await hashKey('super_secret_🔑')
-    const hash2 = await hashKey('super_secret_🔒')
-    expect(hash1).toHaveLength(64)
-    expect(hash1).not.toBe('')
-    expect(hash1).not.toBe(hash2)
-  })
+    const hash1 = await hashKey("super_secret_🔑");
+    const hash2 = await hashKey("super_secret_🔒");
+    expect(hash1).toHaveLength(64);
+    expect(hash1).not.toBe("");
+    expect(hash1).not.toBe(hash2);
+  });
 
   // 10. Missing ADMIN_API_KEY in production throws on boot
-  it('throws a fatal error in production mode when ADMIN_API_KEY is missing', () => {
-    ;(process.env as any).NODE_ENV = 'production'
-    delete process.env.ADMIN_API_KEY
+  it("throws a fatal error in production mode when ADMIN_API_KEY is missing", () => {
+    (process.env as any).NODE_ENV = "production";
+    delete process.env.ADMIN_API_KEY;
 
-    expect(() => getAdminApiKey(true)).toThrow(/FATAL: ADMIN_API_KEY environment variable is required in production/i)
-  })
-})
+    expect(() => getAdminApiKey(true)).toThrow(
+      /FATAL: ADMIN_API_KEY environment variable is required in production/i,
+    );
+  });
+});

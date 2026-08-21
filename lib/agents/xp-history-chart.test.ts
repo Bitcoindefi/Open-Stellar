@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest"
-import { buildSevenDayXpSnapshots, getLevelProgress } from "./xp-history-chart"
+import { describe, expect, it } from "vitest";
+import { buildSevenDayXpSnapshots, getLevelProgress } from "./xp-history-chart";
 
 describe("XP history chart helpers", () => {
   it("pads agents with fewer than seven days of history with zeros", () => {
@@ -9,9 +9,9 @@ describe("XP history chart helpers", () => {
         { type: "earned", delta: 10, timestamp: "2026-06-30T08:00:00.000Z" },
       ],
       new Date("2026-06-30T18:00:00.000Z"),
-    )
+    );
 
-    expect(snapshots).toHaveLength(7)
+    expect(snapshots).toHaveLength(7);
     expect(snapshots.map((point) => point.date)).toEqual([
       "2026-06-24",
       "2026-06-25",
@@ -20,9 +20,9 @@ describe("XP history chart helpers", () => {
       "2026-06-28",
       "2026-06-29",
       "2026-06-30",
-    ])
-    expect(snapshots.map((point) => point.xp)).toEqual([0, 0, 0, 0, 25, 0, 10])
-  })
+    ]);
+    expect(snapshots.map((point) => point.xp)).toEqual([0, 0, 0, 0, 25, 0, 10]);
+  });
 
   it("aggregates exactly seven daily earned XP data points", () => {
     const snapshots = buildSevenDayXpSnapshots(
@@ -37,13 +37,13 @@ describe("XP history chart helpers", () => {
         { type: "decayed", delta: -100, timestamp: "2026-06-30T01:00:00.000Z" },
       ],
       new Date("2026-06-30T18:00:00.000Z"),
-    )
+    );
 
-    expect(snapshots.map((point) => point.xp)).toEqual([1, 2, 3, 4, 5, 6, 7])
-  })
+    expect(snapshots.map((point) => point.xp)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
 
   it("calculates bounded level progress", () => {
-    expect(getLevelProgress(50, 1).progressPercent).toBe(50)
-    expect(getLevelProgress(999999, 1).progressPercent).toBe(100)
-  })
-})
+    expect(getLevelProgress(50, 1).progressPercent).toBe(50);
+    expect(getLevelProgress(999999, 1).progressPercent).toBe(100);
+  });
+});

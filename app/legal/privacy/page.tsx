@@ -1,8 +1,8 @@
-import { LegalPage } from "../legal-page"
+import { LegalPage } from "../legal-page";
 
 export const metadata = {
   title: "Privacy Policy | Open Stellar",
-}
+};
 
 export default function PrivacyPage() {
   return (
@@ -52,5 +52,5 @@ export default function PrivacyPage() {
         },
       ]}
     />
-  )
+  );
 }

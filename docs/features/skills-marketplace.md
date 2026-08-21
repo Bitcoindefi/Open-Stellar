@@ -27,6 +27,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -50,6 +51,7 @@ GET /api/agents/{agentId}/skills
 ```
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -75,10 +77,12 @@ GET /api/skills?q=payment&maxPrice=10
 ```
 
 **Query Parameters:**
+
 - `q` (optional): Search term (matches name, description, or skillId)
 - `maxPrice` (optional): Maximum price in XLM
 
 **Response:**
+
 ```json
 {
   "ok": true,
@@ -107,10 +111,12 @@ GET /api/agents/{agentId}/skills/{skillId}/invoke?payer={payerAddress}&chain=ste
 ```
 
 **Query Parameters:**
+
 - `payer` (optional): Payer address (default: "anonymous")
 - `chain` (optional): Payment chain - "stellar", "bnb", or "base" (default: "stellar")
 
 **Response (402 Payment Required):**
+
 ```json
 {
   "code": 402,
@@ -155,6 +161,7 @@ Content-Type: application/json
 ```
 
 **Response (Success):**
+
 ```json
 {
   "ok": true,
@@ -213,12 +220,14 @@ Skills are stored in `.data/skills/{agentId}.json`:
 When a skill is invoked, the agent's endpoint receives:
 
 **Headers:**
+
 - `Content-Type: application/json`
 - `X-Payment-Ref`: The payment reference
 - `X-Paid-By`: The payer's address
 - `X-Skill-Id`: The skill ID being invoked
 
 **Body:**
+
 ```json
 {
   "custom": "data",
@@ -232,67 +241,69 @@ When a skill is invoked, the agent's endpoint receives:
 
 ```typescript
 // Agent skill endpoint handler
-app.post('/skills/payment', async (req, res) => {
-  const paymentRef = req.headers['x-payment-ref']
-  const paidBy = req.headers['x-paid-by']
-  const skillId = req.headers['x-skill-id']
-  const payload = req.body
+app.post("/skills/payment", async (req, res) => {
+  const paymentRef = req.headers["x-payment-ref"];
+  const paidBy = req.headers["x-paid-by"];
+  const skillId = req.headers["x-skill-id"];
+  const payload = req.body;
 
   // Process the skill request
-  const result = await processPayment(payload)
+  const result = await processPayment(payload);
 
   res.json({
     success: true,
     data: result,
     processedBy: skillId,
-    paidBy: paidBy
-  })
-})
+    paidBy: paidBy,
+  });
+});
 ```
 
 ### Consumer Implementation
 
 ```typescript
 // 1. Search for payment processing skills
-const searchRes = await fetch('/api/skills?q=payment&maxPrice=10')
-const { skills } = await searchRes.json()
+const searchRes = await fetch("/api/skills?q=payment&maxPrice=10");
+const { skills } = await searchRes.json();
 
 // 2. Request payment challenge
 const challengeRes = await fetch(
-  `/api/agents/${skills[0].agentId}/skills/${skills[0].skillId}/invoke?payer=GXXX...&chain=stellar`
-)
-const quote = await challengeRes.json()
+  `/api/agents/${skills[0].agentId}/skills/${skills[0].skillId}/invoke?payer=GXXX...&chain=stellar`,
+);
+const quote = await challengeRes.json();
 
 // 3. Make payment (using Stellar SDK or similar)
-const txHash = await makePayment(quote.address, quote.amountUnits)
+const txHash = await makePayment(quote.address, quote.amountUnits);
 
 // 4. Invoke skill with proof
 const invokeRes = await fetch(
   `/api/agents/${skills[0].agentId}/skills/${skills[0].skillId}/invoke`,
   {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       paymentRef: quote.paymentRef,
       txHash: txHash,
-      chain: 'stellar',
-      paidBy: 'GXXX...',
-      payload: { amount: 100, currency: 'USD' }
-    })
-  }
-)
+      chain: "stellar",
+      paidBy: "GXXX...",
+      payload: { amount: 100, currency: "USD" },
+    }),
+  },
+);
 
-const result = await invokeRes.json()
-console.log('Skill result:', result)
+const result = await invokeRes.json();
+console.log("Skill result:", result);
 ```
 
 ## Testing
 
 Unit tests are located in:
+
 - `lib/skills/skills-registry.test.ts` - Registry logic tests
 - `__tests__/api/skills/skills.test.ts` - API integration tests
 
 Run tests:
+
 ```bash
 npm test -- skills
 ```

@@ -12,10 +12,18 @@ declare module "snarkjs" {
       wasm: string | Uint8Array,
       zkey: string | Uint8Array,
     ): Promise<{ proof: Groth16Proof; publicSignals: string[] }>;
-    verify(vk: object, publicSignals: string[], proof: Groth16Proof): Promise<boolean>;
+    verify(
+      vk: object,
+      publicSignals: string[],
+      proof: Groth16Proof,
+    ): Promise<boolean>;
   };
   export const wtns: {
-    calculate(input: object, wasm: string | Uint8Array, output: object): Promise<void>;
+    calculate(
+      input: object,
+      wasm: string | Uint8Array,
+      output: object,
+    ): Promise<void>;
     exportJson(wtns: object): Promise<bigint[]>;
   };
 }

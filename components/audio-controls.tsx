@@ -1,85 +1,93 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useState } from "react"
-import { Volume2, VolumeX } from "lucide-react"
-import { Slider } from "@/components/ui/slider"
-import type { CityAudioEngine } from "@/lib/audio/city-audio"
+import { useCallback, useEffect, useState } from "react";
+import { Volume2, VolumeX } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import type { CityAudioEngine } from "@/lib/audio/city-audio";
 
-const VOLUME_KEY = "city-volume"
-const MUTED_KEY = "city-muted"
-const DEFAULT_VOLUME = 0.7
+const VOLUME_KEY = "city-volume";
+const MUTED_KEY = "city-muted";
+const DEFAULT_VOLUME = 0.7;
 
 interface AudioControlsProps {
-  engine: CityAudioEngine
+  engine: CityAudioEngine;
 }
 
 function readStoredVolume(): number {
-  if (typeof window === "undefined") return DEFAULT_VOLUME
-  const stored = window.localStorage.getItem(VOLUME_KEY)
-  const parsed = stored !== null ? Number.parseFloat(stored) : NaN
-  return Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : DEFAULT_VOLUME
+  if (typeof window === "undefined") return DEFAULT_VOLUME;
+  const stored = window.localStorage.getItem(VOLUME_KEY);
+  const parsed = stored !== null ? Number.parseFloat(stored) : NaN;
+  return Number.isFinite(parsed)
+    ? Math.max(0, Math.min(1, parsed))
+    : DEFAULT_VOLUME;
 }
 
 function readStoredMuted(): boolean {
-  if (typeof window === "undefined") return false
-  return window.localStorage.getItem(MUTED_KEY) === "true"
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(MUTED_KEY) === "true";
 }
 
 export function AudioControls({ engine }: AudioControlsProps) {
-  const [volume, setVolume] = useState(DEFAULT_VOLUME)
-  const [muted, setMuted] = useState(false)
-  const [hovered, setHovered] = useState(false)
+  const [volume, setVolume] = useState(DEFAULT_VOLUME);
+  const [muted, setMuted] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   // Apply persisted preferences to the engine once on mount.
   useEffect(() => {
-    const initialVolume = readStoredVolume()
-    const initialMuted = readStoredMuted()
-    setVolume(initialVolume)
-    setMuted(initialMuted)
-    engine.setVolume(initialVolume)
-    engine.setMuted(initialMuted)
-  }, [engine])
+    const initialVolume = readStoredVolume();
+    const initialMuted = readStoredMuted();
+    setVolume(initialVolume);
+    setMuted(initialMuted);
+    engine.setVolume(initialVolume);
+    engine.setMuted(initialMuted);
+  }, [engine]);
 
   // Unlock the AudioContext on the first user gesture anywhere on the page.
   useEffect(() => {
-    const unlock = () => engine.init()
-    window.addEventListener("pointerdown", unlock, { once: true })
-    window.addEventListener("keydown", unlock, { once: true })
+    const unlock = () => engine.init();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
     return () => {
-      window.removeEventListener("pointerdown", unlock)
-      window.removeEventListener("keydown", unlock)
-    }
-  }, [engine])
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, [engine]);
 
   const toggleMuted = useCallback(() => {
     setMuted((prev) => {
-      const next = !prev
-      engine.setMuted(next)
-      window.localStorage.setItem(MUTED_KEY, String(next))
-      return next
-    })
-  }, [engine])
+      const next = !prev;
+      engine.setMuted(next);
+      window.localStorage.setItem(MUTED_KEY, String(next));
+      return next;
+    });
+  }, [engine]);
 
   // "S" toggles mute, ignored while typing in a text field.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== "s") return
-      const target = e.target as HTMLElement | null
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return
-      toggleMuted()
-    }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [toggleMuted])
+      if (e.key.toLowerCase() !== "s") return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      )
+        return;
+      toggleMuted();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleMuted]);
 
   const handleVolumeChange = useCallback(
     ([next]: number[]) => {
-      setVolume(next)
-      engine.setVolume(next)
-      window.localStorage.setItem(VOLUME_KEY, String(next))
+      setVolume(next);
+      engine.setVolume(next);
+      window.localStorage.setItem(VOLUME_KEY, String(next));
     },
     [engine],
-  )
+  );
 
   return (
     <div
@@ -144,5 +152,5 @@ export function AudioControls({ engine }: AudioControlsProps) {
         />
       </div>
     </div>
-  )
+  );
 }

@@ -8,14 +8,14 @@ hidden cap.
 
 ## What was added
 
-| Path | Purpose |
-|---|---|
-| `lib/passport/passport.ts` | Full pipeline: client-side `mintPassport` (Groth16 via snarkjs/WASM), `verifyOnChain`, `getPassport`, `authorizePayment`, `replaySpentProof`. snarkjs is lazy-imported so it never enters a server bundle. |
-| `lib/passport/validator-client.ts` | Soroban contract bindings for `AgentPassportValidator` (generated for stellar-sdk v16). |
-| `public/zk/*` | Circuit + proving artifacts (`agent_passport.wasm`, `agent_passport_final.zkey`, `verification_key.json`, witness wasm, and the demo spent-proof). |
-| `components/admin/passport-panel.tsx` | The admin **Agent Passport** tab UI: mint → verify on-chain → authorize x402 payment → replay-attack demo. |
-| `app/api/protocol/passport/authorize/route.ts` | `POST { agentId, amount }` → on-chain spend-cap gate. |
-| `app/api/protocol/passport/status/route.ts` | `GET ?agentId` → on-chain passport lookup. |
+| Path                                           | Purpose                                                                                                                                                                                                    |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/passport/passport.ts`                     | Full pipeline: client-side `mintPassport` (Groth16 via snarkjs/WASM), `verifyOnChain`, `getPassport`, `authorizePayment`, `replaySpentProof`. snarkjs is lazy-imported so it never enters a server bundle. |
+| `lib/passport/validator-client.ts`             | Soroban contract bindings for `AgentPassportValidator` (generated for stellar-sdk v16).                                                                                                                    |
+| `public/zk/*`                                  | Circuit + proving artifacts (`agent_passport.wasm`, `agent_passport_final.zkey`, `verification_key.json`, witness wasm, and the demo spent-proof).                                                         |
+| `components/admin/passport-panel.tsx`          | The admin **Agent Passport** tab UI: mint → verify on-chain → authorize x402 payment → replay-attack demo.                                                                                                 |
+| `app/api/protocol/passport/authorize/route.ts` | `POST { agentId, amount }` → on-chain spend-cap gate.                                                                                                                                                      |
+| `app/api/protocol/passport/status/route.ts`    | `GET ?agentId` → on-chain passport lookup.                                                                                                                                                                 |
 
 ## How it plugs into x402
 

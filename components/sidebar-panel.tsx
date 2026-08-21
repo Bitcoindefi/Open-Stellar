@@ -1,30 +1,54 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
-import { Bell, CheckCheck, Copy, Download, Share2 } from "lucide-react"
-import { toast } from "sonner"
-import type { AgentAppearance, MoltbotAgent, LogEntry, ChatMessage, WalletTransaction } from "@/lib/types"
-import { DISTRICTS } from "@/lib/data"
-import { formatAgentShareText, getAgentOgPath, getAgentProfilePath, slugifyAgent } from "@/lib/og-card-data"
-import { ChatPanel } from "./chat-panel"
-import { SkillsPanel } from "./skills-panel"
-import { WalletPanel } from "./wallet-panel"
-import { AppearancePanel } from "./appearance-panel"
-import { QuestsPanel } from "./quests-panel"
-import { MOCK_OFFERS, TaskBoard, getTaskOfferCounts } from "./task-board"
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from "react";
+import { Bell, CheckCheck, Copy, Download, Share2 } from "lucide-react";
+import { toast } from "sonner";
+import type {
+  AgentAppearance,
+  MoltbotAgent,
+  LogEntry,
+  ChatMessage,
+  WalletTransaction,
+} from "@/lib/types";
+import { DISTRICTS } from "@/lib/data";
+import {
+  formatAgentShareText,
+  getAgentOgPath,
+  getAgentProfilePath,
+  slugifyAgent,
+} from "@/lib/og-card-data";
+import { ChatPanel } from "./chat-panel";
+import { SkillsPanel } from "./skills-panel";
+import { WalletPanel } from "./wallet-panel";
+import { AppearancePanel } from "./appearance-panel";
+import { QuestsPanel } from "./quests-panel";
+import { MOCK_OFFERS, TaskBoard, getTaskOfferCounts } from "./task-board";
 
-export type SidebarTabId = "overview" | "chat" | "offers" | "skills" | "quests" | "wallet" | "appearance"
+export type SidebarTabId =
+  | "overview"
+  | "chat"
+  | "offers"
+  | "skills"
+  | "quests"
+  | "wallet"
+  | "appearance";
 
 interface NotificationItem {
-  id: string
-  cursor: string
-  agentId: string
-  type: "agent_offline" | "quest_completed" | "reputation_updated"
-  title: string
-  body: string
-  resourceHref: string
-  resourceLabel: string
-  createdAt: string
+  id: string;
+  cursor: string;
+  agentId: string;
+  type: "agent_offline" | "quest_completed" | "reputation_updated";
+  title: string;
+  body: string;
+  resourceHref: string;
+  resourceLabel: string;
+  createdAt: string;
 }
 
 export const SIDEBAR_TABS: { id: SidebarTabId; label: string }[] = [
@@ -35,59 +59,114 @@ export const SIDEBAR_TABS: { id: SidebarTabId; label: string }[] = [
   { id: "quests", label: "Quests" },
   { id: "wallet", label: "Wallet" },
   { id: "appearance", label: "Appearance" },
-]
+];
 
 interface SidebarPanelProps {
-  agents: MoltbotAgent[]
-  selectedAgent: MoltbotAgent | null
-  logs: LogEntry[]
-  chatMessages: ChatMessage[]
-  transactions: WalletTransaction[]
-  onSelectAgent: (id: string | null) => void
-  onUpdateAgent: (agentId: string, wallet: MoltbotAgent["wallet"]) => void
-  onAddTransaction: (tx: WalletTransaction) => void
-  onUpgradeSkill: (agentId: string, skillId: string) => void
-  onUpdateAgentAppearance: (agentId: string, appearance: AgentAppearance) => void
-  colorBlindMode: boolean
-  onColorBlindModeChange: (enabled: boolean) => void
-  activeTab?: SidebarTabId
-  onActiveTabChange?: (tab: SidebarTabId) => void
-  variant?: "desktop" | "mobile"
-  showTabBar?: boolean
+  agents: MoltbotAgent[];
+  selectedAgent: MoltbotAgent | null;
+  logs: LogEntry[];
+  chatMessages: ChatMessage[];
+  transactions: WalletTransaction[];
+  onSelectAgent: (id: string | null) => void;
+  onUpdateAgent: (agentId: string, wallet: MoltbotAgent["wallet"]) => void;
+  onAddTransaction: (tx: WalletTransaction) => void;
+  onUpgradeSkill: (agentId: string, skillId: string) => void;
+  onUpdateAgentAppearance: (
+    agentId: string,
+    appearance: AgentAppearance,
+  ) => void;
+  colorBlindMode: boolean;
+  onColorBlindModeChange: (enabled: boolean) => void;
+  activeTab?: SidebarTabId;
+  onActiveTabChange?: (tab: SidebarTabId) => void;
+  variant?: "desktop" | "mobile";
+  showTabBar?: boolean;
 }
 
-function StatBox({ label, value, color }: { label: string; value: string | number; color: string }) {
+function StatBox({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string | number;
+  color: string;
+}) {
   return (
-    <div style={{
-      background: "#1a2235",
-      borderRadius: 6,
-      padding: "8px 10px",
-      borderLeft: `3px solid ${color}`,
-    }}>
-      <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>{label}</div>
-      <div suppressHydrationWarning style={{ fontSize: 18, fontWeight: 700, color, fontFamily: "monospace" }}>{value}</div>
+    <div
+      style={{
+        background: "#1a2235",
+        borderRadius: 6,
+        padding: "8px 10px",
+        borderLeft: `3px solid ${color}`,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          color: "#64748b",
+          textTransform: "uppercase",
+          letterSpacing: 1,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        suppressHydrationWarning
+        style={{
+          fontSize: 18,
+          fontWeight: 700,
+          color,
+          fontFamily: "monospace",
+        }}
+      >
+        {value}
+      </div>
     </div>
-  )
+  );
 }
 
 function getReputationTier(score: number) {
-  if (score >= 1000) return "Platinum"
-  if (score >= 500) return "Gold"
-  if (score >= 200) return "Silver"
-  if (score >= 50) return "Bronze"
-  return "Unrated"
+  if (score >= 1000) return "Platinum";
+  if (score >= 500) return "Gold";
+  if (score >= 200) return "Silver";
+  if (score >= 50) return "Bronze";
+  return "Unrated";
 }
 
 function tierColor(tier: string) {
-  return { Platinum: "#e0e7ff", Gold: "#fbbf24", Silver: "#cbd5e1", Bronze: "#d97706", Unrated: "#64748b" }[tier] ?? "#64748b"
+  return (
+    {
+      Platinum: "#e0e7ff",
+      Gold: "#fbbf24",
+      Silver: "#cbd5e1",
+      Bronze: "#d97706",
+      Unrated: "#64748b",
+    }[tier] ?? "#64748b"
+  );
 }
 
 function ProgressBar({ value, color }: { value: number; color: string }) {
   return (
-    <div style={{ background: "#0a0e17", borderRadius: 4, height: 8, overflow: "hidden" }}>
-      <div style={{ width: `${value}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.3s" }} />
+    <div
+      style={{
+        background: "#0a0e17",
+        borderRadius: 4,
+        height: 8,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          width: `${value}%`,
+          height: "100%",
+          background: color,
+          borderRadius: 4,
+          transition: "width 0.3s",
+        }}
+      />
     </div>
-  )
+  );
 }
 
 const statusSymbols: Record<string, string> = {
@@ -96,7 +175,7 @@ const statusSymbols: Record<string, string> = {
   idle: "o",
   error: "x",
   offline: "-",
-}
+};
 
 function ShareActionButton({
   label,
@@ -105,11 +184,11 @@ function ShareActionButton({
   icon,
   onClick,
 }: {
-  label: string
-  title: string
-  color: string
-  icon: ReactNode
-  onClick: () => void
+  label: string;
+  title: string;
+  color: string;
+  icon: ReactNode;
+  onClick: () => void;
 }) {
   return (
     <button
@@ -138,59 +217,80 @@ function ShareActionButton({
       }}
     >
       {icon}
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+      <span
+        style={{
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </span>
     </button>
-  )
+  );
 }
 
 function AgentShareControls({ agent }: { agent: MoltbotAgent }) {
   const getAbsoluteUrl = (path: string) => {
-    if (typeof window === "undefined") return path
-    return new URL(path, window.location.origin).toString()
-  }
+    if (typeof window === "undefined") return path;
+    return new URL(path, window.location.origin).toString();
+  };
 
-  const profileUrl = getAbsoluteUrl(getAgentProfilePath(agent))
-  const imageUrl = getAbsoluteUrl(getAgentOgPath(agent))
+  const profileUrl = getAbsoluteUrl(getAgentProfilePath(agent));
+  const imageUrl = getAbsoluteUrl(getAgentOgPath(agent));
 
   const handleShareX = () => {
     const params = new URLSearchParams({
       text: formatAgentShareText(agent),
       url: profileUrl,
-    })
-    window.open(`https://twitter.com/intent/tweet?${params.toString()}`, "_blank", "noopener,noreferrer")
-  }
+    });
+    window.open(
+      `https://twitter.com/intent/tweet?${params.toString()}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
 
   const handleCopyImage = async () => {
     try {
-      await navigator.clipboard.writeText(imageUrl)
-      toast.success("Image URL copied")
+      await navigator.clipboard.writeText(imageUrl);
+      toast.success("Image URL copied");
     } catch {
-      toast.error("Could not copy image URL")
+      toast.error("Could not copy image URL");
     }
-  }
+  };
 
   const handleDownload = async () => {
     try {
-      const response = await fetch(imageUrl)
-      if (!response.ok) throw new Error("image fetch failed")
-      const blob = await response.blob()
-      const objectUrl = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = objectUrl
-      link.download = `open-stellar-${slugifyAgent(agent)}.png`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(objectUrl)
-      toast.success("OG card downloaded")
+      const response = await fetch(imageUrl);
+      if (!response.ok) throw new Error("image fetch failed");
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `open-stellar-${slugifyAgent(agent)}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+      toast.success("OG card downloaded");
     } catch {
-      toast.error("Could not download OG card")
+      toast.error("Could not download OG card");
     }
-  }
+  };
 
   return (
     <div style={{ marginTop: 10 }}>
-      <div style={{ fontSize: 10, color: "#64748b", marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>
+      <div
+        style={{
+          fontSize: 10,
+          color: "#64748b",
+          marginBottom: 6,
+          textTransform: "uppercase",
+          letterSpacing: 1,
+        }}
+      >
         Share Card
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}>
@@ -217,73 +317,84 @@ function AgentShareControls({ agent }: { agent: MoltbotAgent }) {
         />
       </div>
     </div>
-  )
+  );
 }
 
 function formatNotificationType(type: NotificationItem["type"]): string {
-  if (type === "agent_offline") return "Offline"
-  if (type === "quest_completed") return "Quest"
-  return "Rep"
+  if (type === "agent_offline") return "Offline";
+  if (type === "quest_completed") return "Quest";
+  return "Rep";
 }
 
 function NotificationBell({ agentId }: { agentId: string | null }) {
-  const [open, setOpen] = useState(false)
-  const [notifications, setNotifications] = useState<NotificationItem[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const loadNotifications = useCallback(async () => {
     if (!agentId) {
-      setNotifications([])
-      setUnreadCount(0)
-      return
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
     }
 
     try {
-      const response = await fetch(`/api/notifications?agentId=${encodeURIComponent(agentId)}&limit=10`, { cache: "no-store" })
-      if (!response.ok) throw new Error("Notification API unavailable")
-      const data = await response.json()
-      setNotifications(Array.isArray(data.notifications) ? data.notifications : [])
-      setUnreadCount(typeof data.unreadCount === "number" ? data.unreadCount : 0)
+      const response = await fetch(
+        `/api/notifications?agentId=${encodeURIComponent(agentId)}&limit=10`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) throw new Error("Notification API unavailable");
+      const data = await response.json();
+      setNotifications(
+        Array.isArray(data.notifications) ? data.notifications : [],
+      );
+      setUnreadCount(
+        typeof data.unreadCount === "number" ? data.unreadCount : 0,
+      );
     } catch {
-      setNotifications([])
-      setUnreadCount(0)
+      setNotifications([]);
+      setUnreadCount(0);
     }
-  }, [agentId])
+  }, [agentId]);
 
   useEffect(() => {
-    loadNotifications()
-    const timer = window.setInterval(loadNotifications, 15_000)
-    return () => window.clearInterval(timer)
-  }, [loadNotifications])
+    loadNotifications();
+    const timer = window.setInterval(loadNotifications, 15_000);
+    return () => window.clearInterval(timer);
+  }, [loadNotifications]);
 
   const markAllRead = async () => {
-    if (!agentId) return
+    if (!agentId) return;
 
     const response = await fetch("/api/notifications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ agentId }),
-    })
+    });
     if (!response.ok) {
-      toast.error("Could not mark notifications read")
-      return
+      toast.error("Could not mark notifications read");
+      return;
     }
 
-    setUnreadCount(0)
-    setNotifications([])
-  }
+    setUnreadCount(0);
+    setNotifications([]);
+  };
 
   return (
     <div style={{ position: "relative", flexShrink: 0 }}>
       <button
         type="button"
         onClick={() => {
-          setOpen((value) => !value)
-          loadNotifications()
+          setOpen((value) => !value);
+          loadNotifications();
         }}
         disabled={!agentId}
         title={agentId ? "Notifications" : "Select an agent for notifications"}
-        aria-label={unreadCount > 0 ? `${unreadCount} unread notifications` : "Notifications"}
+        aria-label={
+          unreadCount > 0
+            ? `${unreadCount} unread notifications`
+            : "Notifications"
+        }
         style={{
           position: "relative",
           width: 34,
@@ -343,8 +454,26 @@ function NotificationBell({ agentId }: { agentId: string | null }) {
             boxShadow: "0 16px 40px rgba(2, 6, 23, 0.45)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: 10, borderBottom: "1px solid #263449" }}>
-            <div style={{ color: "#e2e8f0", fontSize: 11, fontFamily: "monospace", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.7 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              padding: 10,
+              borderBottom: "1px solid #263449",
+            }}
+          >
+            <div
+              style={{
+                color: "#e2e8f0",
+                fontSize: 11,
+                fontFamily: "monospace",
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: 0.7,
+              }}
+            >
               Notifications
             </div>
             <button
@@ -370,9 +499,23 @@ function NotificationBell({ agentId }: { agentId: string | null }) {
             </button>
           </div>
 
-          <div style={{ maxHeight: 306, overflow: "auto", padding: notifications.length > 0 ? 6 : 10 }}>
+          <div
+            style={{
+              maxHeight: 306,
+              overflow: "auto",
+              padding: notifications.length > 0 ? 6 : 10,
+            }}
+          >
             {notifications.length === 0 ? (
-              <div style={{ color: "#64748b", fontSize: 11, fontFamily: "monospace" }}>No unread alerts</div>
+              <div
+                style={{
+                  color: "#64748b",
+                  fontSize: 11,
+                  fontFamily: "monospace",
+                }}
+              >
+                No unread alerts
+              </div>
             ) : (
               notifications.map((notification) => (
                 <a
@@ -387,21 +530,63 @@ function NotificationBell({ agentId }: { agentId: string | null }) {
                     border: "1px solid transparent",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
-                    <span style={{ color: "#22d3ee", fontSize: 9, fontFamily: "monospace", fontWeight: 800, textTransform: "uppercase" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginBottom: 3,
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "#22d3ee",
+                        fontSize: 9,
+                        fontFamily: "monospace",
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                      }}
+                    >
                       {formatNotificationType(notification.type)}
                     </span>
-                    <span style={{ color: "#475569", fontSize: 9, fontFamily: "monospace" }}>
-                      {new Date(notification.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    <span
+                      style={{
+                        color: "#475569",
+                        fontSize: 9,
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {new Date(notification.createdAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </span>
                   </div>
-                  <div style={{ color: "#e2e8f0", fontSize: 12, fontFamily: "monospace", fontWeight: 700, marginBottom: 2 }}>
+                  <div
+                    style={{
+                      color: "#e2e8f0",
+                      fontSize: 12,
+                      fontFamily: "monospace",
+                      fontWeight: 700,
+                      marginBottom: 2,
+                    }}
+                  >
                     {notification.title}
                   </div>
-                  <div style={{ color: "#94a3b8", fontSize: 10, lineHeight: 1.35 }}>
+                  <div
+                    style={{ color: "#94a3b8", fontSize: 10, lineHeight: 1.35 }}
+                  >
                     {notification.body}
                   </div>
-                  <div style={{ color: "#64748b", fontSize: 9, fontFamily: "monospace", marginTop: 4 }}>
+                  <div
+                    style={{
+                      color: "#64748b",
+                      fontSize: 9,
+                      fontFamily: "monospace",
+                      marginTop: 4,
+                    }}
+                  >
                     {notification.resourceLabel}
                   </div>
                 </a>
@@ -411,7 +596,7 @@ function NotificationBell({ agentId }: { agentId: string | null }) {
         </div>
       )}
     </div>
-  )
+  );
 }
 
 function AgentRow({
@@ -420,14 +605,18 @@ function AgentRow({
   colorBlindMode,
   onClick,
 }: {
-  agent: MoltbotAgent
-  isSelected: boolean
-  colorBlindMode?: boolean
-  onClick: () => void
+  agent: MoltbotAgent;
+  isSelected: boolean;
+  colorBlindMode?: boolean;
+  onClick: () => void;
 }) {
   const statusColors: Record<string, string> = {
-    active: "#34d399", working: "#fbbf24", idle: "#64748b", error: "#f87171", offline: "#1e293b",
-  }
+    active: "#34d399",
+    working: "#fbbf24",
+    idle: "#64748b",
+    error: "#f87171",
+    offline: "#1e293b",
+  };
   return (
     <button
       onClick={onClick}
@@ -465,22 +654,55 @@ function AgentRow({
           fontWeight: 700,
         }}
       >
-        {colorBlindMode ? statusSymbols[agent.status] ?? "•" : ""}
+        {colorBlindMode ? (statusSymbols[agent.status] ?? "•") : ""}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, fontFamily: "monospace", color: agent.color }}>{agent.name}</span>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              fontFamily: "monospace",
+              color: agent.color,
+            }}
+          >
+            {agent.name}
+          </span>
           {agent.deployment === "cloud" ? (
-            <span style={{ border: "1px solid #38bdf855", borderRadius: 999, padding: "1px 5px", fontSize: 9, color: "#7dd3fc", fontFamily: "monospace" }}>cloud</span>
+            <span
+              style={{
+                border: "1px solid #38bdf855",
+                borderRadius: 999,
+                padding: "1px 5px",
+                fontSize: 9,
+                color: "#7dd3fc",
+                fontFamily: "monospace",
+              }}
+            >
+              cloud
+            </span>
           ) : null}
         </div>
-        <div style={{ fontSize: 10, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <div
+          style={{
+            fontSize: 10,
+            color: "#64748b",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
           {agent.currentTask || agent.status}
         </div>
       </div>
-      <div suppressHydrationWarning style={{ fontSize: 10, color: "#64748b", fontFamily: "monospace" }}>{agent.cpu}%</div>
+      <div
+        suppressHydrationWarning
+        style={{ fontSize: 10, color: "#64748b", fontFamily: "monospace" }}
+      >
+        {agent.cpu}%
+      </div>
     </button>
-  )
+  );
 }
 
 function OverviewTab({
@@ -491,79 +713,133 @@ function OverviewTab({
   colorBlindMode,
   onColorBlindModeChange,
 }: {
-  agents: MoltbotAgent[]
-  selectedAgent: MoltbotAgent | null
-  logs: LogEntry[]
-  onSelectAgent: (id: string | null) => void
-  colorBlindMode: boolean
-  onColorBlindModeChange: (enabled: boolean) => void
+  agents: MoltbotAgent[];
+  selectedAgent: MoltbotAgent | null;
+  logs: LogEntry[];
+  onSelectAgent: (id: string | null) => void;
+  colorBlindMode: boolean;
+  onColorBlindModeChange: (enabled: boolean) => void;
 }) {
-  const [logExpanded, setLogExpanded] = useState(false)
+  const [logExpanded, setLogExpanded] = useState(false);
 
-  const active = agents.filter(a => a.status === "active" || a.status === "working").length
-  const working = agents.filter(a => a.status === "working").length
-  const errors = agents.filter(a => a.status === "error").length
-  const totalTasks = agents.reduce((s, a) => s + a.tasksCompleted, 0)
-  const offerCounts = selectedAgent ? getTaskOfferCounts(selectedAgent.id, MOCK_OFFERS) : null
-  const [reputation, setReputation] = useState<{ score: number; tier: string } | null>(null)
-  const [attestation, setAttestation] = useState<{ hash: string; stellarExpertUrl: string } | null>(null)
-  const [mintingAttestation, setMintingAttestation] = useState(false)
-  const selectedAgentId = selectedAgent?.id ?? null
+  const active = agents.filter(
+    (a) => a.status === "active" || a.status === "working",
+  ).length;
+  const working = agents.filter((a) => a.status === "working").length;
+  const errors = agents.filter((a) => a.status === "error").length;
+  const totalTasks = agents.reduce((s, a) => s + a.tasksCompleted, 0);
+  const offerCounts = selectedAgent
+    ? getTaskOfferCounts(selectedAgent.id, MOCK_OFFERS)
+    : null;
+  const [reputation, setReputation] = useState<{
+    score: number;
+    tier: string;
+  } | null>(null);
+  const [attestation, setAttestation] = useState<{
+    hash: string;
+    stellarExpertUrl: string;
+  } | null>(null);
+  const [mintingAttestation, setMintingAttestation] = useState(false);
+  const selectedAgentId = selectedAgent?.id ?? null;
 
   useEffect(() => {
     if (!selectedAgentId) {
-      setReputation(null)
-      setAttestation(null)
-      return
+      setReputation(null);
+      setAttestation(null);
+      return;
     }
 
-    let cancelled = false
-    fetch(`/api/protocol/reputation?actorId=${encodeURIComponent(selectedAgentId)}`)
+    let cancelled = false;
+    fetch(
+      `/api/protocol/reputation?actorId=${encodeURIComponent(selectedAgentId)}`,
+    )
       .then((res) => res.json())
       .then((data) => {
-        if (cancelled) return
-        const score = typeof data?.reputation?.score === "number" ? data.reputation.score : 0
-        setReputation({ score, tier: String(data?.reputation?.tier || getReputationTier(score)) })
+        if (cancelled) return;
+        const score =
+          typeof data?.reputation?.score === "number"
+            ? data.reputation.score
+            : 0;
+        setReputation({
+          score,
+          tier: String(data?.reputation?.tier || getReputationTier(score)),
+        });
       })
       .catch(() => {
-        if (!cancelled) setReputation(null)
-      })
-    return () => { cancelled = true }
-  }, [selectedAgentId])
+        if (!cancelled) setReputation(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAgentId]);
 
   const mintReputationAttestation = useCallback(async () => {
-    if (!selectedAgentId) return
-    setMintingAttestation(true)
+    if (!selectedAgentId) return;
+    setMintingAttestation(true);
     try {
-      const res = await fetch('/api/protocol/reputation/attestation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/protocol/reputation/attestation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ actorId: selectedAgentId }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Mint failed')
-      setReputation({ score: data.reputation.score, tier: data.reputation.tier })
-      setAttestation(data.attestation)
-      toast.success('Reputation attestation minted', { description: data.attestation.hash.slice(0, 18) + '…' })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Mint failed");
+      setReputation({
+        score: data.reputation.score,
+        tier: data.reputation.tier,
+      });
+      setAttestation(data.attestation);
+      toast.success("Reputation attestation minted", {
+        description: data.attestation.hash.slice(0, 18) + "…",
+      });
     } catch (error) {
-      toast.error('Attestation mint failed', { description: error instanceof Error ? error.message : 'Unknown error' })
+      toast.error("Attestation mint failed", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
     }
-    setMintingAttestation(false)
-  }, [selectedAgentId])
+    setMintingAttestation(false);
+  }, [selectedAgentId]);
 
   const logTypeColors: Record<string, string> = {
-    info: "#60a5fa", success: "#34d399", error: "#f87171", warning: "#fbbf24",
-  }
+    info: "#60a5fa",
+    success: "#34d399",
+    error: "#f87171",
+    warning: "#fbbf24",
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Stats */}
       <div style={{ padding: 12, borderBottom: "1px solid #2a3a52" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
-          <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            marginBottom: 8,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color: "#64748b",
+              textTransform: "uppercase",
+              letterSpacing: 1,
+            }}
+          >
             City Overview
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 10,
+              color: "#94a3b8",
+              fontFamily: "monospace",
+            }}
+          >
             <input
               type="checkbox"
               checked={colorBlindMode}
@@ -573,7 +849,9 @@ function OverviewTab({
             Shapes
           </label>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
+        >
           <StatBox label="Active" value={active} color="#34d399" />
           <StatBox label="Working" value={working} color="#fbbf24" />
           <StatBox label="Errors" value={errors} color="#f87171" />
@@ -583,19 +861,56 @@ function OverviewTab({
 
       {/* Selected agent detail */}
       {selectedAgent && (
-        <div style={{ padding: 12, borderBottom: "1px solid #2a3a52", background: "#0f172a" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div
+          style={{
+            padding: 12,
+            borderBottom: "1px solid #2a3a52",
+            background: "#0f172a",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 8,
+            }}
+          >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: selectedAgent.color, fontFamily: "monospace" }}>
+              <span
+                style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: selectedAgent.color,
+                  fontFamily: "monospace",
+                }}
+              >
                 {selectedAgent.name}
               </span>
-              <span style={{ fontFamily: "monospace", fontSize: 9, fontWeight: 800, color: tierColor(reputation?.tier || "Unrated"), border: `1px solid ${tierColor(reputation?.tier || "Unrated")}55`, borderRadius: 999, padding: "2px 6px", textTransform: "uppercase" }}>
+              <span
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: 9,
+                  fontWeight: 800,
+                  color: tierColor(reputation?.tier || "Unrated"),
+                  border: `1px solid ${tierColor(reputation?.tier || "Unrated")}55`,
+                  borderRadius: 999,
+                  padding: "2px 6px",
+                  textTransform: "uppercase",
+                }}
+              >
                 {reputation?.tier || "unrated"}
               </span>
             </div>
             <button
               onClick={() => onSelectAgent(null)}
-              style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: 14 }}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#64748b",
+                cursor: "pointer",
+                fontSize: 14,
+              }}
               aria-label="Close agent detail"
             >
               x
@@ -605,56 +920,155 @@ function OverviewTab({
             Model: {selectedAgent.model}
           </div>
           <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 4 }}>
-            District: {DISTRICTS.find(d => d.id === selectedAgent.district)?.name}
+            District:{" "}
+            {DISTRICTS.find((d) => d.id === selectedAgent.district)?.name}
           </div>
           <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8 }}>
             {"Status: "}
-            <span style={{ color: selectedAgent.status === "error" ? "#f87171" : "#34d399", fontWeight: 600 }}>
+            <span
+              style={{
+                color: selectedAgent.status === "error" ? "#f87171" : "#34d399",
+                fontWeight: 600,
+              }}
+            >
               {selectedAgent.status.toUpperCase()}
             </span>
           </div>
 
-          <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4 }}>{"CPU " + selectedAgent.cpu + "%"}</div>
+          <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4 }}>
+            {"CPU " + selectedAgent.cpu + "%"}
+          </div>
           <ProgressBar value={selectedAgent.cpu} color="#22d3ee" />
-          <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4, marginTop: 6 }}>{"Memory " + selectedAgent.memory + "%"}</div>
+          <div
+            style={{
+              fontSize: 10,
+              color: "#64748b",
+              marginBottom: 4,
+              marginTop: 6,
+            }}
+          >
+            {"Memory " + selectedAgent.memory + "%"}
+          </div>
           <ProgressBar value={selectedAgent.memory} color="#a78bfa" />
 
           {selectedAgent.currentTask && (
             <>
-              <div style={{ fontSize: 10, color: "#64748b", marginBottom: 4, marginTop: 6 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "#64748b",
+                  marginBottom: 4,
+                  marginTop: 6,
+                }}
+              >
                 {"Task: " + selectedAgent.currentTask}
               </div>
-              <ProgressBar value={selectedAgent.taskProgress} color={selectedAgent.color} />
+              <ProgressBar
+                value={selectedAgent.taskProgress}
+                color={selectedAgent.color}
+              />
             </>
           )}
 
-          <div suppressHydrationWarning style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}>
+          <div
+            suppressHydrationWarning
+            style={{ fontSize: 11, color: "#64748b", marginTop: 6 }}
+          >
             {"Completed: " + selectedAgent.tasksCompleted + " tasks"}
           </div>
 
-          <div style={{ marginTop: 8, padding: 8, border: "1px solid #1e293b", borderRadius: 6, background: "#111827" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#94a3b8", marginBottom: 4 }}>
+          <div
+            style={{
+              marginTop: 8,
+              padding: 8,
+              border: "1px solid #1e293b",
+              borderRadius: 6,
+              background: "#111827",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontSize: 10,
+                color: "#94a3b8",
+                marginBottom: 4,
+              }}
+            >
               <span>Reputation</span>
-              <span style={{ color: tierColor(reputation?.tier || "Unrated"), fontWeight: 700 }}>{reputation?.score ?? "--"}/1300</span>
+              <span
+                style={{
+                  color: tierColor(reputation?.tier || "Unrated"),
+                  fontWeight: 700,
+                }}
+              >
+                {reputation?.score ?? "--"}/1300
+              </span>
             </div>
-            <ProgressBar value={Math.min(100, ((reputation?.score ?? 0) / 1300) * 100)} color={tierColor(reputation?.tier || "Unrated")} />
+            <ProgressBar
+              value={Math.min(100, ((reputation?.score ?? 0) / 1300) * 100)}
+              color={tierColor(reputation?.tier || "Unrated")}
+            />
             <button
               onClick={mintReputationAttestation}
               disabled={mintingAttestation}
-              style={{ width: "100%", marginTop: 8, padding: "6px 8px", background: "#22d3ee22", color: "#67e8f9", border: "1px solid #22d3ee44", borderRadius: 4, cursor: mintingAttestation ? "wait" : "pointer", fontFamily: "monospace", fontSize: 10, fontWeight: 700 }}
+              style={{
+                width: "100%",
+                marginTop: 8,
+                padding: "6px 8px",
+                background: "#22d3ee22",
+                color: "#67e8f9",
+                border: "1px solid #22d3ee44",
+                borderRadius: 4,
+                cursor: mintingAttestation ? "wait" : "pointer",
+                fontFamily: "monospace",
+                fontSize: 10,
+                fontWeight: 700,
+              }}
             >
-              {mintingAttestation ? "Minting..." : "Mint reputation attestation"}
+              {mintingAttestation
+                ? "Minting..."
+                : "Mint reputation attestation"}
             </button>
             {attestation && (
-              <a href={attestation.stellarExpertUrl} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, color: "#38bdf8", fontFamily: "monospace", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              <a
+                href={attestation.stellarExpertUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  display: "block",
+                  marginTop: 6,
+                  color: "#38bdf8",
+                  fontFamily: "monospace",
+                  fontSize: 10,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 {attestation.hash}
               </a>
             )}
           </div>
           {offerCounts && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
-              <StatBox label="Posted" value={offerCounts.posted} color="#67e8f9" />
-              <StatBox label="Filled" value={offerCounts.filled} color="#34d399" />
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 8,
+                marginTop: 8,
+              }}
+            >
+              <StatBox
+                label="Posted"
+                value={offerCounts.posted}
+                color="#67e8f9"
+              />
+              <StatBox
+                label="Filled"
+                value={offerCounts.filled}
+                color="#34d399"
+              />
             </div>
           )}
 
@@ -664,11 +1078,24 @@ function OverviewTab({
 
       {/* Agent list */}
       <div style={{ flex: 1, overflow: "auto", padding: "8px 8px" }}>
-        <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, padding: "0 4px" }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: "#64748b",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+            marginBottom: 6,
+            padding: "0 4px",
+          }}
+        >
           {"Agents (" + agents.length + ")"}
         </div>
-        <div role="listbox" aria-label="Agents" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {agents.map(a => (
+        <div
+          role="listbox"
+          aria-label="Agents"
+          style={{ display: "flex", flexDirection: "column", gap: 2 }}
+        >
+          {agents.map((a) => (
             <AgentRow
               key={a.id}
               agent={a}
@@ -681,20 +1108,36 @@ function OverviewTab({
       </div>
 
       {/* Activity log — expandable */}
-      <div style={{
-        height: logExpanded ? 280 : 140,
-        borderTop: "1px solid #2a3a52",
-        overflow: "auto",
-        padding: 8,
-        transition: "height 0.2s ease",
-        flexShrink: 0,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-          <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>
+      <div
+        style={{
+          height: logExpanded ? 280 : 140,
+          borderTop: "1px solid #2a3a52",
+          overflow: "auto",
+          padding: 8,
+          transition: "height 0.2s ease",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 6,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              color: "#64748b",
+              textTransform: "uppercase",
+              letterSpacing: 1,
+            }}
+          >
             Activity Log
           </div>
           <button
-            onClick={() => setLogExpanded(e => !e)}
+            onClick={() => setLogExpanded((e) => !e)}
             style={{
               background: "none",
               border: "none",
@@ -711,18 +1154,38 @@ function OverviewTab({
           </button>
         </div>
         <div role="status" aria-live="polite" aria-label="Activity log content">
-          {logs.slice(-40).reverse().map(log => (
-            <div key={log.id} style={{ fontSize: 10, marginBottom: 3, display: "flex", gap: 6, lineHeight: 1.4 }}>
-              <span style={{ color: "#475569", flexShrink: 0, fontFamily: "monospace" }}>{log.time}</span>
-              <span style={{ color: logTypeColors[log.type] || "#94a3b8" }}>
-                <strong>{log.agent}</strong> {log.message}
-              </span>
-            </div>
-          ))}
+          {logs
+            .slice(-40)
+            .reverse()
+            .map((log) => (
+              <div
+                key={log.id}
+                style={{
+                  fontSize: 10,
+                  marginBottom: 3,
+                  display: "flex",
+                  gap: 6,
+                  lineHeight: 1.4,
+                }}
+              >
+                <span
+                  style={{
+                    color: "#475569",
+                    flexShrink: 0,
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {log.time}
+                </span>
+                <span style={{ color: logTypeColors[log.type] || "#94a3b8" }}>
+                  <strong>{log.agent}</strong> {log.message}
+                </span>
+              </div>
+            ))}
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export function SidebarPanel({
@@ -746,62 +1209,73 @@ export function SidebarPanel({
   // Start with null to avoid SSR/client hydration mismatch.
   // The server always renders 'overview' (null resolves to it), and after
   // mount we synchronously read localStorage and correct the tab if needed.
-  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<SidebarTabId | null>(null)
-  const hydratedRef = useRef(false)
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] =
+    useState<SidebarTabId | null>(null);
+  const hydratedRef = useRef(false);
 
   // On mount: restore persisted tab from localStorage (client-only).
   useEffect(() => {
-    if (hydratedRef.current) return
-    hydratedRef.current = true
-    const storedTab = localStorage.getItem("sidebar-tab") as SidebarTabId | null
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    const storedTab = localStorage.getItem(
+      "sidebar-tab",
+    ) as SidebarTabId | null;
     if (storedTab && SIDEBAR_TABS.some((tab) => tab.id === storedTab)) {
-      setUncontrolledActiveTab(storedTab)
+      setUncontrolledActiveTab(storedTab);
     } else {
-      setUncontrolledActiveTab("overview")
+      setUncontrolledActiveTab("overview");
     }
-  }, [])
+  }, []);
 
-  const activeTab = controlledActiveTab ?? uncontrolledActiveTab ?? "overview"
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab ?? "overview";
 
   const setActiveTab = useCallback(
     (tab: SidebarTabId) => {
-      setUncontrolledActiveTab(tab)
-      localStorage.setItem("sidebar-tab", tab)
-      onActiveTabChange?.(tab)
+      setUncontrolledActiveTab(tab);
+      localStorage.setItem("sidebar-tab", tab);
+      onActiveTabChange?.(tab);
     },
     [onActiveTabChange],
-  )
+  );
 
   // Persist whenever activeTab changes (handles controlled-mode changes too).
   useEffect(() => {
-    if (!hydratedRef.current) return
-    localStorage.setItem("sidebar-tab", activeTab)
-  }, [activeTab])
+    if (!hydratedRef.current) return;
+    localStorage.setItem("sidebar-tab", activeTab);
+  }, [activeTab]);
 
-  const chatCount = chatMessages.length
-  const errorCount = agents.filter(a => a.status === "error").length
-  const walletAlert = agents.some(a => !a.wallet || (a.wallet.funded && parseFloat(a.wallet.balance) < 10))
-  const openOfferCount = MOCK_OFFERS.filter(offer => offer.status === "open").length
+  const chatCount = chatMessages.length;
+  const errorCount = agents.filter((a) => a.status === "error").length;
+  const walletAlert = agents.some(
+    (a) => !a.wallet || (a.wallet.funded && parseFloat(a.wallet.balance) < 10),
+  );
+  const openOfferCount = MOCK_OFFERS.filter(
+    (offer) => offer.status === "open",
+  ).length;
 
   return (
-    <div style={{
-      width: variant === "mobile" ? "100%" : 320,
-      height: "100%",
-      background: "#111827",
-      borderLeft: variant === "mobile" ? "none" : "1px solid #2a3a52",
-      display: "flex",
-      flexDirection: "column",
-      overflow: "hidden",
-      flexShrink: 0,
-    }}>
+    <div
+      style={{
+        width: variant === "mobile" ? "100%" : 320,
+        height: "100%",
+        background: "#111827",
+        borderLeft: variant === "mobile" ? "none" : "1px solid #2a3a52",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        flexShrink: 0,
+      }}
+    >
       {showTabBar && (
-        <div style={{
-          display: "flex",
-          borderBottom: "1px solid #2a3a52",
-          background: "#0f172a",
-          flexShrink: 0,
-        }}>
-          {SIDEBAR_TABS.map(tab => (
+        <div
+          style={{
+            display: "flex",
+            borderBottom: "1px solid #2a3a52",
+            background: "#0f172a",
+            flexShrink: 0,
+          }}
+        >
+          {SIDEBAR_TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
@@ -815,7 +1289,10 @@ export function SidebarPanel({
                 padding: variant === "mobile" ? "12px 4px" : "10px 4px",
                 background: activeTab === tab.id ? "#111827" : "transparent",
                 border: "none",
-                borderBottom: activeTab === tab.id ? "2px solid #22d3ee" : "2px solid transparent",
+                borderBottom:
+                  activeTab === tab.id
+                    ? "2px solid #22d3ee"
+                    : "2px solid transparent",
                 color: activeTab === tab.id ? "#22d3ee" : "#64748b",
                 fontFamily: "monospace",
                 fontSize: variant === "mobile" ? 11 : 10,
@@ -829,66 +1306,74 @@ export function SidebarPanel({
             >
               {tab.label}
               {tab.id === "chat" && chatCount > 0 && (
-                <span style={{
-                  position: "absolute",
-                  top: 4,
-                  right: 4,
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: "#34d399",
-                }} />
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 4,
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "#34d399",
+                  }}
+                />
               )}
               {tab.id === "offers" && openOfferCount > 0 && (
-                <span style={{
-                  position: "absolute",
-                  top: 3,
-                  right: 2,
-                  minWidth: 14,
-                  height: 14,
-                  borderRadius: 7,
-                  background: "#22d3ee",
-                  color: "#020617",
-                  fontSize: 8,
-                  fontFamily: "monospace",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "0 2px",
-                }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 3,
+                    right: 2,
+                    minWidth: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    background: "#22d3ee",
+                    color: "#020617",
+                    fontSize: 8,
+                    fontFamily: "monospace",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 2px",
+                  }}
+                >
                   {openOfferCount}
                 </span>
               )}
               {tab.id === "overview" && errorCount > 0 && (
-                <span style={{
-                  position: "absolute",
-                  top: 3,
-                  right: 2,
-                  minWidth: 14,
-                  height: 14,
-                  borderRadius: 7,
-                  background: "#f87171",
-                  color: "#fff",
-                  fontSize: 8,
-                  fontFamily: "monospace",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "0 2px",
-                }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 3,
+                    right: 2,
+                    minWidth: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    background: "#f87171",
+                    color: "#fff",
+                    fontSize: 8,
+                    fontFamily: "monospace",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 2px",
+                  }}
+                >
                   {errorCount}
                 </span>
               )}
               {tab.id === "wallet" && walletAlert && (
-                <span style={{
-                  position: "absolute",
-                  top: 4,
-                  right: 4,
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: "#fbbf24",
-                }} />
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 4,
+                    right: 4,
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "#fbbf24",
+                  }}
+                />
               )}
             </button>
           ))}
@@ -913,8 +1398,8 @@ export function SidebarPanel({
               transition: "color 0.15s",
               flexShrink: 0,
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = "#67e8f9")}
-            onMouseLeave={e => (e.currentTarget.style.color = "#22d3ee")}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#67e8f9")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#22d3ee")}
           >
             Admin ↗
           </a>
@@ -933,14 +1418,16 @@ export function SidebarPanel({
             onColorBlindModeChange={onColorBlindModeChange}
           />
         )}
-        {activeTab === "chat" && (
-          <ChatPanel messages={chatMessages} />
-        )}
+        {activeTab === "chat" && <ChatPanel messages={chatMessages} />}
         {activeTab === "offers" && (
           <TaskBoard agents={agents} selectedAgent={selectedAgent} />
         )}
         {activeTab === "skills" && (
-          <SkillsPanel selectedAgent={selectedAgent} agents={agents} onUpgradeSkill={onUpgradeSkill} />
+          <SkillsPanel
+            selectedAgent={selectedAgent}
+            agents={agents}
+            onUpgradeSkill={onUpgradeSkill}
+          />
         )}
         {activeTab === "quests" && (
           <QuestsPanel selectedAgentId={selectedAgent?.id ?? null} />
@@ -963,5 +1450,5 @@ export function SidebarPanel({
         )}
       </div>
     </div>
-  )
+  );
 }

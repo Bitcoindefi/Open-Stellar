@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server"
-import { createSystemEventResponse } from "@/lib/events/event-stream"
-import { listRegisteredAgents, registerAgent } from "@/lib/agent-registry"
+import { NextResponse } from "next/server";
+import { createSystemEventResponse } from "@/lib/events/event-stream";
+import { listRegisteredAgents, registerAgent } from "@/lib/agent-registry";
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const url = new URL(req.url)
+  const url = new URL(req.url);
 
   if (url.searchParams.get("stream") === "1") {
-    return createSystemEventResponse()
+    return createSystemEventResponse();
   }
 
   const agents = listRegisteredAgents({
@@ -16,25 +16,29 @@ export async function GET(req: Request) {
     status: url.searchParams.get("status") ?? undefined,
     skill: url.searchParams.get("skill") ?? undefined,
     capability: url.searchParams.get("capability") ?? undefined,
-  })
+  });
 
   return NextResponse.json(
     { ok: true, agents },
     { headers: { "Cache-Control": "no-store" } },
-  )
+  );
 }
 
 export async function POST(req: Request) {
   try {
-    const agent = registerAgent(await req.json())
+    const agent = registerAgent(await req.json());
     return NextResponse.json(
       { ok: true, agent },
       { status: 201, headers: { "Cache-Control": "no-store" } },
-    )
+    );
   } catch (error) {
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Failed registering agent" },
+      {
+        ok: false,
+        error:
+          error instanceof Error ? error.message : "Failed registering agent",
+      },
       { status: 400 },
-    )
+    );
   }
 }

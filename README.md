@@ -12,14 +12,14 @@ Plataforma de infraestructura de pagos para agentes de IA, construida sobre Stel
 
 ## Stack
 
-| Capa | Tecnología |
-|------|------------|
-| Framework | Next.js 16 (modo webpack — requerido por snarkjs) |
-| UI | React 19, Tailwind v4, Radix UI, Framer Motion |
-| Stellar | @stellar/stellar-sdk v16, @stellar/freighter-api, Soroban RPC |
-| ZK | snarkjs 0.7.6, Groth16/BN254, circom (WASM artifacts) |
-| EVM | wagmi, viem, WalletConnect |
-| Deploy | Vercel (Next.js, auto-detect) |
+| Capa      | Tecnología                                                    |
+| --------- | ------------------------------------------------------------- |
+| Framework | Next.js 16 (modo webpack — requerido por snarkjs)             |
+| UI        | React 19, Tailwind v4, Radix UI, Framer Motion                |
+| Stellar   | @stellar/stellar-sdk v16, @stellar/freighter-api, Soroban RPC |
+| ZK        | snarkjs 0.7.6, Groth16/BN254, circom (WASM artifacts)         |
+| EVM       | wagmi, viem, WalletConnect                                    |
+| Deploy    | Vercel (Next.js, auto-detect)                                 |
 
 ---
 
@@ -84,12 +84,14 @@ Archivos: [app/explorer/page.tsx](app/explorer/page.tsx), [components/explorer/r
 Cada agente puede acuñar un **pasaporte Groth16** que prueba — sin revelar la identidad del dueño ni el saldo real — que está respaldado por un humano verificado y es solvente hasta su spend cap.
 
 Las cuatro invariantes on-chain:
+
 - Prueba Groth16 válida (verificada por CircomGroth16Verifier en Soroban)
 - Nullifier anti-replay (un pasaporte, un uso)
 - Membresía en el identity registry
 - Proof-of-funds para el spend cap declarado
 
 Flujo en el browser:
+
 1. Se genera un keypair efímero (`privateKey`, `agentId`)
 2. snarkjs calcula el witness y genera la prueba WASM local
 3. La prueba se envía al validador Soroban para attestation on-chain
@@ -121,11 +123,11 @@ Archivos: [lib/agents/agent-health-store.ts](lib/agents/agent-health-store.ts), 
 
 ### Escrow
 
-| Contrato | Red | Función |
-|----------|-----|---------|
-| [EscrowMilestone.sol](contracts/evm/EscrowMilestone.sol) | EVM | Escrow por hitos (createDeal, release, refund, raiseDispute) |
-| [X402ServicePaywall.sol](contracts/evm/X402ServicePaywall.sol) | EVM | Paywall x402 (settle402, hasPaid, withdraw) |
-| [escrow/src/lib.rs](contracts/stellar/escrow/src/lib.rs) | Soroban | Base funcional (create, release, dispute, get) |
+| Contrato                                                       | Red     | Función                                                      |
+| -------------------------------------------------------------- | ------- | ------------------------------------------------------------ |
+| [EscrowMilestone.sol](contracts/evm/EscrowMilestone.sol)       | EVM     | Escrow por hitos (createDeal, release, refund, raiseDispute) |
+| [X402ServicePaywall.sol](contracts/evm/X402ServicePaywall.sol) | EVM     | Paywall x402 (settle402, hasPaid, withdraw)                  |
+| [escrow/src/lib.rs](contracts/stellar/escrow/src/lib.rs)       | Soroban | Base funcional (create, release, dispute, get)               |
 
 ---
 
@@ -144,6 +146,7 @@ Vista operativa del stack como SaaS: squads de agentes por distrito, telemetría
 ### Agent Passport (ZK)
 
 Panel interactivo de 4 pasos:
+
 1. **Mint** — genera prueba Groth16 en el browser
 2. **Verify on-chain** — consulta attestation en Soroban testnet
 3. **Authorize x402** — gate de spend cap contra el validador
@@ -154,6 +157,7 @@ Muestra contratos desplegados en testnet con links a stellar.expert.
 ### Private Deploy
 
 Para desarrolladores que quieren su propio nodo Open Stellar:
+
 - Guía de 3 pasos (Fork → Configure → Deploy)
 - Botón "Deploy to Vercel" de un click
 - Tabla completa de endpoints API con método y descripción
@@ -214,10 +218,12 @@ Set `NEXT_PUBLIC_MOCK_MODE=true` in `.env.local` to run the local demo without l
 Las rutas bajo `/api/protocol/*` y `/api/stellar/*` emiten logs estructurados mediante Better Stack / Logtail cuando `LOGTAIL_SOURCE_TOKEN` está configurado. La app tambien envuelve `next.config.mjs` con `withLogtail` para habilitar la integracion de Next.js. Si la variable no existe, el logger queda en modo no-op para desarrollo local.
 
 Campos base incluidos en cada evento:
+
 - `route`, `method`, `path`, `status`, `durationMs`
 - `event`, `reason` y contexto de negocio como `paymentRef`, `agentId`, `chain`, `txHash`, `publicKey`
 
 Alertas recomendadas en Better Stack:
+
 - `event = x402.settle.failed` o `status >= 500`
 - `event = x402.settle.passport_denied` para detectar rechazos del gate ZK
 - `reason = friendbot_failed` o `reason = horizon_lookup_failed` para incidentes Stellar testnet
@@ -283,6 +289,7 @@ El repositorio incluye `vercel.json` que fuerza:
 ```
 
 Pasos:
+
 1. Fork en GitHub
 2. Importar en [vercel.com/new](https://vercel.com/new)
 3. Agregar `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` en las variables de entorno del proyecto
@@ -318,11 +325,13 @@ Protecciones recomendadas para `main`:
 El repositorio está integrado con SonarCloud para análisis estático de código y cobertura de tests. Los badges de calidad se muestran al inicio de este README.
 
 Configuración:
+
 - **Quality Gate**: Se ejecuta en cada push a `main` y en cada PR.
 - **Exclusiones**: `scripts/templates/**` está excluido del análisis para evitar falsos positivos en archivos con placeholders intencionales.
 - **Cobertura**: Se reporta desde `coverage/lcov.info` generado por Vitest.
 
 Para que el quality gate aparezca como status check en PRs, asegúrate de que la [configuración de SonarCloud](https://sonarcloud.io/project/settings?project=Bitcoindefi_Open-Stellar&id=Bitcoindefi_Open-Stellar) tenga activado:
+
 - **Administration > General Settings > Pull Request** → "Enable pull request decoration"
 - **Administration > Quality Gate** → Seleccionar el quality gate por defecto o uno custom
 
@@ -330,10 +339,10 @@ Para que el quality gate aparezca como status check en PRs, asegúrate de que la
 
 ## Contratos desplegados (Stellar testnet)
 
-| Contrato | ID |
-|----------|----|
+| Contrato               | ID                                                         |
+| ---------------------- | ---------------------------------------------------------- |
 | AgentPassportValidator | `CDNSZUNEWFCGSPWLPDSWTENR2WPHKC34RGZQG7RJA54OPGTZGVVRFYBA` |
-| CircomGroth16Verifier | `CCMKLYSRUH2HMA4UU6WLXWQXEY6KAH5AWB5BEVMJGNGC5GLGTVROLG4A` |
+| CircomGroth16Verifier  | `CCMKLYSRUH2HMA4UU6WLXWQXEY6KAH5AWB5BEVMJGNGC5GLGTVROLG4A` |
 
 Explorar en [stellar.expert/explorer/testnet](https://stellar.expert/explorer/testnet).
 
@@ -385,11 +394,14 @@ vercel.json              build config para Vercel
 Open Stellar includes machine-to-machine API authentication and sliding-window rate limiting.
 
 ### Admin Key
+
 - Configured via `ADMIN_API_KEY` environment variable (required in production).
 - Grants full root access to `/admin/*`, `/api/admin/*`, and write operations on agent registry.
 
 ### Service Keys (Scoped)
+
 Create scoped API keys via the admin console at `/admin/keys` or via API:
+
 ```bash
 POST /api/admin/keys
 Authorization: Bearer <ADMIN_API_KEY>
@@ -404,6 +416,7 @@ Content-Type: application/json
 ```
 
 Returns:
+
 ```json
 {
   "ok": true,
@@ -414,24 +427,29 @@ Returns:
   "tier": "free"
 }
 ```
-*Note: The plaintext secret key is displayed only once upon creation/rotation. Storage persists only the SHA-256 hash.*
+
+_Note: The plaintext secret key is displayed only once upon creation/rotation. Storage persists only the SHA-256 hash._
 
 ### Authentication & Rate Limits
+
 Authenticate requests via Bearer token:
+
 ```bash
 Authorization: Bearer osk_live_...
 ```
+
 Or via query parameter:
+
 ```bash
 GET /api/protocol/x402/quote?apiKey=osk_live_...
 ```
 
-| Tier | Rate Limit | Description |
-|------|------------|-------------|
-| No key | 10 req / min | Unauthenticated public requests (IP-based) |
-| Free | 60 req / min | Standard machine-to-machine integrations |
-| Pro | 600 req / min | High-throughput data feeds and trading relays |
-| Admin | Unlimited | Full root administration |
+| Tier   | Rate Limit    | Description                                   |
+| ------ | ------------- | --------------------------------------------- |
+| No key | 10 req / min  | Unauthenticated public requests (IP-based)    |
+| Free   | 60 req / min  | Standard machine-to-machine integrations      |
+| Pro    | 600 req / min | High-throughput data feeds and trading relays |
+| Admin  | Unlimited     | Full root administration                      |
 
 ---
 

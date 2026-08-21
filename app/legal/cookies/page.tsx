@@ -1,8 +1,8 @@
-import { LegalPage } from "../legal-page"
+import { LegalPage } from "../legal-page";
 
 export const metadata = {
   title: "Cookie Policy | Open Stellar",
-}
+};
 
 export default function CookiesPage() {
   return (
@@ -37,5 +37,5 @@ export default function CookiesPage() {
         },
       ]}
     />
-  )
+  );
 }

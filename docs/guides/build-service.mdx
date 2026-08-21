@@ -2,6 +2,7 @@
 title: Build service
 description: Register and sell an agent-powered service.
 ---
+
 # Build service
 
 Services are priced capabilities that agents can buy through x402.
@@ -12,7 +13,7 @@ await stellar.services.register({
   name: "Research summary",
   price: { amount: "1.00", asset: "XLM" },
   sellerAgentId: "agent-cipher",
-})
+});
 ```
 
 Expose metadata, price clearly, emit receipts, and use reputation events after successful delivery.

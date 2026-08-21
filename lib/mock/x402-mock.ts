@@ -1,17 +1,27 @@
-import { getExplorerUrl, type SettlementChain, type X402Quote, type X402Receipt } from "@/lib/protocols/x402"
+import {
+  getExplorerUrl,
+  type SettlementChain,
+  type X402Quote,
+  type X402Receipt,
+} from "@/lib/protocols/x402";
 
 export function createMockX402Quote(input: {
-  serviceId: string
-  chain: SettlementChain
-  payer: string
-  units: number
-  unitPriceUsd: number
-  ttlSeconds?: number
+  serviceId: string;
+  chain: SettlementChain;
+  payer: string;
+  units: number;
+  unitPriceUsd: number;
+  ttlSeconds?: number;
 }): X402Quote & { mock: true } {
-  const ttlSeconds = input.ttlSeconds ?? 300
-  const amountUsd = Number((input.units * input.unitPriceUsd).toFixed(6))
-  const paymentRef = `mock:${input.serviceId}:${input.chain}:${Date.now()}`
-  const option = { chain: input.chain, amount: `${amountUsd} MOCK`, amountUnits: String(Math.round(amountUsd * 10_000_000)), address: 'mock-address' }
+  const ttlSeconds = input.ttlSeconds ?? 300;
+  const amountUsd = Number((input.units * input.unitPriceUsd).toFixed(6));
+  const paymentRef = `mock:${input.serviceId}:${input.chain}:${Date.now()}`;
+  const option = {
+    chain: input.chain,
+    amount: `${amountUsd} MOCK`,
+    amountUnits: String(Math.round(amountUsd * 10_000_000)),
+    address: "mock-address",
+  };
 
   return {
     code: 402,
@@ -28,15 +38,15 @@ export function createMockX402Quote(input: {
     paymentRef,
     memo: `mock-x402/${input.serviceId}/${input.chain}`,
     mock: true,
-  }
+  };
 }
 
 export function settleMockX402(input: {
-  paymentRef: string
-  chain: SettlementChain
-  txHash?: string
+  paymentRef: string;
+  chain: SettlementChain;
+  txHash?: string;
 }): X402Receipt & { mock: true } {
-  const txHash = input.txHash || `MOCK_X402_TX_${Date.now()}`
+  const txHash = input.txHash || `MOCK_X402_TX_${Date.now()}`;
   return {
     accepted: true,
     paymentRef: input.paymentRef || `mock:settle:${Date.now()}`,
@@ -45,6 +55,5 @@ export function settleMockX402(input: {
     chain: input.chain,
     explorerUrl: getExplorerUrl(input.chain, txHash),
     mock: true,
-  }
+  };
 }
-

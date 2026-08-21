@@ -1,5 +1,5 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
+@import "tailwindcss";
+@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -38,7 +38,7 @@
   --sidebar-accent-foreground: oklch(0.92 0.02 85);
   --sidebar-border: oklch(0.38 0.04 55);
   --sidebar-ring: oklch(0.45 0.15 300);
-  
+
   --task-green: oklch(0.6 0.18 145);
   --task-orange: oklch(0.65 0.15 60);
 }
@@ -79,8 +79,8 @@
 }
 
 @theme inline {
-  --font-sans: 'VT323', 'Geist', 'Geist Fallback';
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-sans: "VT323", "Geist", "Geist Fallback";
+  --font-mono: "Geist Mono", "Geist Mono Fallback";
   --font-pixel: var(--font-pixel);
   --font-vt323: var(--font-vt323);
   --color-background: var(--background);
@@ -129,4 +129,70 @@
     @apply bg-background text-foreground;
   }
 }
-.docs-prose h1{font-family:var(--font-pixel);font-size:clamp(1.6rem,4vw,2.6rem);line-height:1.25;color:#67e8f9;margin-bottom:1rem}.docs-prose h2{font-family:monospace;font-size:1.4rem;color:#f0abfc;margin-top:2rem;margin-bottom:.75rem}.docs-prose h3{font-family:monospace;font-size:1.1rem;color:#fde68a;margin-top:1.5rem}.docs-prose p,.docs-prose li{font-family:monospace;color:#cbd5e1;line-height:1.8}.docs-prose ul{margin:1rem 0 1rem 1.25rem;list-style:square}.docs-prose a{color:#22d3ee;text-decoration:underline}.docs-prose code{border:1px solid rgba(34,211,238,.25);background:#020617;color:#a7f3d0;border-radius:.35rem;padding:.1rem .35rem}.docs-prose pre{position:relative;overflow:auto;border:1px solid rgba(34,211,238,.25);background:#020617;border-radius:1rem;padding:1rem;margin:1rem 0;color:#e2e8f0}.docs-prose pre:before{content:attr(data-language);display:block;margin-bottom:.75rem;font-family:monospace;font-size:.7rem;text-transform:uppercase;letter-spacing:.2em;color:#67e8f9}.docs-prose pre code{border:0;background:transparent;padding:0;color:inherit}
+.docs-prose h1 {
+  font-family: var(--font-pixel);
+  font-size: clamp(1.6rem, 4vw, 2.6rem);
+  line-height: 1.25;
+  color: #67e8f9;
+  margin-bottom: 1rem;
+}
+.docs-prose h2 {
+  font-family: monospace;
+  font-size: 1.4rem;
+  color: #f0abfc;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+.docs-prose h3 {
+  font-family: monospace;
+  font-size: 1.1rem;
+  color: #fde68a;
+  margin-top: 1.5rem;
+}
+.docs-prose p,
+.docs-prose li {
+  font-family: monospace;
+  color: #cbd5e1;
+  line-height: 1.8;
+}
+.docs-prose ul {
+  margin: 1rem 0 1rem 1.25rem;
+  list-style: square;
+}
+.docs-prose a {
+  color: #22d3ee;
+  text-decoration: underline;
+}
+.docs-prose code {
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  background: #020617;
+  color: #a7f3d0;
+  border-radius: 0.35rem;
+  padding: 0.1rem 0.35rem;
+}
+.docs-prose pre {
+  position: relative;
+  overflow: auto;
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  background: #020617;
+  border-radius: 1rem;
+  padding: 1rem;
+  margin: 1rem 0;
+  color: #e2e8f0;
+}
+.docs-prose pre:before {
+  content: attr(data-language);
+  display: block;
+  margin-bottom: 0.75rem;
+  font-family: monospace;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #67e8f9;
+}
+.docs-prose pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}

@@ -1,2 +1,1 @@
-import type { DistrictId } from "./types"
-
+export type { DistrictId } from "./types";

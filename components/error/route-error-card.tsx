@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { reportClientError, type ReportableError } from "@/lib/client-error-reporting";
+import {
+  reportClientError,
+  type ReportableError,
+} from "@/lib/client-error-reporting";
 
 interface RouteErrorCardProps {
   route: string;
@@ -45,7 +48,9 @@ export function RouteErrorCard({
 
         <div className="mt-4 flex gap-3">
           <button onClick={() => reset()}>Try again</button>
-          <button onClick={() => globalThis.location.reload()}>Reload page</button>
+          <button onClick={() => globalThis.location.reload()}>
+            Reload page
+          </button>
         </div>
       </div>
     </div>

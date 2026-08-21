@@ -1,8 +1,10 @@
-export type ParticleEvent = "xp-burst" | "payment-spark" | "level-up" | "badge-unlock" | "district-win"
+export type ParticleEvent =
+  "xp-burst" | "payment-spark" | "level-up" | "badge-unlock" | "district-win";
 
-export type ParticleKind = "text" | "spark" | "confetti" | "ray" | "ring" | "flash"
+export type ParticleKind =
+  "text" | "spark" | "confetti" | "ray" | "ring" | "flash";
 
-export type BadgeRarity = "common" | "uncommon" | "rare" | "epic" | "legendary"
+export type BadgeRarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
 
 export const RARITY_COLORS: Record<BadgeRarity, string> = {
   common: "#9ca3af",
@@ -10,93 +12,98 @@ export const RARITY_COLORS: Record<BadgeRarity, string> = {
   rare: "#60a5fa",
   epic: "#a78bfa",
   legendary: "#fbbf24",
-}
+};
 
 export interface ParticleOpts {
-  color?: string
-  text?: string
-  amount?: string
-  level?: number
-  rarity?: BadgeRarity
-  spreadW?: number
+  color?: string;
+  text?: string;
+  amount?: string;
+  level?: number;
+  rarity?: BadgeRarity;
+  spreadW?: number;
 }
 
 export interface Particle {
-  x: number
-  y: number
-  vx: number
-  vy: number
-  alpha: number
-  scale: number
-  color: string
-  type: ParticleKind
-  life: number
-  maxLife: number
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  alpha: number;
+  scale: number;
+  color: string;
+  type: ParticleKind;
+  life: number;
+  maxLife: number;
   // Bookkeeping for specific particle kinds — set selectively by emit helpers.
-  delay?: number
-  baseAlpha?: number
-  startX?: number
-  startY?: number
-  gravity?: number
-  bounced?: boolean
-  groundY?: number
-  size?: number
-  angle?: number
-  radius?: number
-  rotation?: number
-  rotationSpeed?: number
-  lineWidth?: number
-  text?: string
-  bold?: boolean
-  fontSize?: number
-  w?: number
-  h?: number
+  delay?: number;
+  baseAlpha?: number;
+  startX?: number;
+  startY?: number;
+  gravity?: number;
+  bounced?: boolean;
+  groundY?: number;
+  size?: number;
+  angle?: number;
+  radius?: number;
+  rotation?: number;
+  rotationSpeed?: number;
+  lineWidth?: number;
+  text?: string;
+  bold?: boolean;
+  fontSize?: number;
+  w?: number;
+  h?: number;
 }
 
 function rand(min: number, max: number) {
-  return min + Math.random() * (max - min)
+  return min + Math.random() * (max - min);
 }
 
 function randInt(min: number, max: number) {
-  return Math.floor(rand(min, max + 1))
+  return Math.floor(rand(min, max + 1));
 }
 
 function clamp01(n: number) {
-  return Math.max(0, Math.min(1, n))
+  return Math.max(0, Math.min(1, n));
 }
 
 export class ParticleSystem {
-  particles: Particle[] = []
+  particles: Particle[] = [];
 
-  emit(type: ParticleEvent, x: number, y: number, opts: ParticleOpts = {}): void {
+  emit(
+    type: ParticleEvent,
+    x: number,
+    y: number,
+    opts: ParticleOpts = {},
+  ): void {
     switch (type) {
       case "xp-burst":
-        this.emitXpBurst(x, y, opts)
-        break
+        this.emitXpBurst(x, y, opts);
+        break;
       case "payment-spark":
-        this.emitPaymentSpark(x, y, opts)
-        break
+        this.emitPaymentSpark(x, y, opts);
+        break;
       case "level-up":
-        this.emitLevelUp(x, y, opts)
-        break
+        this.emitLevelUp(x, y, opts);
+        break;
       case "badge-unlock":
-        this.emitBadgeUnlock(x, y, opts)
-        break
+        this.emitBadgeUnlock(x, y, opts);
+        break;
       case "district-win":
-        this.emitDistrictWin(x, y, opts)
-        break
+        this.emitDistrictWin(x, y, opts);
+        break;
     }
   }
 
   private emitXpBurst(x: number, y: number, opts: ParticleOpts) {
-    const color = opts.color ?? "#22d3ee"
-    const count = randInt(6, 8)
-    const maxLife = 1200
+    const color = opts.color ?? "#22d3ee";
+    const count = randInt(6, 8);
+    const maxLife = 1200;
 
     for (let i = 0; i < count; i++) {
-      const sx = x + rand(-10, 10)
-      const sy = y + rand(-6, 2)
-      const riseDistance = rand(20, 34)
+      const sx = x + rand(-10, 10);
+      const sy = y + rand(-6, 2);
+      const riseDistance = rand(20, 34);
 
       this.particles.push({
         x: sx,
@@ -115,17 +122,17 @@ export class ParticleSystem {
         life: 0,
         maxLife,
         delay: i * 35,
-      })
+      });
     }
   }
 
   private emitPaymentSpark(x: number, y: number, opts: ParticleOpts) {
-    const sparkColor = opts.color ?? "#fbbf24"
-    const maxLife = 800
+    const sparkColor = opts.color ?? "#fbbf24";
+    const maxLife = 800;
 
     for (let i = 0; i < 12; i++) {
-      const angle = rand(0, Math.PI * 2)
-      const speed = rand(40, 100)
+      const angle = rand(0, Math.PI * 2);
+      const speed = rand(40, 100);
 
       this.particles.push({
         x,
@@ -142,11 +149,11 @@ export class ParticleSystem {
         groundY: y + rand(0, 6),
         life: 0,
         maxLife,
-      })
+      });
     }
 
-    const textLife = 1000
-    const riseDistance = 30
+    const textLife = 1000;
+    const riseDistance = 30;
     this.particles.push({
       x,
       y,
@@ -164,16 +171,16 @@ export class ParticleSystem {
       bold: true,
       life: 0,
       maxLife: textLife,
-    })
+    });
   }
 
   private emitLevelUp(x: number, y: number, opts: ParticleOpts) {
-    const color = opts.color ?? "#fbbf24"
-    const level = opts.level ?? 0
-    const rayLife = 700
+    const color = opts.color ?? "#fbbf24";
+    const level = opts.level ?? 0;
+    const rayLife = 700;
 
     for (let i = 0; i < 16; i++) {
-      const angle = (i / 16) * Math.PI * 2
+      const angle = (i / 16) * Math.PI * 2;
       this.particles.push({
         x,
         y,
@@ -188,7 +195,7 @@ export class ParticleSystem {
         size: 2,
         life: 0,
         maxLife: rayLife,
-      })
+      });
     }
 
     this.particles.push({
@@ -205,10 +212,10 @@ export class ParticleSystem {
       lineWidth: 2,
       life: 0,
       maxLife: 750,
-    })
+    });
 
-    const textLife = 1500
-    const riseDistance = 40
+    const textLife = 1500;
+    const riseDistance = 40;
     this.particles.push({
       x,
       y,
@@ -226,7 +233,7 @@ export class ParticleSystem {
       bold: true,
       life: 0,
       maxLife: textLife,
-    })
+    });
 
     this.particles.push({
       x,
@@ -242,17 +249,17 @@ export class ParticleSystem {
       h: 56,
       life: 0,
       maxLife: 100,
-    })
+    });
   }
 
   private emitBadgeUnlock(x: number, y: number, opts: ParticleOpts) {
-    const rarity = opts.rarity ?? "common"
-    const color = opts.color ?? RARITY_COLORS[rarity]
-    const maxLife = 2000
+    const rarity = opts.rarity ?? "common";
+    const color = opts.color ?? RARITY_COLORS[rarity];
+    const maxLife = 2000;
 
     for (let i = 0; i < 20; i++) {
-      const angle = rand(0, Math.PI * 2)
-      const speed = rand(30, 90)
+      const angle = rand(0, Math.PI * 2);
+      const speed = rand(30, 90);
 
       this.particles.push({
         x,
@@ -270,23 +277,23 @@ export class ParticleSystem {
         rotationSpeed: rand(-4, 4),
         life: 0,
         maxLife,
-      })
+      });
     }
   }
 
   private emitDistrictWin(x: number, y: number, opts: ParticleOpts) {
-    const color = opts.color ?? "#facc15"
-    const spreadW = opts.spreadW ?? 100
-    const burstCount = randInt(3, 5)
-    const rayLife = 900
+    const color = opts.color ?? "#facc15";
+    const spreadW = opts.spreadW ?? 100;
+    const burstCount = randInt(3, 5);
+    const rayLife = 900;
 
     for (let b = 0; b < burstCount; b++) {
-      const bx = x + rand(-spreadW / 2, spreadW / 2)
-      const by = y + rand(-30, 10)
-      const delay = b * 220 + rand(0, 80)
+      const bx = x + rand(-spreadW / 2, spreadW / 2);
+      const by = y + rand(-30, 10);
+      const delay = b * 220 + rand(0, 80);
 
       for (let i = 0; i < 24; i++) {
-        const angle = (i / 24) * Math.PI * 2
+        const angle = (i / 24) * Math.PI * 2;
         this.particles.push({
           x: bx,
           y: by,
@@ -302,137 +309,156 @@ export class ParticleSystem {
           life: 0,
           maxLife: rayLife,
           delay,
-        })
+        });
       }
     }
   }
 
   update(dtMs: number): void {
-    if (dtMs <= 0 || this.particles.length === 0) return
-    const next: Particle[] = []
+    if (dtMs <= 0 || this.particles.length === 0) return;
+    const next: Particle[] = [];
 
     for (const p of this.particles) {
       if (p.delay && p.delay > 0) {
-        p.delay -= dtMs
-        next.push(p)
-        continue
+        p.delay -= dtMs;
+        next.push(p);
+        continue;
       }
 
-      p.life += dtMs
-      if (p.life >= p.maxLife) continue
-      const t = p.life / p.maxLife
+      p.life += dtMs;
+      if (p.life >= p.maxLife) continue;
+      const t = p.life / p.maxLife;
 
       switch (p.type) {
         case "text": {
-          p.x = (p.startX ?? p.x) + (p.vx * p.life) / 1000
-          p.y = (p.startY ?? p.y) + (p.vy * p.life) / 1000
-          p.alpha = (p.baseAlpha ?? 1) * (1 - t)
-          break
+          p.x = (p.startX ?? p.x) + (p.vx * p.life) / 1000;
+          p.y = (p.startY ?? p.y) + (p.vy * p.life) / 1000;
+          p.alpha = (p.baseAlpha ?? 1) * (1 - t);
+          break;
         }
         case "ray": {
-          p.radius = 4 + (p.vx * p.life) / 1000
-          p.alpha = (p.baseAlpha ?? 1) * (t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75)
-          break
+          p.radius = 4 + (p.vx * p.life) / 1000;
+          p.alpha =
+            (p.baseAlpha ?? 1) * (t < 0.25 ? t / 0.25 : 1 - (t - 0.25) / 0.75);
+          break;
         }
         case "ring": {
-          p.radius = (p.size ?? 4) + (p.vx * p.life) / 1000
-          p.alpha = (p.baseAlpha ?? 1) * (1 - t)
-          break
+          p.radius = (p.size ?? 4) + (p.vx * p.life) / 1000;
+          p.alpha = (p.baseAlpha ?? 1) * (1 - t);
+          break;
         }
         case "flash": {
-          p.alpha = (p.baseAlpha ?? 0.3) * (1 - t)
-          break
+          p.alpha = (p.baseAlpha ?? 0.3) * (1 - t);
+          break;
         }
         case "spark": {
-          const dtSec = dtMs / 1000
-          p.vy += (p.gravity ?? 480) * dtSec
-          p.x += p.vx * dtSec
-          p.y += p.vy * dtSec
-          if (!p.bounced && p.groundY !== undefined && p.y >= p.groundY && p.vy > 0) {
-            p.vy = -p.vy * 0.45
-            p.bounced = true
+          const dtSec = dtMs / 1000;
+          p.vy += (p.gravity ?? 480) * dtSec;
+          p.x += p.vx * dtSec;
+          p.y += p.vy * dtSec;
+          if (
+            !p.bounced &&
+            p.groundY !== undefined &&
+            p.y >= p.groundY &&
+            p.vy > 0
+          ) {
+            p.vy = -p.vy * 0.45;
+            p.bounced = true;
           }
-          p.alpha = (p.baseAlpha ?? 1) * (1 - t)
-          p.scale = 1 - t * 0.4
-          break
+          p.alpha = (p.baseAlpha ?? 1) * (1 - t);
+          p.scale = 1 - t * 0.4;
+          break;
         }
         case "confetti": {
-          const dtSec = dtMs / 1000
-          p.vy += (p.gravity ?? 220) * dtSec
-          p.x += p.vx * dtSec
-          p.y += p.vy * dtSec
-          p.rotation = (p.rotation ?? 0) + (p.rotationSpeed ?? 0) * dtSec
-          p.alpha = (p.baseAlpha ?? 1) * (t > 0.75 ? Math.max(0, 1 - (t - 0.75) / 0.25) : 1)
-          break
+          const dtSec = dtMs / 1000;
+          p.vy += (p.gravity ?? 220) * dtSec;
+          p.x += p.vx * dtSec;
+          p.y += p.vy * dtSec;
+          p.rotation = (p.rotation ?? 0) + (p.rotationSpeed ?? 0) * dtSec;
+          p.alpha =
+            (p.baseAlpha ?? 1) *
+            (t > 0.75 ? Math.max(0, 1 - (t - 0.75) / 0.25) : 1);
+          break;
         }
       }
 
-      next.push(p)
+      next.push(p);
     }
 
-    this.particles = next
+    this.particles = next;
   }
 
   draw(ctx: CanvasRenderingContext2D): void {
     for (const p of this.particles) {
-      if (p.delay && p.delay > 0) continue
-      if (p.alpha <= 0) continue
+      if (p.delay && p.delay > 0) continue;
+      if (p.alpha <= 0) continue;
 
-      ctx.save()
-      ctx.globalAlpha = clamp01(p.alpha)
+      ctx.save();
+      ctx.globalAlpha = clamp01(p.alpha);
 
       switch (p.type) {
         case "text": {
-          ctx.font = `${p.bold ? "bold " : ""}${p.fontSize ?? 10}px monospace`
-          ctx.fillStyle = p.color
-          ctx.textAlign = "center"
-          ctx.textBaseline = "middle"
-          ctx.fillText(p.text ?? "", p.x, p.y)
-          break
+          ctx.font = `${p.bold ? "bold " : ""}${p.fontSize ?? 10}px monospace`;
+          ctx.fillStyle = p.color;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(p.text ?? "", p.x, p.y);
+          break;
         }
         case "spark": {
-          ctx.fillStyle = p.color
-          ctx.beginPath()
-          ctx.arc(p.x, p.y, Math.max(0.5, (p.size ?? 1.5) * p.scale), 0, Math.PI * 2)
-          ctx.fill()
-          break
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(
+            p.x,
+            p.y,
+            Math.max(0.5, (p.size ?? 1.5) * p.scale),
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+          break;
         }
         case "confetti": {
-          const s = (p.size ?? 3) * p.scale
-          ctx.translate(p.x, p.y)
-          ctx.rotate(p.rotation ?? 0)
-          ctx.fillStyle = p.color
-          ctx.fillRect(-s / 2, -s / 2, s, s)
-          break
+          const s = (p.size ?? 3) * p.scale;
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rotation ?? 0);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-s / 2, -s / 2, s, s);
+          break;
         }
         case "ray": {
-          const r0 = 4
-          const r1 = p.radius ?? r0
-          const angle = p.angle ?? 0
-          ctx.strokeStyle = p.color
-          ctx.lineWidth = p.size ?? 2
-          ctx.beginPath()
-          ctx.moveTo(p.x + Math.cos(angle) * r0, p.y + Math.sin(angle) * r0)
-          ctx.lineTo(p.x + Math.cos(angle) * r1, p.y + Math.sin(angle) * r1)
-          ctx.stroke()
-          break
+          const r0 = 4;
+          const r1 = p.radius ?? r0;
+          const angle = p.angle ?? 0;
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = p.size ?? 2;
+          ctx.beginPath();
+          ctx.moveTo(p.x + Math.cos(angle) * r0, p.y + Math.sin(angle) * r0);
+          ctx.lineTo(p.x + Math.cos(angle) * r1, p.y + Math.sin(angle) * r1);
+          ctx.stroke();
+          break;
         }
         case "ring": {
-          ctx.strokeStyle = p.color
-          ctx.lineWidth = p.lineWidth ?? 2
-          ctx.beginPath()
-          ctx.arc(p.x, p.y, Math.max(0, p.radius ?? 0), 0, Math.PI * 2)
-          ctx.stroke()
-          break
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = p.lineWidth ?? 2;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, Math.max(0, p.radius ?? 0), 0, Math.PI * 2);
+          ctx.stroke();
+          break;
         }
         case "flash": {
-          ctx.fillStyle = p.color
-          ctx.fillRect(p.x - (p.w ?? 40) / 2, p.y - (p.h ?? 40) / 2, p.w ?? 40, p.h ?? 40)
-          break
+          ctx.fillStyle = p.color;
+          ctx.fillRect(
+            p.x - (p.w ?? 40) / 2,
+            p.y - (p.h ?? 40) / 2,
+            p.w ?? 40,
+            p.h ?? 40,
+          );
+          break;
         }
       }
 
-      ctx.restore()
+      ctx.restore();
     }
   }
 }

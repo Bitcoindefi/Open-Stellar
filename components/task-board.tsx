@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import { useEffect, useMemo, useState } from "react"
-import type { MoltbotAgent } from "@/lib/types"
-import { TaskOfferSheet, type TaskOffer } from "./task-offer-sheet"
+import { useEffect, useMemo, useState } from "react";
+import type { MoltbotAgent } from "@/lib/types";
+import { TaskOfferSheet, type TaskOffer } from "./task-offer-sheet";
 
-export type { TaskOffer }
+export type { TaskOffer };
 
 const MOCK_OFFERS: TaskOffer[] = [
   {
@@ -52,103 +52,152 @@ const MOCK_OFFERS: TaskOffer[] = [
       output: "JSONL tags with confidence scores",
     },
   },
-]
+];
 
 function normalizeOffers(value: unknown): TaskOffer[] {
-  const raw = Array.isArray(value) ? value : Array.isArray((value as { offers?: unknown })?.offers) ? (value as { offers: unknown[] }).offers : []
+  const raw = Array.isArray(value)
+    ? value
+    : Array.isArray((value as { offers?: unknown })?.offers)
+      ? (value as { offers: unknown[] }).offers
+      : [];
 
   return raw
-    .filter((offer): offer is Partial<TaskOffer> => typeof offer === "object" && offer !== null)
+    .filter(
+      (offer): offer is Partial<TaskOffer> =>
+        typeof offer === "object" && offer !== null,
+    )
     .map((offer, index) => ({
       id: String(offer.id ?? `offer-${index}`),
       title: String(offer.title ?? "Untitled task offer"),
       requiredCapability: String(offer.requiredCapability ?? "General"),
       rewardAmount: Number(offer.rewardAmount ?? 0),
       rewardAsset: String(offer.rewardAsset ?? "XLM"),
-      deadline: String(offer.deadline ?? new Date(Date.now() + 60 * 60 * 1000).toISOString()),
-      status: offer.status === "claimed" || offer.status === "delivered" || offer.status === "accepted" ? offer.status : "open",
+      deadline: String(
+        offer.deadline ?? new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      ),
+      status:
+        offer.status === "claimed" ||
+        offer.status === "delivered" ||
+        offer.status === "accepted"
+          ? offer.status
+          : "open",
       posterAgentId: String(offer.posterAgentId ?? ""),
       workerAgentId: offer.workerAgentId ? String(offer.workerAgentId) : null,
-      payload: typeof offer.payload === "object" && offer.payload !== null ? offer.payload as Record<string, unknown> : {},
-    }))
+      payload:
+        typeof offer.payload === "object" && offer.payload !== null
+          ? (offer.payload as Record<string, unknown>)
+          : {},
+    }));
 }
 
 function getDeadlineText(deadline: string) {
-  const diff = new Date(deadline).getTime() - Date.now()
-  if (!Number.isFinite(diff)) return "unknown"
-  if (diff <= 0) return "expired"
+  const diff = new Date(deadline).getTime() - Date.now();
+  if (!Number.isFinite(diff)) return "unknown";
+  if (diff <= 0) return "expired";
 
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 60) return `${minutes}m`
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes}m`;
 
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
-  return `${hours}h ${remainingMinutes}m`
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}h ${remainingMinutes}m`;
 }
 
 export function getTaskOfferCounts(agentId: string, offers: TaskOffer[]) {
   return {
     posted: offers.filter((offer) => offer.posterAgentId === agentId).length,
-    filled: offers.filter((offer) => offer.workerAgentId === agentId && (offer.status === "delivered" || offer.status === "accepted")).length,
-  }
+    filled: offers.filter(
+      (offer) =>
+        offer.workerAgentId === agentId &&
+        (offer.status === "delivered" || offer.status === "accepted"),
+    ).length,
+  };
 }
 
 interface TaskBoardProps {
-  agents: MoltbotAgent[]
-  selectedAgent: MoltbotAgent | null
+  agents: MoltbotAgent[];
+  selectedAgent: MoltbotAgent | null;
 }
 
 export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
-  const [offers, setOffers] = useState<TaskOffer[]>(MOCK_OFFERS)
-  const [filter, setFilter] = useState("all")
-  const [selectedOffer, setSelectedOffer] = useState<TaskOffer | null>(null)
+  const [offers, setOffers] = useState<TaskOffer[]>(MOCK_OFFERS);
+  const [filter, setFilter] = useState("all");
+  const [selectedOffer, setSelectedOffer] = useState<TaskOffer | null>(null);
 
   useEffect(() => {
-    let active = true
+    let active = true;
 
     async function loadOffers() {
       try {
-        const response = await fetch("/api/task-offers", { cache: "no-store" })
-        if (!response.ok) return
-        const data = await response.json()
-        const nextOffers = normalizeOffers(data)
+        const response = await fetch("/api/task-offers", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        const nextOffers = normalizeOffers(data);
         if (active && nextOffers.length > 0) {
-          setOffers(nextOffers)
+          setOffers(nextOffers);
         }
       } catch {
         // Keep mock offers until the backend task-offer API lands.
       }
     }
 
-    void loadOffers()
-    const timer = window.setInterval(loadOffers, 5000)
+    void loadOffers();
+    const timer = window.setInterval(loadOffers, 5000);
     return () => {
-      active = false
-      window.clearInterval(timer)
-    }
-  }, [])
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const capabilities = useMemo(() => {
-    return Array.from(new Set(offers.map((offer) => offer.requiredCapability))).sort()
-  }, [offers])
+    return Array.from(
+      new Set(offers.map((offer) => offer.requiredCapability)),
+    ).sort();
+  }, [offers]);
 
   const filteredOffers = useMemo(() => {
-    if (filter === "all") return offers
-    return offers.filter((offer) => offer.requiredCapability === filter)
-  }, [filter, offers])
+    if (filter === "all") return offers;
+    return offers.filter((offer) => offer.requiredCapability === filter);
+  }, [filter, offers]);
 
   const agentNameById = useMemo(() => {
-    return new Map(agents.map((agent) => [agent.id, agent.name]))
-  }, [agents])
+    return new Map(agents.map((agent) => [agent.id, agent.name]));
+  }, [agents]);
 
   return (
-    <div style={{ position: "relative", display: "flex", height: "100%", flexDirection: "column", overflow: "hidden" }}>
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        height: "100%",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
       <div style={{ padding: 12, borderBottom: "1px solid #2a3a52" }}>
-        <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: 1 }}>Task Offers</div>
+        <div
+          style={{
+            fontSize: 11,
+            color: "#64748b",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+          }}
+        >
+          Task Offers
+        </div>
         <div style={{ marginTop: 4, color: "#cbd5e1", fontSize: 12 }}>
           Live board for agent-to-agent work. Polls every 5s.
         </div>
-        <label style={{ display: "grid", gap: 5, marginTop: 10, color: "#94a3b8", fontSize: 10, fontFamily: "monospace" }}>
+        <label
+          style={{
+            display: "grid",
+            gap: 5,
+            marginTop: 10,
+            color: "#94a3b8",
+            fontSize: 10,
+            fontFamily: "monospace",
+          }}
+        >
           Capability
           <select
             value={filter}
@@ -166,7 +215,9 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
           >
             <option value="all">All capabilities</option>
             {capabilities.map((capability) => (
-              <option key={capability} value={capability}>{capability}</option>
+              <option key={capability} value={capability}>
+                {capability}
+              </option>
             ))}
           </select>
         </label>
@@ -192,33 +243,79 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
               cursor: "pointer",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <span style={{ color: "#67e8f9", fontSize: 10, fontFamily: "monospace" }}>{offer.requiredCapability}</span>
-              <span style={{ color: "#fbbf24", fontSize: 11, fontFamily: "monospace" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <span
+                style={{
+                  color: "#67e8f9",
+                  fontSize: 10,
+                  fontFamily: "monospace",
+                }}
+              >
+                {offer.requiredCapability}
+              </span>
+              <span
+                style={{
+                  color: "#fbbf24",
+                  fontSize: 11,
+                  fontFamily: "monospace",
+                }}
+              >
                 {offer.rewardAmount} {offer.rewardAsset}
               </span>
             </div>
-            <div style={{ fontSize: 12, lineHeight: 1.3, fontWeight: 600 }}>{offer.title}</div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, color: "#64748b", fontSize: 10, fontFamily: "monospace" }}>
+            <div style={{ fontSize: 12, lineHeight: 1.3, fontWeight: 600 }}>
+              {offer.title}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 8,
+                color: "#64748b",
+                fontSize: 10,
+                fontFamily: "monospace",
+              }}
+            >
               <span>{offer.status.toUpperCase()}</span>
               <span>{getDeadlineText(offer.deadline)}</span>
             </div>
             <div style={{ color: "#64748b", fontSize: 10 }}>
-              Posted by {agentNameById.get(offer.posterAgentId) ?? (offer.posterAgentId || "unknown")}
+              Posted by{" "}
+              {agentNameById.get(offer.posterAgentId) ??
+                (offer.posterAgentId || "unknown")}
             </div>
           </button>
         ))}
 
         {filteredOffers.length === 0 && (
-          <div style={{ padding: 16, border: "1px dashed #334155", borderRadius: 8, color: "#64748b", fontSize: 12 }}>
+          <div
+            style={{
+              padding: 16,
+              border: "1px dashed #334155",
+              borderRadius: 8,
+              color: "#64748b",
+              fontSize: 12,
+            }}
+          >
             No open offers match this capability.
           </div>
         )}
       </div>
 
-      <TaskOfferSheet offer={selectedOffer} viewerAgentId={selectedAgent?.id} onClose={() => setSelectedOffer(null)} />
+      <TaskOfferSheet
+        offer={selectedOffer}
+        viewerAgentId={selectedAgent?.id}
+        onClose={() => setSelectedOffer(null)}
+      />
     </div>
-  )
+  );
 }
 
-export { MOCK_OFFERS }
+export { MOCK_OFFERS };

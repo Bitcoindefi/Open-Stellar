@@ -1,30 +1,34 @@
-import { describe, expect, it, vi } from "vitest"
-import AgentPage, { generateMetadata } from "@/app/agents/[id]/page"
-import { registerAgent, resetAgentRegistryForTests } from "@/lib/agent-registry"
+import { describe, expect, it, vi } from "vitest";
+import AgentPage, { generateMetadata } from "@/app/agents/[id]/page";
+import {
+  registerAgent,
+  resetAgentRegistryForTests,
+} from "@/lib/agent-registry";
 
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
-    throw new Error("404")
-  })
-}))
+    throw new Error("404");
+  }),
+}));
 
 // Mock fetch to resolve immediately in tests
 global.fetch = vi.fn().mockImplementation(() =>
   Promise.resolve({
     ok: false,
     json: () => Promise.resolve({}),
-  })
-)
+  }),
+);
 
 describe("Agent Profile Page", () => {
   it("renders 404 when agent does not exist", async () => {
-    resetAgentRegistryForTests()
-    await expect(AgentPage({ params: Promise.resolve({ id: "non-existent" }) }))
-      .rejects.toThrow("404")
-  })
+    resetAgentRegistryForTests();
+    await expect(
+      AgentPage({ params: Promise.resolve({ id: "non-existent" }) }),
+    ).rejects.toThrow("404");
+  });
 
   it("renders dynamic agent page metadata and page element correctly", async () => {
-    resetAgentRegistryForTests()
+    resetAgentRegistryForTests();
     registerAgent({
       agentId: "agent-007",
       model: "gpt-5-mini",
@@ -35,14 +39,18 @@ describe("Agent Profile Page", () => {
       x402: { accepts: false },
       registeredAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    })
+    });
 
-    const element = await AgentPage({ params: Promise.resolve({ id: "agent-007" }) })
-    expect(element).toBeDefined()
-    
+    const element = await AgentPage({
+      params: Promise.resolve({ id: "agent-007" }),
+    });
+    expect(element).toBeDefined();
+
     // Check metadata generation
-    const metadata = await generateMetadata({ params: Promise.resolve({ id: "agent-007" }) })
-    expect(metadata.title).toContain("agent-007")
-    expect(metadata.description).toContain("Defense Grid")
-  })
-})
+    const metadata = await generateMetadata({
+      params: Promise.resolve({ id: "agent-007" }),
+    });
+    expect(metadata.title).toContain("agent-007");
+    expect(metadata.description).toContain("Defense Grid");
+  });
+});

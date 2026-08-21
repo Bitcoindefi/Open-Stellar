@@ -37,10 +37,7 @@ export function ThemeToggleNavbar() {
     );
   }
 
-  const label =
-    theme === "system"
-      ? "Theme: system"
-      : `Theme: ${theme}`;
+  const label = theme === "system" ? "Theme: system" : `Theme: ${theme}`;
 
   let Icon = Laptop;
   if (theme === "dark") {
@@ -61,4 +58,3 @@ export function ThemeToggleNavbar() {
     </button>
   );
 }
-
