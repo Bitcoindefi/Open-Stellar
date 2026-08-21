@@ -105,6 +105,18 @@ export default function ApiKeyManagementPage() {
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Admin key modal for secure header-based auth (avoids secret in URL)
+  const [adminKeyInput, setAdminKeyInput] = useState("");
+  const [showAdminKeyModal, setShowAdminKeyModal] = useState(false);
+  const [hasSessionKey, setHasSessionKey] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("openstellar_admin_key");
+      setHasSessionKey(Boolean(stored));
+    }
+  }, []);
+
   // Helper to attach authorization header from sessionStorage (clean URL to prevent secret leakage)
   const getAdminAuthHeaders = (): Record<string, string> => {
     if (typeof window !== "undefined") {
@@ -112,6 +124,7 @@ export default function ApiKeyManagementPage() {
       const queryKey = params.get("apiKey");
       if (queryKey) {
         sessionStorage.setItem("openstellar_admin_key", queryKey);
+        setHasSessionKey(true);
         // Sanitize URL immediately so secret is never stored in browser history or leaked via Referer
         window.history.replaceState({}, "", window.location.pathname);
         return { Authorization: `Bearer ${queryKey}` };
@@ -133,6 +146,12 @@ export default function ApiKeyManagementPage() {
       const res = await fetch("/api/admin/keys", {
         headers: getAdminAuthHeaders(),
       });
+      if (res.status === 401 || res.status === 403) {
+        setShowAdminKeyModal(true);
+        throw new Error(
+          "Admin API key required. Please enter your admin secret.",
+        );
+      }
       if (!res.ok) {
         throw new Error(`Failed to load keys: ${res.statusText}`);
       }
@@ -299,6 +318,21 @@ export default function ApiKeyManagementPage() {
           <div className="flex items-center gap-3">
             <button
               type="button"
+              onClick={() => setShowAdminKeyModal(true)}
+              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${
+                hasSessionKey
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20"
+              }`}
+              title="Configure Admin API Secret"
+            >
+              <Lock className="h-4 w-4" />
+              <span>
+                {hasSessionKey ? "Admin Key Configured" : "Set Admin Key"}
+              </span>
+            </button>
+            <button
+              type="button"
               onClick={loadKeys}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 text-sm text-slate-300 transition hover:border-slate-700 hover:text-white"
               title="Refresh keys"
@@ -376,6 +410,69 @@ export default function ApiKeyManagementPage() {
             </div>
           </div>
         </div>
+
+        {/* Admin Key Entry Modal */}
+        {showAdminKeyModal && (
+          <div className="mb-8 rounded-2xl border border-cyan-500/30 bg-slate-950/90 p-6 backdrop-blur">
+            <div className="flex items-start gap-4">
+              <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3 text-cyan-400">
+                <Lock className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-pixel text-lg uppercase tracking-wide text-cyan-200">
+                  Authenticate Admin Access
+                </h3>
+                <p className="mt-1 text-sm text-slate-300">
+                  Enter your master{" "}
+                  <code className="text-cyan-300">ADMIN_API_KEY</code> to manage
+                  credentials. The key is securely sent via{" "}
+                  <code className="text-cyan-300">Authorization: Bearer</code>{" "}
+                  headers and never exposed in browser URL parameters or access
+                  logs.
+                </p>
+
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <input
+                    type="password"
+                    placeholder="osk_admin_live_..."
+                    value={adminKeyInput}
+                    onChange={(e) => setAdminKeyInput(e.target.value)}
+                    className="flex-1 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2.5 font-mono text-sm text-white placeholder:text-slate-600 focus:border-cyan-500 focus:outline-none"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (adminKeyInput.trim()) {
+                          sessionStorage.setItem(
+                            "openstellar_admin_key",
+                            adminKeyInput.trim(),
+                          );
+                          setHasSessionKey(true);
+                          setShowAdminKeyModal(false);
+                          setAdminKeyInput("");
+                          loadKeys();
+                        }
+                      }}
+                      className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/20"
+                    >
+                      Save & Authenticate
+                    </button>
+                    {hasSessionKey && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminKeyModal(false)}
+                        className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-xs text-slate-400 hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Revealed Secret Modal */}
         {revealedKey && (

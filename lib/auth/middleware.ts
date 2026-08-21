@@ -18,8 +18,8 @@ export interface AuthEvaluationResult {
 }
 
 /**
- * Extracts API key securely from Authorization header (Bearer token).
- * Query parameter support is deprecated and restricted.
+ * Extracts API key securely from Authorization header (Bearer token) or x-api-key header.
+ * Query parameters are completely disallowed to prevent secret leakage in logs and history.
  */
 export function extractApiKey(req: Request | NextRequest): string | null {
   const authHeader = req.headers.get("authorization");
@@ -30,15 +30,9 @@ export function extractApiKey(req: Request | NextRequest): string | null {
     }
   }
 
-  // Fallback for backwards compatibility
-  try {
-    const url = new URL(req.url);
-    const queryKey = url.searchParams.get("apiKey");
-    if (queryKey) {
-      return queryKey.trim();
-    }
-  } catch {
-    // Ignore URL parse error
+  const xApiKey = req.headers.get("x-api-key");
+  if (xApiKey?.trim()) {
+    return xApiKey.trim();
   }
 
   return null;
@@ -197,6 +191,106 @@ function evaluateAgentWriteRoute(
   return null;
 }
 
+function evaluateWebhookWriteRoute(
+  apiKey: string | null,
+  authResult: VerificationResult,
+  isDevBypass: boolean,
+): AuthEvaluationResult | null {
+  if (isDevBypass) {
+    return null;
+  }
+
+  if (!apiKey) {
+    return {
+      allowed: false,
+      status: 401,
+      error: "Unauthorized: API key required for webhook management",
+      tier: "no_key",
+      scopes: [],
+      isAdmin: false,
+    };
+  }
+
+  if (!authResult.valid) {
+    return {
+      allowed: false,
+      status: 401,
+      error: "Unauthorized: Invalid or revoked API key",
+      tier: "no_key",
+      scopes: [],
+      isAdmin: false,
+    };
+  }
+
+  const hasWebhookScope =
+    authResult.isAdmin ||
+    authResult.scopes.includes("*") ||
+    authResult.scopes.includes("webhooks:manage");
+
+  if (!hasWebhookScope) {
+    return {
+      allowed: false,
+      status: 403,
+      error: "Forbidden: Missing required scope webhooks:manage",
+      tier: authResult.tier,
+      scopes: authResult.scopes,
+      isAdmin: false,
+    };
+  }
+
+  return null;
+}
+
+function evaluateQuestWriteRoute(
+  apiKey: string | null,
+  authResult: VerificationResult,
+  isDevBypass: boolean,
+): AuthEvaluationResult | null {
+  if (isDevBypass) {
+    return null;
+  }
+
+  if (!apiKey) {
+    return {
+      allowed: false,
+      status: 401,
+      error: "Unauthorized: API key required for quest management",
+      tier: "no_key",
+      scopes: [],
+      isAdmin: false,
+    };
+  }
+
+  if (!authResult.valid) {
+    return {
+      allowed: false,
+      status: 401,
+      error: "Unauthorized: Invalid or revoked API key",
+      tier: "no_key",
+      scopes: [],
+      isAdmin: false,
+    };
+  }
+
+  const hasQuestScope =
+    authResult.isAdmin ||
+    authResult.scopes.includes("*") ||
+    authResult.scopes.includes("quests:manage");
+
+  if (!hasQuestScope) {
+    return {
+      allowed: false,
+      status: 403,
+      error: "Forbidden: Missing required scope quests:manage",
+      tier: authResult.tier,
+      scopes: authResult.scopes,
+      isAdmin: false,
+    };
+  }
+
+  return null;
+}
+
 function evaluateRateLimit(
   authResult: VerificationResult,
   clientIp: string,
@@ -266,6 +360,29 @@ export async function evaluateAuth(
   if (isAgentWriteRoute) {
     const writeCheck = evaluateAgentWriteRoute(apiKey, authResult, isDevBypass);
     if (writeCheck) return writeCheck;
+  }
+
+  // Webhook management routes check
+  const isWebhookWriteRoute =
+    (pathname === "/api/webhooks" || pathname.startsWith("/api/webhooks/")) &&
+    ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  if (isWebhookWriteRoute) {
+    const webhookCheck = evaluateWebhookWriteRoute(
+      apiKey,
+      authResult,
+      isDevBypass,
+    );
+    if (webhookCheck) return webhookCheck;
+  }
+
+  // Quest management routes check (exclude participant action routes)
+  const isQuestWriteRoute =
+    (pathname === "/api/quests" || pathname.startsWith("/api/quests/")) &&
+    !pathname.includes("/apply") &&
+    ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  if (isQuestWriteRoute) {
+    const questCheck = evaluateQuestWriteRoute(apiKey, authResult, isDevBypass);
+    if (questCheck) return questCheck;
   }
 
   // Rate Limiting

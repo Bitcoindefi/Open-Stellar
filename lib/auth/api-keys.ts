@@ -473,11 +473,20 @@ function findRecordByHash(candidateHash: string): ApiKeyRecord | undefined {
   return undefined;
 }
 
+let lastDiskSyncTime = 0;
+const DISK_SYNC_THROTTLE_MS = 2000;
+
 function findMatchingRecord(candidateHash: string): ApiKeyRecord | undefined {
   const matched = findRecordByHash(candidateHash);
   if (matched) return matched;
-  syncFromDisk();
-  return findRecordByHash(candidateHash);
+
+  const now = Date.now();
+  if (now - lastDiskSyncTime > DISK_SYNC_THROTTLE_MS) {
+    lastDiskSyncTime = now;
+    syncFromDisk();
+    return findRecordByHash(candidateHash);
+  }
+  return undefined;
 }
 
 function validateMatchedRecord(
@@ -569,9 +578,9 @@ export async function verifyApiKey(
  * - admin: unlimited
  */
 export const TIER_RATE_LIMITS: Record<ApiKeyTier, number> = {
-  no_key: 10,
-  free: 60,
-  pro: 600,
+  no_key: 120,
+  free: 300,
+  pro: 1200,
   admin: Number.POSITIVE_INFINITY,
 };
 

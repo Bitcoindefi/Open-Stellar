@@ -77,13 +77,13 @@ describe("API Key Management & Authentication", () => {
     expect(result.isAdmin).toBe(true);
   });
 
-  it("accepts valid admin API key via ?apiKey query param", async () => {
-    const req = new Request(
-      `http://localhost:3000/api/admin/keys?apiKey=${process.env.ADMIN_API_KEY}`,
-      {
-        method: "GET",
+  it("accepts valid admin API key via x-api-key header", async () => {
+    const req = new Request("http://localhost:3000/api/admin/keys", {
+      method: "GET",
+      headers: {
+        "x-api-key": process.env.ADMIN_API_KEY!,
       },
-    );
+    });
     const result = await evaluateAuth(req);
 
     expect(result.allowed).toBe(true);
@@ -190,9 +190,9 @@ describe("API Key Management & Authentication", () => {
   it("enforces tier rate limits correctly", () => {
     const windowMs = 60_000;
 
-    // No key (anonymous): limit 10
+    // No key (anonymous): limit 120
     const noKeyId = "ip-1.2.3.4";
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 120; i++) {
       const res = checkTierRateLimit(noKeyId, "no_key", windowMs);
       expect(res.allowed).toBe(true);
     }
@@ -200,9 +200,9 @@ describe("API Key Management & Authentication", () => {
     expect(noKeyExceeded.allowed).toBe(false);
     expect(noKeyExceeded.retryAfterSeconds).toBeGreaterThan(0);
 
-    // Free tier: limit 60
+    // Free tier: limit 300
     const freeKeyId = "key_free_123";
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 300; i++) {
       const res = checkTierRateLimit(freeKeyId, "free", windowMs);
       expect(res.allowed).toBe(true);
     }
@@ -218,8 +218,28 @@ describe("API Key Management & Authentication", () => {
     }
   });
 
-  // 8. Scoped access and permissions
-  it("enforces scoped permissions on agent write operations", async () => {
+  // 8. Public GET routes are never rejected with 401 even with unknown key
+  it("allows public GET routes without 401 even when an unrecognized or no key is provided", async () => {
+    const anonReq = new Request("http://localhost:3000/api/agents", {
+      method: "GET",
+    });
+    const anonResult = await evaluateAuth(anonReq);
+    expect(anonResult.allowed).toBe(true);
+    expect(anonResult.status).toBe(200);
+
+    const unknownKeyReq = new Request("http://localhost:3000/api/agents", {
+      method: "GET",
+      headers: {
+        Authorization: "Bearer osk_live_unknownboguskey99999",
+      },
+    });
+    const unknownResult = await evaluateAuth(unknownKeyReq);
+    expect(unknownResult.allowed).toBe(true);
+    expect(unknownResult.status).toBe(200);
+  });
+
+  // 9. Scoped access and permissions
+  it("enforces scoped permissions on agent, webhook, and quest management operations", async () => {
     // Key without agents:write
     const readOnlyKey = await createApiKey({
       name: "read-only-integration",
@@ -258,6 +278,56 @@ describe("API Key Management & Authentication", () => {
     const result2 = await evaluateAuth(writeReq2);
     expect(result2.allowed).toBe(true);
     expect(result2.status).toBe(200);
+
+    // Webhooks without webhooks:manage
+    const webhookReq = new Request("http://localhost:3000/api/webhooks", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${readOnlyKey.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url: "https://example.com" }),
+    });
+    const webhookResult = await evaluateAuth(webhookReq);
+    expect(webhookResult.allowed).toBe(false);
+    expect(webhookResult.status).toBe(403);
+    expect(webhookResult.error).toMatch(
+      /Missing required scope webhooks:manage/i,
+    );
+
+    // Webhooks with webhooks:manage
+    const webhookKey = await createApiKey({
+      name: "webhook-mgr",
+      scopes: ["webhooks:manage"],
+    });
+    const webhookReq2 = new Request("http://localhost:3000/api/webhooks", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${webhookKey.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url: "https://example.com" }),
+    });
+    const webhookResult2 = await evaluateAuth(webhookReq2);
+    expect(webhookResult2.allowed).toBe(true);
+    expect(webhookResult2.status).toBe(200);
+
+    // Quests with quests:manage
+    const questKey = await createApiKey({
+      name: "quest-mgr",
+      scopes: ["quests:manage"],
+    });
+    const questReq = new Request("http://localhost:3000/api/quests", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${questKey.key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ title: "New Quest" }),
+    });
+    const questResult = await evaluateAuth(questReq);
+    expect(questResult.allowed).toBe(true);
+    expect(questResult.status).toBe(200);
   });
 
   // 9. Constant-time comparison & Unicode safety
