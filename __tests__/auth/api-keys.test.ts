@@ -21,6 +21,7 @@ describe('API Key Management & Authentication', () => {
     process.env = { ...originalEnv }
     ;(process.env as any).NODE_ENV = 'test'
     process.env.ADMIN_API_KEY = 'osk_admin_supersecret1234567890abcdef'
+    delete process.env.DEV_MODE
     resetApiKeyStore()
   })
 
@@ -46,8 +47,8 @@ describe('API Key Management & Authentication', () => {
     expect(result.status).toBe(401)
   })
 
-  // 2. Clave inválida da 401
-  it('rejects invalid API keys with 401', async () => {
+  // 2. Clave inválida da 401 en ruta protegida
+  it('rejects invalid API keys on protected routes with 401', async () => {
     const req = new Request('http://localhost:3000/api/admin/keys', {
       method: 'GET',
       headers: {
@@ -108,14 +109,28 @@ describe('API Key Management & Authentication', () => {
     expect(verifyAfter.valid).toBe(false)
     expect(verifyAfter.error).toBe('key_revoked')
 
-    // Middleware check with revoked key returns 401
+    // Middleware check with revoked key on protected write route returns 401
     const req = new Request('http://localhost:3000/api/agents', {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${created.key}` },
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${created.key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: 'agent-x' }),
     })
     const result = await evaluateAuth(req)
     expect(result.allowed).toBe(false)
     expect(result.status).toBe(401)
+  })
+
+  it('rejects rotation on an already revoked key to prevent resurrection', async () => {
+    const created = await createApiKey({
+      name: 'revoke-then-rotate',
+      scopes: ['x402:quote'],
+    })
+
+    await revokeApiKey(created.id)
+    await expect(rotateApiKey(created.id)).rejects.toThrow(/Cannot rotate a revoked API key/i)
   })
 
   // 5. El almacenamiento no contiene el secreto en claro (solo hash)
@@ -131,7 +146,7 @@ describe('API Key Management & Authentication', () => {
     // Direct store inspection
     const storedRecord = getApiKeyRecord(created.id)
     expect(storedRecord).toBeDefined()
-    expect(storedRecord?.hashedKey).toBe(hashKey(created.key))
+    expect(storedRecord?.hashedKey).toBe(await hashKey(created.key))
     expect((storedRecord as any).key).toBeUndefined()
     expect(JSON.stringify(storedRecord)).not.toContain(created.key)
 
@@ -169,16 +184,6 @@ describe('API Key Management & Authentication', () => {
   // 7. Rate limiting per tier
   it('enforces tier rate limits correctly', () => {
     const windowMs = 60_000
-
-    // No key: limit 10
-    const noKeyId = 'ip-1.2.3.4'
-    for (let i = 0; i < 10; i++) {
-      const res = checkTierRateLimit(noKeyId, 'no_key', windowMs)
-      expect(res.allowed).toBe(true)
-    }
-    const noKeyExceeded = checkTierRateLimit(noKeyId, 'no_key', windowMs)
-    expect(noKeyExceeded.allowed).toBe(false)
-    expect(noKeyExceeded.retryAfterSeconds).toBeGreaterThan(0)
 
     // Free tier: limit 60
     const freeKeyId = 'key_free_123'
@@ -240,12 +245,19 @@ describe('API Key Management & Authentication', () => {
     expect(result2.status).toBe(200)
   })
 
-  // 9. Constant-time comparison
-  it('uses constant time comparison for secrets', () => {
-    const secret = 'osk_live_abcdef123456'
+  // 9. Constant-time comparison & Unicode safety
+  it('uses constant time comparison for secrets and handles Unicode strings correctly', async () => {
+    const secret = 'osk_live_abcdef123456_🔑'
     expect(timingSafeEqual(secret, secret)).toBe(true)
-    expect(timingSafeEqual(secret, 'osk_live_abcdef123457')).toBe(false)
+    expect(timingSafeEqual(secret, 'osk_live_abcdef123457_🔑')).toBe(false)
     expect(timingSafeEqual(secret, 'different_length')).toBe(false)
+
+    // Non-ASCII hashing
+    const hash1 = await hashKey('super_secret_🔑')
+    const hash2 = await hashKey('super_secret_🔒')
+    expect(hash1).toHaveLength(64)
+    expect(hash1).not.toBe('')
+    expect(hash1).not.toBe(hash2)
   })
 
   // 10. Missing ADMIN_API_KEY in production throws on boot

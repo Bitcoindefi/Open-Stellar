@@ -69,13 +69,76 @@ const globalState = globalThis as typeof globalThis & {
   __openStellarApiKeyStore__?: Map<string, ApiKeyRecord>
   __openStellarRateLimits__?: Map<string, number[]>
   __openStellarAdminApiKey__?: string
+  __openStellarStoreInitialized__?: boolean
+}
+
+function tryReadDiskStore(): ApiKeyRecord[] | null {
+  try {
+    if (typeof process !== 'undefined' && process.versions?.node) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const fs = require('fs')
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const path = require('path')
+      const filePath = path.join(process.cwd(), '.data', 'api-keys.json')
+      if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf8').trim()
+        if (content) {
+          const parsed = JSON.parse(content) as unknown
+          if (Array.isArray(parsed)) {
+            return parsed as ApiKeyRecord[]
+          }
+        }
+      }
+    }
+  } catch {
+    // Ignore in non-Node or read-only edge environments
+  }
+  return null
+}
+
+function tryWriteDiskStore(records: ApiKeyRecord[]): void {
+  try {
+    if (typeof process !== 'undefined' && process.versions?.node) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const fs = require('fs')
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const path = require('path')
+      const filePath = path.join(process.cwd(), '.data', 'api-keys.json')
+      const dir = path.dirname(filePath)
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+      fs.writeFileSync(filePath, JSON.stringify(records, null, 2), 'utf8')
+    }
+  } catch {
+    // Ignore in non-Node or read-only edge environments
+  }
 }
 
 function getKeyStore(): Map<string, ApiKeyRecord> {
   if (!globalState.__openStellarApiKeyStore__) {
     globalState.__openStellarApiKeyStore__ = new Map<string, ApiKeyRecord>()
   }
+
+  if (!globalState.__openStellarStoreInitialized__) {
+    globalState.__openStellarStoreInitialized__ = true
+    const diskRecords = tryReadDiskStore()
+    if (diskRecords && Array.isArray(diskRecords)) {
+      for (const rec of diskRecords) {
+        if (rec && rec.id) {
+          globalState.__openStellarApiKeyStore__.set(rec.id, rec)
+        }
+      }
+    }
+  }
+
   return globalState.__openStellarApiKeyStore__
+}
+
+function saveKeyStore(): void {
+  const store = getKeyStore()
+  const records = Array.from(store.values())
+  tryWriteDiskStore(records)
 }
 
 function getRateLimitStore(): Map<string, number[]> {
@@ -89,6 +152,8 @@ export function resetApiKeyStore() {
   getKeyStore().clear()
   getRateLimitStore().clear()
   delete globalState.__openStellarAdminApiKey__
+  globalState.__openStellarStoreInitialized__ = true
+  tryWriteDiskStore([])
 }
 
 /**
@@ -103,112 +168,54 @@ export function generateRandomHex(byteCount: number): string {
       bytes[i] = Math.floor(Math.random() * 256)
     }
   }
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 /**
- * Pure TypeScript standard SHA-256 implementation (zero native dependencies, universally compatible)
+ * Standard Web Crypto SHA-256 implementation (Node 18+, Edge Runtime, Browser).
+ * Correctly processes all Unicode strings and satisfies cryptographic standards.
  */
-export function sha256(ascii: string): string {
-  function rightRotate(value: number, amount: number) {
-    return (value >>> amount) | (value << (32 - amount))
+export async function hashKey(secret: string): Promise<string> {
+  if (typeof secret !== 'string') return ''
+  const encoder = new TextEncoder()
+  const data = encoder.encode(secret)
+  
+  if (typeof globalThis.crypto?.subtle?.digest === 'function') {
+    const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', data)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
   }
 
-  const mathPow = Math.pow
-  const maxWord = mathPow(2, 32)
-  let i = 0, j = 0
-  let result = ''
-
-  const words: number[] = []
-  const asciiBitLength = ascii.length * 8
-
-  const hash: number[] = []
-  const k: number[] = []
-  let primeCounter = 0
-
-  const isComposite: Record<number, number> = {}
-  for (let candidate = 2; primeCounter < 64; candidate++) {
-    if (!isComposite[candidate]) {
-      for (let idx = 0; idx < 313; idx += candidate) {
-        isComposite[idx] = candidate
-      }
-      hash[primeCounter] = (mathPow(candidate, 0.5) * maxWord) | 0
-      k[primeCounter++] = (mathPow(candidate, 1 / 3) * maxWord) | 0
-    }
+  // Node runtime fallback
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const crypto = require('crypto')
+    return crypto.createHash('sha256').update(secret, 'utf8').digest('hex')
+  } catch {
+    throw new Error('Web Crypto API is not available in this runtime.')
   }
-
-  ascii += '\x80'
-  while ((ascii.length % 64) - 56) ascii += '\x00'
-  for (i = 0; i < ascii.length; i++) {
-    j = ascii.charCodeAt(i)
-    if (j >> 8) return ''
-    words[i >> 2] = (words[i >> 2] || 0) | (j << (((3 - i) % 4) * 8))
-  }
-  words[words.length] = (asciiBitLength / maxWord) | 0
-  words[words.length] = asciiBitLength | 0
-
-  for (j = 0; j < words.length; ) {
-    const w = words.slice(j, (j += 16))
-    const oldHash = hash.slice(0)
-
-    for (i = 0; i < 64; i++) {
-      const w15 = w[i - 15] ?? 0,
-        w2 = w[i - 2] ?? 0
-
-      const s0 = rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)
-      const s1 = rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10)
-      w[i] =
-        i < 16
-          ? w[i]
-          : (w[i - 16] + s0 + w[i - 7] + s1) | 0
-
-      const s1h = rightRotate(hash[4], 6) ^ rightRotate(hash[4], 11) ^ rightRotate(hash[4], 25)
-      const ch = (hash[4] & hash[5]) ^ (~hash[4] & hash[6])
-      const temp1 = (hash[7] + s1h + ch + k[i] + w[i]) | 0
-      const s0h = rightRotate(hash[0], 2) ^ rightRotate(hash[0], 13) ^ rightRotate(hash[0], 22)
-      const maj = (hash[0] & hash[1]) ^ (hash[0] & hash[2]) ^ (hash[1] & hash[2])
-      const temp2 = (s0h + maj) | 0
-
-      hash[7] = hash[6]
-      hash[6] = hash[5]
-      hash[5] = hash[4]
-      hash[4] = (hash[3] + temp1) | 0
-      hash[3] = hash[2]
-      hash[2] = hash[1]
-      hash[1] = hash[0]
-      hash[0] = (temp1 + temp2) | 0
-    }
-
-    for (i = 0; i < 8; i++) {
-      hash[i] = (hash[i] + oldHash[i]) | 0
-    }
-  }
-
-  for (i = 0; i < 8; i++) {
-    for (let i2 = 3; i2 >= 0; i2--) {
-      const byte = (hash[i] >> (i2 * 8)) & 255
-      result += (byte < 16 ? '0' : '') + byte.toString(16)
-    }
-  }
-  return result
-}
-
-export function hashKey(secret: string): string {
-  return sha256(secret)
 }
 
 /**
  * Constant-time comparison between two strings to prevent timing attacks.
  */
 export function timingSafeEqual(a: string, b: string): boolean {
-  const hashA = hashKey(a)
-  const hashB = hashKey(b)
-  if (hashA.length !== hashB.length) return false
-  let diff = 0
-  for (let i = 0; i < hashA.length; i++) {
-    diff |= hashA.charCodeAt(i) ^ hashB.charCodeAt(i)
+  if (typeof a !== 'string' || typeof b !== 'string') return false
+  const encoder = new TextEncoder()
+  const bufA = encoder.encode(a)
+  const bufB = encoder.encode(b)
+
+  if (bufA.length !== bufB.length) {
+    return false
   }
-  return diff === 0
+
+  let result = 0
+  for (let i = 0; i < bufA.length; i++) {
+    result |= bufA[i]! ^ bufB[i]!
+  }
+  return result === 0
 }
 
 /**
@@ -237,24 +244,35 @@ export function getAdminApiKey(strictCheck = false): string {
 
 /**
  * Generates a cryptographically secure random API key.
- * Format: osk_live_<48 hex chars>
+ * Format: osk_live_<48_hex_chars>
  */
-export function generateKeySecret(): string {
-  return `osk_live_${generateRandomHex(24)}`
+export function generateKeySecret(): { secret: string; prefix: string } {
+  const randomHex = generateRandomHex(24)
+  const secret = `osk_live_${randomHex}`
+  const prefix = `osk_live_${randomHex.slice(0, 5)}...`
+  return { secret, prefix }
 }
 
-export function generateKeyId(): string {
-  return `key_${generateRandomHex(8)}`
-}
-
-export function sanitizeApiKey(record: ApiKeyRecord): SanitizedApiKey {
-  let status: 'active' | 'expired' | 'revoked' = 'active'
+/**
+ * Derives a key status based on revocation and expiration timestamp.
+ */
+export function calculateKeyStatus(record: ApiKeyRecord): 'active' | 'expired' | 'revoked' {
   if (record.revokedAt) {
-    status = 'revoked'
-  } else if (record.expiresAt && new Date(record.expiresAt).getTime() <= Date.now()) {
-    status = 'expired'
+    return 'revoked'
   }
+  if (record.expiresAt) {
+    const expiryTime = new Date(record.expiresAt).getTime()
+    if (!Number.isNaN(expiryTime) && expiryTime <= Date.now()) {
+      return 'expired'
+    }
+  }
+  return 'active'
+}
 
+/**
+ * Sanitizes an ApiKeyRecord to strip the internal hashedKey.
+ */
+export function sanitizeApiKey(record: ApiKeyRecord): SanitizedApiKey {
   return {
     id: record.id,
     name: record.name,
@@ -266,111 +284,124 @@ export function sanitizeApiKey(record: ApiKeyRecord): SanitizedApiKey {
     revokedAt: record.revokedAt,
     lastUsedAt: record.lastUsedAt,
     requestCount: record.requestCount,
-    status,
+    status: calculateKeyStatus(record),
   }
 }
 
 /**
- * Create a new service API key.
- * Stores only the SHA-256 hash and returns the plaintext key ONCE.
+ * Issues a new API key and stores its SHA-256 hash.
+ * Plaintext secret is returned ONLY once in the result.
  */
 export async function createApiKey(input: CreateApiKeyInput): Promise<CreateApiKeyResult> {
   const name = input.name?.trim()
   if (!name) {
-    throw new Error('API key name is required')
+    throw new Error('Key name is required')
   }
 
-  const rawKey = generateKeySecret()
-  const keyPrefix = `${rawKey.slice(0, 14)}...`
-  const hashedKey = hashKey(rawKey)
-  const id = generateKeyId()
-  const createdAt = new Date().toISOString()
-  const tier: ApiKeyTier = input.tier ?? 'free'
+  const { secret, prefix } = generateKeySecret()
+  const hashed = await hashKey(secret)
+  const id = `key_${generateRandomHex(8)}`
+  const now = new Date().toISOString()
+  const tier: ApiKeyTier = input.tier || 'free'
 
   const record: ApiKeyRecord = {
     id,
     name,
-    keyPrefix,
-    hashedKey,
-    scopes: Array.isArray(input.scopes) ? input.scopes : [],
+    keyPrefix: prefix,
+    hashedKey: hashed,
+    scopes: Array.isArray(input.scopes) ? [...input.scopes] : [],
     tier,
-    createdAt,
-    expiresAt: input.expiresAt ? new Date(input.expiresAt).toISOString() : null,
+    createdAt: now,
+    expiresAt: input.expiresAt || null,
     revokedAt: null,
     lastUsedAt: null,
     requestCount: 0,
   }
 
-  getKeyStore().set(id, record)
+  const store = getKeyStore()
+  store.set(id, record)
+  saveKeyStore()
 
   return {
     id,
-    key: rawKey,
+    key: secret,
     name,
-    keyPrefix,
+    keyPrefix: prefix,
     scopes: record.scopes,
     tier,
     expiresAt: record.expiresAt,
-    createdAt,
+    createdAt: now,
   }
 }
 
 /**
- * List all API keys in sanitized format (no hashes or secrets).
+ * Lists all API keys in sanitized format.
  */
 export async function listApiKeys(): Promise<SanitizedApiKey[]> {
   const store = getKeyStore()
-  const results: SanitizedApiKey[] = []
+  const list: SanitizedApiKey[] = []
+
   for (const record of store.values()) {
-    results.push(sanitizeApiKey(record))
+    list.push(sanitizeApiKey(record))
   }
-  return results.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 }
 
 /**
- * Retrieve raw key record by ID (for internal/test use).
+ * Internal lookup for test verification of hashed storage.
  */
 export function getApiKeyRecord(id: string): ApiKeyRecord | undefined {
   return getKeyStore().get(id)
 }
 
 /**
- * Revoke an API key immediately.
+ * Revokes an existing API key immediately.
  */
 export async function revokeApiKey(id: string): Promise<boolean> {
   const store = getKeyStore()
   const record = store.get(id)
-  if (!record || record.revokedAt) {
+  if (!record) {
     return false
   }
 
   record.revokedAt = new Date().toISOString()
   store.set(id, record)
+  saveKeyStore()
   return true
 }
 
 /**
- * Rotate an existing key: immediately replaces the hashed key and returns the new secret ONCE.
+ * Rotates an existing key's secret.
+ * Replaces the stored hash with a new secret hash, invalidating the previous secret immediately.
+ * Throws an error if the key is already revoked to prevent resurrecting intentionally revoked keys.
  */
-export async function rotateApiKey(id: string): Promise<{ id: string; key: string; keyPrefix: string } | null> {
+export async function rotateApiKey(
+  id: string,
+): Promise<{ id: string; key: string; keyPrefix: string } | null> {
   const store = getKeyStore()
   const record = store.get(id)
   if (!record) {
     return null
   }
 
-  const rawKey = generateKeySecret()
-  const keyPrefix = `${rawKey.slice(0, 14)}...`
-  const hashedKey = hashKey(rawKey)
+  if (record.revokedAt) {
+    throw new Error('Cannot rotate a revoked API key. Issue a new key instead.')
+  }
 
-  record.hashedKey = hashedKey
+  const { secret: rawKey, prefix: keyPrefix } = generateKeySecret()
+  const newHashedKey = await hashKey(rawKey)
+
+  record.hashedKey = newHashedKey
   record.keyPrefix = keyPrefix
-  record.revokedAt = null // Reset revocation if rotated
+  record.requestCount = 0
+  record.lastUsedAt = null
 
   store.set(id, record)
+  saveKeyStore()
 
   return {
-    id: record.id,
+    id,
     key: rawKey,
     keyPrefix,
   }
@@ -379,7 +410,7 @@ export async function rotateApiKey(id: string): Promise<{ id: string; key: strin
 /**
  * Verify a provided API key against Admin API Key or stored scoped keys in constant time.
  */
-export function verifyApiKey(providedKey: string): VerificationResult {
+export async function verifyApiKey(providedKey: string): Promise<VerificationResult> {
   const trimmedKey = providedKey?.trim()
   if (!trimmedKey) {
     return { valid: false, tier: 'no_key', scopes: [], isAdmin: false, error: 'missing_key' }
@@ -402,7 +433,7 @@ export function verifyApiKey(providedKey: string): VerificationResult {
 
   // 2. Check Service Keys via constant-time hash comparison
   const store = getKeyStore()
-  const candidateHash = hashKey(trimmedKey)
+  const candidateHash = await hashKey(trimmedKey)
   const now = Date.now()
 
   for (const record of store.values()) {
@@ -421,6 +452,7 @@ export function verifyApiKey(providedKey: string): VerificationResult {
       record.lastUsedAt = new Date().toISOString()
       record.requestCount += 1
       store.set(record.id, record)
+      saveKeyStore()
 
       return {
         valid: true,
@@ -438,13 +470,13 @@ export function verifyApiKey(providedKey: string): VerificationResult {
 /**
  * Sliding window rate limiting
  * Tier limits:
- * - no_key: 10 requests / min
+ * - no_key: 60 requests / min (public anonymous)
  * - free: 60 requests / min
  * - pro: 600 requests / min
  * - admin: unlimited
  */
 export const TIER_RATE_LIMITS: Record<ApiKeyTier, number> = {
-  no_key: 10,
+  no_key: 60,
   free: 60,
   pro: 600,
   admin: Number.POSITIVE_INFINITY,

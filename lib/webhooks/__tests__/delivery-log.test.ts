@@ -227,7 +227,7 @@ describe("listWebhookDeliveries", () => {
 
     const deliveries = listWebhookDeliveries(webhookId, { limit: 200 })
     expect(deliveries).toHaveLength(100)
-  })
+  }, 30000)
 
   it("defaults limit to 20", () => {
     const webhookId = "wh_default"

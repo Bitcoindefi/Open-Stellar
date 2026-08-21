@@ -24,13 +24,15 @@ describe("GET /api/protocol/x402/receipts", () => {
 
     expect(settlement.ok).toBe(true)
     expect(data.ok).toBe(true)
-    expect(data.receipts[0]).toMatchObject({
+    const targetReceipt = data.receipts.find((r: any) => r.service === "data-indexing")
+    expect(targetReceipt).toBeDefined()
+    expect(targetReceipt).toMatchObject({
       agentId: "nexus-7",
       service: "data-indexing",
       amount: "0.01 USD",
       passportVerified: true,
     })
-    expect(data.receipts[0].explorerUrl).toMatch(/stellar\.expert\/explorer\/(mainnet|testnet)\/tx\//)
+    expect(targetReceipt.explorerUrl).toMatch(/stellar\.expert\/explorer\/(mainnet|testnet)\/tx\//)
   })
 
   it("returns a single receipt by id", async () => {

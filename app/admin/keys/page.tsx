@@ -47,13 +47,21 @@ export default function AdminKeysPage() {
   const [revealedKey, setRevealedKey] = useState<{ id: string; key: string; name: string } | null>(null)
   const [copied, setCopied] = useState(false)
 
-  // Helper to attach authorization header from URL apiKey
+  // Helper to attach authorization header from sessionStorage (clean URL to prevent secret leakage)
   const getAdminAuthHeaders = (): Record<string, string> => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search)
-      const apiKey = params.get("apiKey")
-      if (apiKey) {
-        return { Authorization: `Bearer ${apiKey}` }
+      const queryKey = params.get("apiKey")
+      if (queryKey) {
+        sessionStorage.setItem("openstellar_admin_key", queryKey)
+        // Sanitize URL immediately so secret is never stored in browser history or leaked via Referer
+        window.history.replaceState({}, "", window.location.pathname)
+        return { Authorization: `Bearer ${queryKey}` }
+      }
+
+      const sessionKey = sessionStorage.getItem("openstellar_admin_key")
+      if (sessionKey) {
+        return { Authorization: `Bearer ${sessionKey}` }
       }
     }
     return {}

@@ -10,6 +10,7 @@ import { evaluateAuth } from '@/lib/auth/middleware'
 describe('Visual Evidence for Verification', () => {
   it('EVIDENCIA 1: 401 sobre una ruta admin sin clave', async () => {
     resetApiKeyStore()
+    delete process.env.DEV_MODE
     process.env.ADMIN_API_KEY = 'osk_admin_live_demo1234567890abcdef'
 
     const req = new Request('http://localhost:3000/admin', { method: 'GET' })
@@ -27,6 +28,7 @@ describe('Visual Evidence for Verification', () => {
 
   it('EVIDENCIA 2: La misma ruta funcionando con clave válida', async () => {
     resetApiKeyStore()
+    delete process.env.DEV_MODE
     const adminKey = 'osk_admin_live_demo1234567890abcdef'
     process.env.ADMIN_API_KEY = adminKey
 
@@ -48,6 +50,7 @@ describe('Visual Evidence for Verification', () => {
 
   it('EVIDENCIA 3: Almacenamiento mostrando el hash, no el secreto', async () => {
     resetApiKeyStore()
+    delete process.env.DEV_MODE
 
     const created = await createApiKey({
       name: 'production-payment-relay',

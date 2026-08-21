@@ -18,7 +18,8 @@ export interface AuthEvaluationResult {
 }
 
 /**
- * Extracts API key from Authorization header or URL search parameters.
+ * Extracts API key securely from Authorization header (Bearer token).
+ * Query parameter support is deprecated and restricted.
  */
 export function extractApiKey(req: Request | NextRequest): string | null {
   const authHeader = req.headers.get('authorization')
@@ -29,6 +30,7 @@ export function extractApiKey(req: Request | NextRequest): string | null {
     }
   }
 
+  // Fallback for backwards compatibility
   try {
     const url = new URL(req.url)
     const queryKey = url.searchParams.get('apiKey')
@@ -43,14 +45,24 @@ export function extractApiKey(req: Request | NextRequest): string | null {
 }
 
 /**
- * Extracts client IP address for rate limiting unauthenticated callers.
+ * Extracts client IP address safely without trusting spoofable leftmost headers.
  */
 export function getClientIp(req: Request | NextRequest): string {
+  if ('ip' in req && typeof (req as unknown as { ip?: string }).ip === 'string' && (req as unknown as { ip?: string }).ip) {
+    return (req as unknown as { ip: string }).ip
+  }
+  const realIp = req.headers.get('x-real-ip')
+  if (realIp) return realIp.trim()
+  const cfConnectingIp = req.headers.get('cf-connecting-ip')
+  if (cfConnectingIp) return cfConnectingIp.trim()
   const forwarded = req.headers.get('x-forwarded-for')
   if (forwarded) {
-    return forwarded.split(',')[0].trim()
+    const parts = forwarded.split(',').map((p) => p.trim()).filter(Boolean)
+    if (parts.length > 0) {
+      return parts[parts.length - 1]!
+    }
   }
-  return req.headers.get('x-real-ip') || '127.0.0.1'
+  return '127.0.0.1'
 }
 
 /**
@@ -89,17 +101,10 @@ export async function evaluateAuth(req: Request | NextRequest): Promise<AuthEval
 
   if (apiKey) {
     authResult = await verifyApiKey(apiKey)
-    if (!authResult.valid) {
-      return {
-        allowed: false,
-        status: 401,
-        error: 'Unauthorized: Invalid or revoked API key',
-        tier: 'no_key',
-        scopes: [],
-        isAdmin: false,
-      }
-    }
   }
+
+  // Check bypass modes (DEV_MODE)
+  const isDevBypass = process.env.DEV_MODE === 'true'
 
   // 2. Admin routes: /admin, /admin/*, /api/admin, /api/admin/*
   const isAdminRoute =
@@ -109,11 +114,32 @@ export async function evaluateAuth(req: Request | NextRequest): Promise<AuthEval
     pathname.startsWith('/api/admin/')
 
   if (isAdminRoute) {
+    if (isDevBypass) {
+      return {
+        allowed: true,
+        status: 200,
+        tier: 'admin',
+        scopes: ['*'],
+        isAdmin: true,
+      }
+    }
+
     if (!apiKey) {
       return {
         allowed: false,
         status: 401,
         error: 'Unauthorized: Admin API key required',
+        tier: 'no_key',
+        scopes: [],
+        isAdmin: false,
+      }
+    }
+
+    if (!authResult.valid) {
+      return {
+        allowed: false,
+        status: 401,
+        error: 'Unauthorized: Invalid or revoked API key',
         tier: 'no_key',
         scopes: [],
         isAdmin: false,
@@ -146,11 +172,32 @@ export async function evaluateAuth(req: Request | NextRequest): Promise<AuthEval
     ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
 
   if (isAgentWriteRoute) {
+    if (isDevBypass) {
+      return {
+        allowed: true,
+        status: 200,
+        tier: 'admin',
+        scopes: ['*'],
+        isAdmin: true,
+      }
+    }
+
     if (!apiKey) {
       return {
         allowed: false,
         status: 401,
         error: 'Unauthorized: API key required for agent write operations',
+        tier: 'no_key',
+        scopes: [],
+        isAdmin: false,
+      }
+    }
+
+    if (!authResult.valid) {
+      return {
+        allowed: false,
+        status: 401,
+        error: 'Unauthorized: Invalid or revoked API key',
         tier: 'no_key',
         scopes: [],
         isAdmin: false,
@@ -216,21 +263,6 @@ export async function authMiddleware(req: NextRequest): Promise<NextResponse> {
   const result = await evaluateAuth(req)
 
   if (!result.allowed) {
-    // If it's a browser page request under /admin (not /api/), return 401 response or JSON
-    const isHtmlRoute = !pathname.startsWith('/api/')
-    if (isHtmlRoute && result.status === 401) {
-      return new NextResponse(
-        JSON.stringify({ ok: false, error: result.error || 'Unauthorized' }),
-        {
-          status: 401,
-          headers: {
-            'Content-Type': 'application/json',
-            ...(result.headers || {}),
-          },
-        },
-      )
-    }
-
     return NextResponse.json(
       { ok: false, error: result.error || 'Unauthorized' },
       {
