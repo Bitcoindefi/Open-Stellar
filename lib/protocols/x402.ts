@@ -1,11 +1,29 @@
 import { StrKey } from '@stellar/stellar-sdk'
 import { verifyEvmPayment, type EvmSettlementChain } from '@/lib/evm-utils'
 
-import { getX402Receipt, listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
+import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
 import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
 import { checkReputationGate } from '@/lib/reputation/attestation'
 
 export type SettlementChain = 'bnb' | 'base' | 'stellar'
+
+const EXPLORER_MAINNET: Record<SettlementChain, string> = {
+  bnb: 'https://bscscan.com/tx',
+  base: 'https://basescan.org/tx',
+  stellar: 'https://stellar.expert/explorer/mainnet/tx',
+}
+
+const EXPLORER_TESTNET: Record<SettlementChain, string> = {
+  bnb: 'https://testnet.bscscan.com/tx',
+  base: 'https://sepolia.basescan.org/tx',
+  stellar: 'https://stellar.expert/explorer/testnet/tx',
+}
+
+export function getExplorerUrl(chain: SettlementChain, txHash: string): string {
+  const isProduction = process.env.NODE_ENV === 'production'
+  const base = isProduction ? EXPLORER_MAINNET[chain] : EXPLORER_TESTNET[chain]
+  return `${base}/${txHash}`
+}
 
 type ChainAsset = 'XLM' | 'BNB' | 'ETH'
 
@@ -61,6 +79,7 @@ export interface X402Receipt {
   chain: SettlementChain
   amountUsd?: number
   amountUnits?: string
+  explorerUrl?: string
 }
 
 export interface X402ExplorerReceipt extends X402Receipt {
@@ -177,17 +196,18 @@ export function createX402Quote(input: X402QuoteRequest): X402Quote {
 export async function verifyX402Settlement(input: X402Settlement, quote?: X402Quote): Promise<X402Receipt> {
   const paymentRef = input.paymentRef || input.quoteId || ''
   const option = quote?.options.find((item) => item.chain === input.chain)
+  const explorerUrl = getExplorerUrl(input.chain, input.txHash)
   if (input.chain === 'stellar') {
     const accepted = /^0x[a-fA-F0-9]{64}$/.test(input.txHash) || /^[a-fA-F0-9]{64}$/.test(input.txHash) || /^[A-Z0-9]{64}$/.test(input.txHash)
-    return { accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain }
+    return { accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
   }
 
-  if (!option) return { accepted: false, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain }
+  if (!option) return { accepted: false, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
   try {
     const verified = await verifyEvmPayment({ chain: input.chain as EvmSettlementChain, txHash: input.txHash, expectedTo: option.address, expectedValueWei: option.amountUnits, expectedFrom: input.paidBy })
-    return { accepted: verified.accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain }
+    return { accepted: verified.accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
   } catch {
-    return { accepted: false, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain }
+    return { accepted: false, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
   }
 }
 
@@ -225,6 +245,7 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
 
   receipt.amountUsd = quote.amountUsd
   receipt.amountUnits = option.amountUnits
+  receipt.explorerUrl = getExplorerUrl(input.chain, input.txHash)
 
   const storedReceipt = saveX402Receipt({
     ...receipt,
@@ -381,9 +402,10 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
     const requiredXlm = parseXlmAmount(subscription.pricePerMonth)
     const balance = balances[subscription.agentId] ?? 0
     if (requiredXlm > 0 && balance < requiredXlm) {
-      subscription.status = now.getTime() <= new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS ? 'grace' : 'paused'
+      const graceEndTime = new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS
+      subscription.status = now.getTime() <= graceEndTime ? 'grace' : 'paused'
       subscription.active = subscription.status === 'grace'
-      subscription.graceEndsAt = new Date(new Date(subscription.renewsAt).getTime() + GRACE_PERIOD_MS).toISOString()
+      subscription.graceEndsAt = new Date(graceEndTime).toISOString()
       if (subscription.status === 'paused') subscription.pausedAt = now.toISOString()
       subscription.billingEvents.unshift({
         id: `bill_${Date.now().toString(36)}_${subscription.billingEvents.length + 1}`,
@@ -420,7 +442,6 @@ export function checkX402Subscription(agentId: string, serviceId: string, option
   const subscription = subscriptionRegistry.get(subscriptionKey(agentId.trim(), serviceId.trim()))
   if (!subscription) return { active: false, callsRemaining: 0, renewsAt: '', status: 'missing' }
 
-  renewX402Subscriptions()
   if (!subscription.active) {
     return { active: false, callsRemaining: Math.max(0, (subscription.callsPerMonth ?? 0) - subscription.callsUsed), renewsAt: subscription.renewsAt, status: subscription.status, graceEndsAt: subscription.graceEndsAt, subscription }
   }

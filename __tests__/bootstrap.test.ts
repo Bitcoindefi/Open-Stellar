@@ -11,7 +11,7 @@ import {
   DEFAULTS,
 } from "../scripts/bootstrap.mjs"
 
-// ── validateStellarAddress ──────────────────────────────────────────────────
+// --- validateStellarAddress ---
 
 describe("validateStellarAddress", () => {
   it("accepts a valid 56-char G... address", () => {
@@ -38,7 +38,7 @@ describe("validateStellarAddress", () => {
   })
 })
 
-// ── validateDbUrl ───────────────────────────────────────────────────────────
+// --- validateDbUrl ---
 
 describe("validateDbUrl", () => {
   it("accepts postgres:// URLs", () => {
@@ -60,7 +60,7 @@ describe("validateDbUrl", () => {
   })
 })
 
-// ── buildEnvContent ─────────────────────────────────────────────────────────
+// --- buildEnvContent ---
 
 describe("buildEnvContent", () => {
   const answers = {
@@ -83,10 +83,10 @@ describe("buildEnvContent", () => {
   })
 })
 
-// ── writeEnvFile ─────────────────────────────────────────────────────────────
+// --- writeEnvFile ---
 
 describe("writeEnvFile", () => {
-  let tmpDir
+  let tmpDir: string
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "open-stellar-test-"))
@@ -114,10 +114,10 @@ describe("writeEnvFile", () => {
   })
 })
 
-// ── runWizard (--yes / CI mode) ──────────────────────────────────────────────
+// --- runWizard (--yes / CI mode) ---
 
 describe("runWizard with --yes flag", () => {
-  let tmpDir
+  let tmpDir: string
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "open-stellar-wizard-"))
@@ -128,7 +128,7 @@ describe("runWizard with --yes flag", () => {
   })
 
   it("writes .env.local using defaults without prompting", async () => {
-    const result = await runWizard({ yes: true, cwd: tmpDir })
+    const result = (await runWizard({ yes: true, cwd: tmpDir })) as Record<string, string>
 
     expect(result).not.toBeNull()
     expect(result.projectName).toBe(DEFAULTS.projectName)
@@ -156,7 +156,7 @@ describe("runWizard with --yes flag", () => {
   })
 })
 
-// ── Full wizard with all valid inputs → correct .env content ─────────────────
+// --- Full wizard with all valid inputs -> correct .env content ---
 
 describe("wizard produces correct .env content for all valid inputs", () => {
   it("buildEnvContent with valid inputs matches expected .env.local format", () => {

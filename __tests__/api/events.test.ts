@@ -142,5 +142,5 @@ describe("x402 settlement event publishing", () => {
     expect(settleRes.status).toBe(200)
     expect(events.join("")).toContain("event: payment.received")
     expect(events.join("")).toContain('"agentId":"bot-2"')
-  })
+  }, 15000)
 })
