@@ -98,7 +98,7 @@
     "@playwright/test": "^1.61.1",
     "@secretlint/secretlint-rule-preset-recommend": "^12.0.0",
     "@size-limit/file": "^12.1.0",
-    "@tailwindcss/postcss": "^4.2.0",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22",
     "@types/react": "19.2.14",
