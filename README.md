@@ -447,3 +447,30 @@ npm run deploy:soroban:guide # guía interactiva Soroban
 ## Licencia
 
 MIT
+
+
+## End-to-end tests (agent lifecycle)
+
+`e2e/agent-task-xp.e2e.test.ts` covers the full agent lifecycle end to end
+against the real API route handlers (issue #219):
+
+1. `POST /api/agents` — register an agent (201)
+2. `POST /api/agents/[id]/tasks` — assign a task (201)
+3. `PATCH /api/agents/[id]/tasks/[taskId]` — complete the task (200)
+4. `GET /api/agents/[id]` — verify `xp`, `level`, `tasksCompleted` updated
+
+It also asserts the error paths: assigning to a non-existent agent returns 404,
+and completing the same task twice is rejected without awarding XP a second time.
+
+Run it locally:
+
+```bash
+npm test            # runs unit + e2e API suites together (vitest)
+npx vitest run e2e/agent-task-xp.e2e.test.ts   # just this suite
+```
+
+No server or database needed: the suite talks to the real route handlers with
+per-test in-memory stores, so it cannot touch real data. Each run registers an
+agent with a unique `e2e-agent-<uuid>` id and purges its queue afterwards.
+Playwright browser specs (`e2e/*.spec.ts`) are unchanged and run via
+`npm run test:e2e`.
