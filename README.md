@@ -447,3 +447,20 @@ npm run deploy:soroban:guide # guía interactiva Soroban
 ## Licencia
 
 MIT
+
+
+## Agent XP persistence (issue #191)
+
+Agent XP survives server restarts. State lives in `/.data/agent-xp.json`
+(override with the `AGENT_XP_STORE_PATH` env var), written atomically via a
+temp file + rename so a crash can never leave a partial file. Corrupt or
+truncated files are quarantined as `.corrupt-<timestamp>` and reported in the
+server log; startup continues with an empty store.
+
+Daily snapshots for charting live next to it in
+`/.data/agent-xp-snapshots.json`, capped at 90 days per agent.
+
+Endpoints:
+
+- `GET /api/agents/[id]/xp` — current XP record (unchanged shape)
+- `GET /api/agents/[id]/xp/daily` — daily snapshots, oldest first (charting)
