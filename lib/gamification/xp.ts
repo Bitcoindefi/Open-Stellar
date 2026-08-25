@@ -8,6 +8,7 @@ import {
   XP_AWARDS,
 } from "@/lib/gamification/constants"
 import { getSkillUpgradeCost } from "@/lib/gamification/skill-upgrades"
+import { saveAgentXPRecord } from "@/lib/gamification/xp-store"
 
 export type XPAwardReason =
   | "task.completed"
@@ -88,6 +89,7 @@ export function awardXP(agentId: string, amount: number, reason: XPAwardReason):
   const levelState = checkLevelUp(xp, previous.level)
   const next: AgentXPRecord = { agentId, xp, level: levelState.level }
   agentXpDb.set(agentId, next)
+  saveAgentXPRecord(next)
 
   const result: XPAwardResult = {
     ...next,
