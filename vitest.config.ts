@@ -8,11 +8,11 @@ export default defineConfig({
     testTimeout: 30000,
     // The create-app template is a scaffold compiled inside generated apps, not here;
     // its imports (@/lib/agents/my-first-agent, ...) don't resolve in this repo.
+    include: ["__tests__/**/*.test.ts", "e2e/*.e2e.test.ts"],
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
       "packages/create-app/template/**",
-      "e2e/**",
     ],
     coverage: {
       provider: "v8",
