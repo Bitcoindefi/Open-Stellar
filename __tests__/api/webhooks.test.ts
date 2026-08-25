@@ -398,7 +398,7 @@ describe("webhook API", () => {
       context(registered.id),
     )
     const data = await res.json()
-    const replayedPayload = JSON.parse(fetchMock.mock.calls[0][1]?.body as string)
+    const replayedPayload = JSON.parse(fetchMock!.mock.calls[0]![1]?.body as string)
 
     expect(res.status).toBe(200)
     expect(data).toEqual({ ok: true, queued: 1 })
@@ -489,8 +489,8 @@ describe("webhook API", () => {
     const events = listPublishedSystemEvents()
 
     expect(events).toHaveLength(500)
-    expect(events[0].id).toBe("evt_1")
-    expect(events[499].id).toBe("evt_500")
+    expect(events![0]!.id).toBe("evt_1")
+    expect(events![499]!.id).toBe("evt_500")
   })
 
   it("retries once when delivery receives an error response", async () => {
@@ -509,10 +509,10 @@ describe("webhook API", () => {
     })
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-    const retryBody = fetchMock.mock.calls[1][1]?.body
+    const retryBody = fetchMock!.mock.calls[1]![1]?.body
 
-    expect(fetchMock.mock.calls[1][0]).toBe("https://partner.example/webhooks/open-stellar")
-    expect(retryBody).toBe(fetchMock.mock.calls[0][1]?.body)
+    expect(fetchMock!.mock.calls[1]![0]).toBe("https://partner.example/webhooks/open-stellar")
+    expect(retryBody).toBe(fetchMock!.mock.calls[0]![1]?.body)
   })
 
   it("logs delivery attempts with status and duration", async () => {
@@ -539,9 +539,9 @@ describe("webhook API", () => {
       retried: false,
       attempt: 1,
     })
-    expect(attempts[0].id).toMatch(/^wha_/)
-    expect(attempts[0].deliveredAt).toEqual(expect.any(String))
-    expect(attempts[0].durationMs).toEqual(expect.any(Number))
+    expect(attempts![0]!.id).toMatch(/^wha_/)
+    expect(attempts![0]!.deliveredAt).toEqual(expect.any(String))
+    expect(attempts![0]!.durationMs).toEqual(expect.any(Number))
   })
 
   it("lists two deliveries newest-first without exposing secrets", async () => {
@@ -820,8 +820,8 @@ describe("webhook API", () => {
     const attempts = listWebhookDeliveryAttempts("wh_cap", 250)
 
     expect(attempts).toHaveLength(200)
-    expect(attempts[0].event).toBe("event.200")
-    expect(attempts[199].event).toBe("event.1")
+    expect(attempts![0]!.event).toBe("event.200")
+    expect(attempts![199]!.event).toBe("event.1")
     expect(attempts.some((attempt) => attempt.event === "event.0")).toBe(false)
   })
 })

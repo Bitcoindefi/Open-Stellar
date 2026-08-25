@@ -685,6 +685,7 @@ export function PixelCity({
 
       if (pointersRef.current.size === 2) {
         const [first, second] = Array.from(pointersRef.current.values())
+        if (!first || !second) return
         const mid = midpoint(first, second)
         pinchRef.current = {
           startDistance: Math.max(1, distance(first, second)),
@@ -716,6 +717,7 @@ export function PixelCity({
         e.preventDefault()
         suppressClickRef.current = true
         const [first, second] = Array.from(pointersRef.current.values())
+        if (!first || !second) return
         const mid = midpoint(first, second)
 
         if (!pinchRef.current) {

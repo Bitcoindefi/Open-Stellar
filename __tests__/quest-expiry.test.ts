@@ -119,12 +119,12 @@ describe("quest expiry", () => {
 
     const agent1Notes = listUnseenNotifications("agent-1")
     expect(agent1Notes.length).toBeGreaterThan(0)
-    expect(agent1Notes[0].type).toBe("quest_expired")
-    expect(agent1Notes[0].body).toContain("Notify me")
+    expect(agent1Notes![0]!.type).toBe("quest_expired")
+    expect(agent1Notes![0]!.body).toContain("Notify me")
 
     const agent2Notes = listUnseenNotifications("agent-2")
     expect(agent2Notes.length).toBeGreaterThan(0)
-    expect(agent2Notes[0].type).toBe("quest_expired")
+    expect(agent2Notes![0]!.type).toBe("quest_expired")
   })
 
   it("expires quests without expiresAt after 30 days", () => {

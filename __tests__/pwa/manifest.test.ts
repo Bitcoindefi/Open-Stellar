@@ -6,7 +6,7 @@ function readAppShell(): string[] {
   const sw = readFileSync(join(process.cwd(), "public", "sw.js"), "utf8")
   const match = sw.match(/const APP_SHELL = \[([\s\S]*?)\]/)
   if (!match) throw new Error("APP_SHELL not found in sw.js")
-  return [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
+  return [...match![1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1]).filter((v): v is string => v !== undefined)
 }
 
 describe("PWA manifest", () => {

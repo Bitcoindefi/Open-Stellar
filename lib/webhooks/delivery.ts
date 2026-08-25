@@ -143,7 +143,7 @@ async function deliverRetryAttempts(
   let lastError = initialError
 
   for (let retryIndex = 0; retryIndex < retryDelaysMs.length; retryIndex += 1) {
-    const cancelled = await waitForPendingRetry(webhook.id, retryDelaysMs[retryIndex])
+    const cancelled = await waitForPendingRetry(webhook.id, retryDelaysMs[retryIndex] ?? 1000)
     if (cancelled) return
 
     const attempt = retryIndex + 2

@@ -169,6 +169,7 @@ export function drawConstruction(
   // Buildings
   for (let i = 0; i < buildingSets.length; i++) {
     const b = buildingSets[i]
+    if (!b) continue
     const stagger = i * 0.14
     const local = clamp01((scaffT - stagger) / (1 - stagger))
     const hNow = lerp(2, b.h, easeOutCubic(local))

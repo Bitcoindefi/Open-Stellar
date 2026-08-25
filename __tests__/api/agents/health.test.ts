@@ -173,8 +173,8 @@ describe("agent health check", () => {
     const result = runAgentHealthCheck(base + OFFLINE_AFTER_MS + ALERT_AFTER_MS + 1)
 
     expect(result.alerts).toHaveLength(1)
-    expect(result.alerts[0].agentId).toBe("bot-alert")
-    expect(result.alerts[0].alertSeverity).toBe("error")
+    expect(result!.alerts[0]!.agentId).toBe("bot-alert")
+    expect(result!.alerts[0]!.alertSeverity).toBe("error")
   })
 
   it("exposes cron-compatible health check output", async () => {

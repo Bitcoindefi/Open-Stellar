@@ -124,8 +124,8 @@ describe("xp-leaderboard-store", () => {
 
     const board = getLeaderboard("all", 5)
     expect(board.entries).toHaveLength(5)
-    expect(board.entries[0].agentId).toBe("agent-9")
-    expect(board.entries[4].agentId).toBe("agent-5")
+    expect(board!.entries[0]!.agentId).toBe("agent-9")
+    expect(board!.entries[4]!.agentId).toBe("agent-5")
     expect(board.total).toBe(10)
   })
 
@@ -141,7 +141,7 @@ describe("xp-leaderboard-store", () => {
 
     const board = getLeaderboard("7d", 25, now)
     expect(board.entries).toHaveLength(1)
-    expect(board.entries[0].agentId).toBe("agent-active")
+    expect(board!.entries[0]!.agentId).toBe("agent-active")
     expect(board.total).toBe(1)
   })
 
@@ -184,7 +184,7 @@ describe("xp-leaderboard-store", () => {
 
     const board = getLeaderboard("all", 25)
     expect(board.entries).toHaveLength(1)
-    expect(board.entries[0].xp).toBe(100)
+    expect(board!.entries[0]!.xp).toBe(100)
   })
 
   // ─── caching ───────────────────────────────────────────────────────
@@ -207,12 +207,12 @@ describe("xp-leaderboard-store", () => {
     seedXpEvents([{ agentId: "agent-1", xpDelta: 100, timestampMs: now }])
 
     const first = getLeaderboard("all", 25, now)
-    expect(first.entries[0].xp).toBe(100)
+    expect(first!.entries[0]!.xp).toBe(100)
 
     // New event should invalidate cache
     recordXpEvent("agent-1", 50, now + 1000)
     const second = getLeaderboard("all", 25, now + 1000)
-    expect(second.entries[0].xp).toBe(150)
+    expect(second!.entries[0]!.xp).toBe(150)
   })
 
   // ─── getLeaderboardByAgentId ───────────────────────────────────────
@@ -248,8 +248,8 @@ describe("xp-leaderboard-store", () => {
 
     const board = getLeaderboard("all", 25)
     expect(board.entries).toHaveLength(1)
-    expect(board.entries[0].agentId).toBe("agent-sys")
-    expect(board.entries[0].xp).toBe(250)
+    expect(board!.entries[0]!.agentId).toBe("agent-sys")
+    expect(board!.entries[0]!.xp).toBe(250)
 
     unsubscribe()
   })
@@ -268,13 +268,13 @@ describe("xp-leaderboard-store", () => {
     ])
 
     const board = getLeaderboard()
-    expect(board.entries[0].xp).toBe(100) // negative ignored, only 100 counted
+    expect(board!.entries[0]!.xp).toBe(100) // negative ignored, only 100 counted
   })
 
   it("trims and normalizes agentId", () => {
     recordXpEvent("  agent-1  ", 50)
     const board = getLeaderboard()
-    expect(board.entries[0].agentId).toBe("agent-1")
+    expect(board!.entries[0]!.agentId).toBe("agent-1")
   })
 
   it("throws on empty agentId", () => {

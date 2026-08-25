@@ -78,8 +78,8 @@ export function updateCloudAgentResult(id: string, summary: string): CloudAgentC
 
 export function cloudConfigToAgent(config: CloudAgentConfig, index = 0): MoltbotAgent {
   const district = DISTRICTS.find((d) => d.id === config.district) ?? DISTRICTS[0]
-  const x = district.x + 42 + (index * 34) % Math.max(80, district.w - 80)
-  const y = district.y + 58 + (index * 29) % Math.max(80, district.h - 80)
+  const x = district!.x + 42 + (index * 34) % Math.max(80, district!.w - 80)
+  const y = district!.y + 58 + (index * 29) % Math.max(80, district!.h - 80)
   const health = getAgentHealthSummary(config.id)
   return {
     id: config.id,

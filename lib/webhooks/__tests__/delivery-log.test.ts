@@ -168,8 +168,8 @@ describe("listWebhookDeliveries", () => {
     })
 
     const deliveries = listWebhookDeliveries(webhookId)
-    expect(deliveries[0].timestamp).toBe("2024-01-15T10:00:00.000Z")
-    expect(deliveries[1].timestamp).toBe("2024-01-15T09:00:00.000Z")
+    expect(deliveries![0]!.timestamp).toBe("2024-01-15T10:00:00.000Z")
+    expect(deliveries![1]!.timestamp).toBe("2024-01-15T09:00:00.000Z")
   })
 
   it("filters by status=success", () => {
@@ -201,11 +201,11 @@ describe("listWebhookDeliveries", () => {
 
     const successOnly = listWebhookDeliveries(webhookId, { status: "success" })
     expect(successOnly).toHaveLength(1)
-    expect(successOnly[0].status).toBe("success")
+    expect(successOnly![0]!.status).toBe("success")
 
     const failureOnly = listWebhookDeliveries(webhookId, { status: "failure" })
     expect(failureOnly).toHaveLength(1)
-    expect(failureOnly[0].status).toBe("failure")
+    expect(failureOnly![0]!.status).toBe("failure")
   })
 
   it("caps limit at 100", () => {
@@ -278,8 +278,8 @@ describe("listWebhookDeliveries", () => {
     })
 
     const deliveries = listWebhookDeliveries(webhookId, { status: "failure" })
-    expect(deliveries[0].error).toBe("HTTP 503")
-    expect(deliveries[1].error).toBe("timeout")
+    expect(deliveries![0]!.error).toBe("HTTP 503")
+    expect(deliveries![1]!.error).toBe("timeout")
   })
 
   it("returns empty array for webhook with no attempts", () => {

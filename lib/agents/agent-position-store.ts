@@ -227,7 +227,7 @@ function latestValidHistoryRecord(filePath: string): AgentPositionHistoryRecord 
     .filter((line) => line.trim().length > 0)
 
   for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const record = parseHistoryRecord(lines[index])
+    const record = parseHistoryRecord(lines[index] ?? "")
     if (record) return record
   }
 
@@ -347,8 +347,8 @@ export function getAgentPositionHistoryPaginated(
 
   // Compute metadata from full unfiltered array
   const total = all.length
-  const oldest = total > 0 ? all[0].updatedAt : null
-  const newest = total > 0 ? all[total - 1].updatedAt : null
+  const oldest = total > 0 ? all![0]!.updatedAt : null
+  const newest = total > 0 ? all![total - 1]!.updatedAt : null
 
   // Apply before/after filters
   let filtered = all
@@ -374,8 +374,8 @@ export function getAgentPositionHistoryPaginated(
     positions,
     total,
     returned: positions.length,
-    oldest,
-    newest,
+    oldest: oldest ?? null,
+    newest: newest ?? null,
   }
 }
 

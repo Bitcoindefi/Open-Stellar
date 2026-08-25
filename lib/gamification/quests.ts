@@ -257,9 +257,9 @@ export function updateSubTask(
   const index = subtasks.findIndex((st) => st.id === subTaskId)
   if (index === -1) return null
 
-  const existing = subtasks[index]
+  const existing = subtasks[index]!
   const updated: SubTask = {
-    ...existing,
+    ...existing!,
     ...updates,
   }
 

@@ -42,7 +42,7 @@ function secureRandom(): number {
   const array = new Uint32Array(1)
   const c = typeof crypto !== "undefined" ? crypto : (globalThis as any).crypto
   c.getRandomValues(array)
-  return array[0] / 4294967296
+  return (array[0] ?? 0) / 4294967296
 }
 
 function rand(min: number, max: number, random = secureRandom) {
@@ -121,10 +121,10 @@ let chatIdCounter = 0
 export function generateChatMessage(agents: MoltbotAgent[]): ChatMessage | null {
   if (agents.length < 2) return null
 
-  const from = agents[rand(0, agents.length - 1)]
-  let to = agents[rand(0, agents.length - 1)]
+  const from = agents[rand(0, agents.length - 1)]!
+  let to = agents[rand(0, agents.length - 1)]!
   while (to.id === from.id) {
-    to = agents[rand(0, agents.length - 1)]
+    to = agents[rand(0, agents.length - 1)]!
   }
 
   let category: string
@@ -134,12 +134,12 @@ export function generateChatMessage(agents: MoltbotAgent[]): ChatMessage | null 
   else if (secureRandom() < 0.3) category = "social"
   else category = "working"
 
-  const templates = CHAT_TEMPLATES[category]
-  let msg = templates[rand(0, templates.length - 1)]
+  const templates = CHAT_TEMPLATES[category] ?? []
+  let msg = templates[rand(0, templates.length - 1)] ?? ""
 
   const fromDist = DISTRICTS.find(d => d.id === from.district)?.name || from.district
   const toDist = DISTRICTS.find(d => d.id === to.district)?.name || to.district
-  const skillName = from.skills.length > 0 ? from.skills[rand(0, from.skills.length - 1)].name : "Data Ops"
+  const skillName = from.skills.length > 0 ? from.skills[rand(0, from.skills.length - 1)]?.name ?? "Data Ops" : "Data Ops"
 
   msg = msg
     .replace("{to}", to.name)
@@ -171,24 +171,24 @@ export function createAgents(): MoltbotAgent[] {
   const colors = ["#22d3ee", "#34d399", "#fbbf24", "#f87171", "#a78bfa", "#60a5fa", "#fb923c", "#e879f9", "#2dd4bf", "#facc15", "#818cf8", "#f472b6"]
   return NAMES.map((name, i) => {
     const districtIdx = i % DISTRICTS.length
-    const district = DISTRICTS[districtIdx]
+    const district = DISTRICTS[districtIdx]!
     const px = district.x + rand(30, district.w - 50, random)
     const py = district.y + rand(40, district.h - 40, random)
     return {
       id: `bot-${i}`,
       name,
-      model: MODELS[i % MODELS.length],
+      model: MODELS[i % MODELS.length] ?? "test/model",
       xp: rand(0, 90, random),
       level: 1,
       xpToNext: getXpToNextLevel(1),
-      status: (["active", "working", "idle", "working", "active"] as const)[i % 5],
+      status: (["active", "working", "idle", "working", "active"] as const)[i % 5] ?? "active",
       district: district.id,
       cpu: rand(20, 95, random),
       memory: rand(30, 85, random),
       tasksCompleted: rand(10, 200, random),
-      currentTask: TASKS[district.id][rand(0, 3, random)],
+      currentTask: TASKS[district.id][rand(0, 3, random)] ?? "",
       taskProgress: random() * 100,
-      color: colors[i % colors.length],
+      color: colors[i % colors.length] ?? "#22d3ee",
       pixelX: px,
       pixelY: py,
       targetX: px,
@@ -205,5 +205,5 @@ export function createAgents(): MoltbotAgent[] {
 
 export function getRandomTask(districtId: DistrictId): string {
   const tasks = TASKS[districtId]
-  return tasks[rand(0, tasks.length - 1)]
+  return tasks[rand(0, tasks.length - 1)] ?? ""
 }

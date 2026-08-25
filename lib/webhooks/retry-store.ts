@@ -104,7 +104,7 @@ export function enqueueWebhookRetry(
     ))
 
   if (existingIndex !== -1) {
-    const existing = entries[existingIndex]
+    const existing = entries[existingIndex]!
     const updated: RetryEntry = {
       ...existing,
       payload,
@@ -150,10 +150,10 @@ export function recordWebhookRetryFailure(
   const index = entries.findIndex((entry) => entry.id === id)
   if (index === -1) return null
 
-  const attempts = entries[index].attempts + 1
+  const attempts = (entries[index]!.attempts ?? 0) + 1
   const dead = attempts >= MAX_WEBHOOK_RETRY_ATTEMPTS
   const updated: RetryEntry = {
-    ...entries[index],
+    ...entries[index]!,
     attempts,
     nextRetryAt: dead ? now : now + calculateWebhookRetryDelay(attempts),
     lastError,

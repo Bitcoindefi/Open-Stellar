@@ -123,7 +123,7 @@ export function findDistrictByLookup(id: string): District | null {
 }
 
 export function getAgentDistrict(agent: MoltbotAgent): District {
-  return DISTRICTS.find((district) => district.id === agent.district) ?? DISTRICTS[0]
+  return DISTRICTS.find((district) => district.id === agent.district) ?? DISTRICTS[0]!
 }
 
 export function getAgentsForDistrict(districtId: DistrictId, agents: MoltbotAgent[] = createAgents()): MoltbotAgent[] {
@@ -159,7 +159,7 @@ export function getDistrictOgPath(district: District): string {
 }
 
 export function getAgentSpritePath(agent: MoltbotAgent): string {
-  return AGENT_SPRITE_PATHS[agent.spriteId % AGENT_SPRITE_PATHS.length]
+  return AGENT_SPRITE_PATHS[agent.spriteId % AGENT_SPRITE_PATHS.length] ?? ""
 }
 
 export function formatAgentShareText(agent: MoltbotAgent): string {

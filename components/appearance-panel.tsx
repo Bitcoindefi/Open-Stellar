@@ -42,8 +42,8 @@ function PreviewCanvas({ agent }: { agent: MoltbotAgent }) {
     const img = new Image()
     img.crossOrigin = "anonymous"
     img.onload = () => setSprite(img)
-    img.src = cfg.path
-  }, [cfg.path])
+    img.src = cfg!.path
+  }, [cfg!.path])
 
   useEffect(() => {
     let raf = 0
@@ -56,13 +56,13 @@ function PreviewCanvas({ agent }: { agent: MoltbotAgent }) {
         ctx.fillRect(0, 0, canvas.width, canvas.height)
         tickRef.current += 1
         const previewAgent: MoltbotAgent = { ...agent, pixelX: 50, pixelY: 22, direction: "right" }
-        drawBot(ctx, previewAgent, tickRef.current, false, sprite ?? undefined, cfg.crop)
+        drawBot(ctx, previewAgent, tickRef.current, false, sprite ?? undefined, cfg!.crop)
       }
       raf = requestAnimationFrame(render)
     }
     raf = requestAnimationFrame(render)
     return () => cancelAnimationFrame(raf)
-  }, [agent, sprite, cfg.crop])
+  }, [agent, sprite, cfg!.crop])
 
   return (
     <canvas

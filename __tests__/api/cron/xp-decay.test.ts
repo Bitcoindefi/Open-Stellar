@@ -131,12 +131,12 @@ describe("POST /api/cron/xp-decay", () => {
 
     const audit = getXpDecayAudit()
     expect(audit).toHaveLength(1)
-    expect(audit[0].action).toBe("xp_decayed")
-    expect(audit[0].agentId).toBe("agent-audit")
-    expect(audit[0].before).toBe(800)
-    expect(audit[0].after).toBe(400)
-    expect(audit[0].daysSinceLastEvent).toBe(30)
-    expect(audit[0].timestamp).toBeDefined()
+    expect(audit![0]!.action).toBe("xp_decayed")
+    expect(audit![0]!.agentId).toBe("agent-audit")
+    expect(audit![0]!.before).toBe(800)
+    expect(audit![0]!.after).toBe(400)
+    expect(audit![0]!.daysSinceLastEvent).toBe(30)
+    expect(audit![0]!.timestamp).toBeDefined()
   })
 
   it("handles multiple agents in one cron run", async () => {

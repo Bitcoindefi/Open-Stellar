@@ -26,8 +26,8 @@ function href(view: LeaderboardView, district?: DistrictId) {
 export default async function LeaderboardPage({ searchParams }: LeaderboardPageProps) {
   const params = await searchParams
   const view = isView(params.view) ? params.view : "global"
-  const activeDistrict = DISTRICTS.some((district) => district.id === params.district) ? params.district : DISTRICTS[0].id
-  const agents = listLeaderboardAgents(view, view === "district" ? activeDistrict : undefined)
+  const activeDistrict = DISTRICTS.some((district) => district.id === params.district) ? params.district : !DISTRICTS![0]!.id
+  const agents = listLeaderboardAgents(view, view === "district" && activeDistrict ? activeDistrict : undefined)
   const leaders = listLeaderboardAgents("global").slice(0, 3)
 
   return (
@@ -57,7 +57,7 @@ export default async function LeaderboardPage({ searchParams }: LeaderboardPageP
 
         <nav className="flex flex-wrap gap-2" aria-label="Leaderboard views">
           {(["global", "district", "week"] as const).map((item) => (
-            <Link key={item} href={href(item, activeDistrict)} className={`rounded-md border px-3 py-2 font-mono text-xs uppercase tracking-[0.18em] ${view === item ? "border-cyan-300 bg-cyan-300/15 text-cyan-100" : "border-slate-700 bg-slate-900 text-slate-400"}`}>
+            <Link key={item} href={href(item, item === "district" && activeDistrict ? activeDistrict : undefined)} className={`rounded-md border px-3 py-2 font-mono text-xs uppercase tracking-[0.18em] ${view === item ? "border-cyan-300 bg-cyan-300/15 text-cyan-100" : "border-slate-700 bg-slate-900 text-slate-400"}`}>
               {item === "week" ? "This Week" : item}
             </Link>
           ))}
@@ -73,7 +73,7 @@ export default async function LeaderboardPage({ searchParams }: LeaderboardPageP
           </nav>
         )}
 
-        <LeaderboardTable initialAgents={agents} view={view} district={view === "district" ? activeDistrict : undefined} />
+        <LeaderboardTable initialAgents={agents} view={view} district={view === "district" && activeDistrict ? activeDistrict : undefined} />
       </div>
     </main>
   )

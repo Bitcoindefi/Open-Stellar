@@ -89,7 +89,7 @@ describe("Quest Subtasks API", () => {
 
     const resPatch1 = await updateSubTaskRoute(
       makeUpdateRequest({ status: "done" }),
-      subtaskContext(questId, firstSubTask.id)
+      subtaskContext(questId, firstSubTask!.id)
     )
     const patchData1 = await resPatch1.json()
     expect(resPatch1.status).toBe(200)

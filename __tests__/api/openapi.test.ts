@@ -28,7 +28,7 @@ function expectPathParam(operation: OpenApiOperation, name: string) {
 
 function expectRateLimited(operation: OpenApiOperation) {
   expect(operation.responses).toHaveProperty("429")
-  expect(operation.responses?.["429"].headers).toHaveProperty("Retry-After")
+  expect(operation!.responses?.["429"]!.headers).toHaveProperty("Retry-After")
 }
 
 describe("GET /api/openapi.json", () => {
@@ -39,11 +39,11 @@ describe("GET /api/openapi.json", () => {
 
     expect(spec.paths["/api/agents/{id}/task"]).toHaveProperty("get")
     expect(spec.paths["/api/agents/{id}/task"]).toHaveProperty("post")
-    expectPathParam(spec.paths["/api/agents/{id}/task"].get, "id")
-    expectPathParam(spec.paths["/api/agents/{id}/task"].post, "id")
+    expectPathParam(spec!.paths["/api/agents/{id}/task"]!.get!, "id")
+    expectPathParam(spec!.paths["/api/agents/{id}/task"]!.post!, "id")
 
     expect(spec.paths["/api/agents/{id}/rate-limit/status"]).toHaveProperty("get")
-    expectPathParam(spec.paths["/api/agents/{id}/rate-limit/status"].get, "id")
+    expectPathParam(spec!.paths["/api/agents/{id}/rate-limit/status"]!.get!, "id")
 
     expect(spec.paths["/api/notifications"]).toHaveProperty("get")
     expect(spec.paths["/api/notifications"]).toHaveProperty("post")
@@ -51,14 +51,14 @@ describe("GET /api/openapi.json", () => {
     expect(spec.paths["/api/notifications/preferences"]).toHaveProperty("patch")
 
     expect(spec.paths["/api/quests/{id}/subtasks"]).toHaveProperty("post")
-    expectPathParam(spec.paths["/api/quests/{id}/subtasks"].post, "id")
+    expectPathParam(spec!.paths["/api/quests/{id}/subtasks"]!.post!, "id")
 
     expect(spec.paths["/api/quests/{id}/subtasks/{subtaskId}"]).toHaveProperty("patch")
-    expectPathParam(spec.paths["/api/quests/{id}/subtasks/{subtaskId}"].patch, "id")
-    expectPathParam(spec.paths["/api/quests/{id}/subtasks/{subtaskId}"].patch, "subtaskId")
+    expectPathParam(spec!.paths["/api/quests/{id}/subtasks/{subtaskId}"]!.patch!, "id")
+    expectPathParam(spec!.paths["/api/quests/{id}/subtasks/{subtaskId}"]!.patch!, "subtaskId")
 
     expect(spec.paths["/api/quests/{id}/chain"]).toHaveProperty("get")
-    expectPathParam(spec.paths["/api/quests/{id}/chain"].get, "id")
+    expectPathParam(spec!.paths["/api/quests/{id}/chain"]!.get!, "id")
 
     expect(spec.paths["/api/leaderboard"]).toHaveProperty("get")
 
@@ -67,8 +67,8 @@ describe("GET /api/openapi.json", () => {
       "/api/agents/{id}/dependents",
     ]) {
       expect(spec.paths[path]).toHaveProperty("get")
-      expectPathParam(spec.paths[path].get, "id")
-      expect(spec.paths[path].get.parameters).toEqual(
+      expectPathParam(spec!.paths[path]!.get!, "id")
+      expect(spec!!.paths[path]!.get!.parameters).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: "flat", in: "query" }),
           expect.objectContaining({ name: "maxDepth", in: "query" }),
@@ -77,21 +77,21 @@ describe("GET /api/openapi.json", () => {
     }
 
     for (const operation of [
-      spec.paths["/api/agents/{id}/task"].get,
-      spec.paths["/api/agents/{id}/task"].post,
-      spec.paths["/api/agents/{id}/rate-limit/status"].get,
-      spec.paths["/api/agents/{id}/dependencies"].get,
-      spec.paths["/api/agents/{id}/dependents"].get,
-      spec.paths["/api/notifications"].get,
-      spec.paths["/api/notifications"].post,
-      spec.paths["/api/notifications/preferences"].get,
-      spec.paths["/api/notifications/preferences"].patch,
-      spec.paths["/api/quests/{id}/subtasks"].post,
-      spec.paths["/api/quests/{id}/subtasks/{subtaskId}"].patch,
-      spec.paths["/api/quests/{id}/chain"].get,
-      spec.paths["/api/leaderboard"].get,
+      spec!.paths["/api/agents/{id}/task"]!.get!,
+      spec!.paths["/api/agents/{id}/task"]!.post,
+      spec!.paths["/api/agents/{id}/rate-limit/status"]!.get!,
+      spec!.paths["/api/agents/{id}/dependencies"]!.get!,
+      spec!.paths["/api/agents/{id}/dependents"]!.get!,
+      spec!.paths["/api/notifications"]!.get!,
+      spec!.paths["/api/notifications"]!.post,
+      spec!.paths["/api/notifications/preferences"]!.get!,
+      spec!.paths["/api/notifications/preferences"]!.patch,
+      spec!.paths["/api/quests/{id}/subtasks"]!.post,
+      spec!.paths["/api/quests/{id}/subtasks/{subtaskId}"]!.patch,
+      spec!.paths["/api/quests/{id}/chain"]!.get!,
+      spec!.paths["/api/leaderboard"]!.get!,
     ]) {
-      expectRateLimited(operation)
+      expectRateLimited(operation!)
     }
 
     expect(spec.paths["/api/webhooks"]).toHaveProperty("get")

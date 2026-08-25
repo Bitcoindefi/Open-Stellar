@@ -28,7 +28,8 @@ describe("activity feed", () => {
 
   it("finds event details by id", () => {
     const [first] = listFeedEvents()
-    expect(getFeedEventById(first.id)?.title).toBe(first.title)
+    expect(first).toBeDefined()
+    expect(getFeedEventById(first!.id)?.title).toBe(first!.title)
   })
 
   it("paginates seeded events with a cursor", () => {
@@ -37,7 +38,7 @@ describe("activity feed", () => {
 
     expect(firstPage).toHaveLength(2)
     expect(secondPage).toHaveLength(2)
-    expect(secondPage[0].id).not.toBe(firstPage[0].id)
+    expect(secondPage![0]!.id).not.toBe(firstPage![0]!.id)
   })
 
   it("normalizes live system events for the feed stream", () => {

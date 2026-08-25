@@ -55,17 +55,17 @@ describe("quest leaderboard", () => {
     const entries = getQuestLeaderboard("weekly", now)
 
     expect(entries).toHaveLength(3)
-    expect(entries[0].agentId).toBe("agent-a")
-    expect(entries[0].questsCompleted).toBe(5)
-    expect(entries[0].rank).toBe(1)
+    expect(entries![0]!.agentId).toBe("agent-a")
+    expect(entries![0]!.questsCompleted).toBe(5)
+    expect(entries![0]!.rank).toBe(1)
 
-    expect(entries[1].agentId).toBe("agent-b")
-    expect(entries[1].questsCompleted).toBe(3)
-    expect(entries[1].rank).toBe(2)
+    expect(entries![1]!.agentId).toBe("agent-b")
+    expect(entries![1]!.questsCompleted).toBe(3)
+    expect(entries![1]!.rank).toBe(2)
 
-    expect(entries[2].agentId).toBe("agent-c")
-    expect(entries[2].questsCompleted).toBe(1)
-    expect(entries[2].rank).toBe(3)
+    expect(entries![2]!.agentId).toBe("agent-c")
+    expect(entries![2]!.questsCompleted).toBe(1)
+    expect(entries![2]!.rank).toBe(3)
   })
 
   it("defaults to weekly period when omitted", () => {
@@ -107,11 +107,11 @@ describe("quest leaderboard", () => {
 
     const daily = getQuestLeaderboard("daily", now)
     expect(daily).toHaveLength(1)
-    expect(daily[0].questsCompleted).toBe(2)
+    expect(daily![0]!.questsCompleted).toBe(2)
 
     const weekly = getQuestLeaderboard("weekly", now)
     expect(weekly).toHaveLength(1)
-    expect(weekly[0].questsCompleted).toBe(5)
+    expect(weekly![0]!.questsCompleted).toBe(5)
   })
 
   it("uses xpFromQuests as tie-breaker", () => {
@@ -127,8 +127,8 @@ describe("quest leaderboard", () => {
 
     const entries = getQuestLeaderboard("weekly", now)
     expect(entries).toHaveLength(2)
-    expect(entries[0].questsCompleted).toBe(3)
-    expect(entries[1].questsCompleted).toBe(3)
+    expect(entries![0]!.questsCompleted).toBe(3)
+    expect(entries![1]!.questsCompleted).toBe(3)
   })
 
   it("getAgentQuestStats returns correct stats for a single agent", () => {
@@ -171,6 +171,6 @@ describe("quest leaderboard", () => {
 
     const entries = getQuestLeaderboard("weekly", now)
     expect(entries).toHaveLength(1)
-    expect(entries[0].questsCompleted).toBe(1)
+    expect(entries![0]!.questsCompleted).toBe(1)
   })
 })

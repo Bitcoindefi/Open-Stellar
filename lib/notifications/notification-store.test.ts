@@ -37,7 +37,7 @@ describe("notification store", () => {
     const notifications = listUnseenNotifications("agent-retention", { limit: 60 })
 
     expect(notifications).toHaveLength(50)
-    expect(notifications[0].title).toBe("Quest 59")
+    expect(notifications![0]!.title).toBe("Quest 59")
     expect(notifications.at(-1)?.title).toBe("Quest 10")
   })
 

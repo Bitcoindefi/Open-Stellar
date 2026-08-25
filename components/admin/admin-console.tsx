@@ -62,7 +62,7 @@ const subscriptions = [
 
 export function AdminConsole({ agents, districts }: AdminConsoleProps) {
   const [copied, setCopied] = useState(false)
-  const [selectedPlan, setSelectedPlan] = useState<Plan>(plans[1])
+  const [selectedPlan, setSelectedPlan] = useState<Plan>(plans[1] ?? plans[0]!)
   const [tab, setTab] = useState<AdminTab>("overview")
   const [demoKey] = useState(() => generateAdminApiKey())
 

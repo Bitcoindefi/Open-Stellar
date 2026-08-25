@@ -89,8 +89,8 @@ const be32 = (dec: string | bigint) => {
   if (h.length > 64) throw new Error("field element overflow");
   return h.padStart(64, "0");
 };
-const g1 = (p: string[]) => be32(p[0]) + be32(p[1]);
-const g2 = (p: string[][]) => be32(p[0][1]) + be32(p[0][0]) + be32(p[1][1]) + be32(p[1][0]);
+const g1 = (p: string[]) => be32(p[0] ?? "0") + be32(p[1] ?? "0");
+const g2 = (p: string[][]) => be32(p[0]?.[1] ?? "0") + be32(p[0]?.[0] ?? "0") + be32(p[1]?.[1] ?? "0") + be32(p[1]?.[0] ?? "0");
 const buf = (hex: string) => Buffer.from(hex, "hex");
 const fetchBytes = async (url: string) => new Uint8Array(await (await fetch(url)).arrayBuffer());
 const passportId = (network: StellarNetwork, agentId: string, nullifierHash: string) => `${network}:${agentId}:${nullifierHash}`;
@@ -187,8 +187,8 @@ export async function mintPassport(spendCap: string, options: { agentId?: string
   const o = { type: "mem" } as object;
   await snarkjs.wtns.calculate({ privateKey, agentId, pathElements, pathIndices }, witnessWasm, o);
   const w = await snarkjs.wtns.exportJson(o);
-  const registryRoot = w[1].toString();
-  const nullifierHash = w[2].toString();
+  const registryRoot = w![1]!.toString();
+  const nullifierHash = w![2]!.toString();
   const [circuitWasm, zkey] = await Promise.all([fetchBytes(ART.circuit), fetchBytes(ART.zkey)]);
   const input = { registryRoot, nullifierHash, agentId, spendCap, privateKey, balance, pathElements, pathIndices };
   const t0 = performance.now();
@@ -197,7 +197,7 @@ export async function mintPassport(spendCap: string, options: { agentId?: string
   const vk = await (await fetch(ART.vk)).json();
   const offChainValid = await snarkjs.groth16.verify(vk, publicSignals, proof);
   const issuedAt = new Date();
-  const minted = { ...toSoroban(proof, publicSignals), id: passportId(currentNetwork(), agentId, nullifierHash), agentId, spendCap, registryRoot, nullifierHash, issuedAt: issuedAt.toISOString(), expiresAt: new Date(issuedAt.getTime() + PASSPORT_TTL_MS).toISOString(), status: "ACTIVE" as const, network: currentNetwork(), raw: proof, offChainValid, provingMs };
+  const minted = { ...toSoroban(proof, publicSignals ?? []), id: passportId(currentNetwork(), agentId, nullifierHash), agentId, spendCap, registryRoot, nullifierHash, issuedAt: issuedAt.toISOString(), expiresAt: new Date(issuedAt.getTime() + PASSPORT_TTL_MS).toISOString(), status: "ACTIVE" as const, network: currentNetwork(), raw: proof, offChainValid, provingMs };
   await writeProofCache(key, minted);
   return minted;
 }

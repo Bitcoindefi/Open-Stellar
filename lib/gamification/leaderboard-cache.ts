@@ -35,7 +35,7 @@ function getWeekKey(nowMs = Date.now()): string {
   const dayOfWeek = now.getDay() // 0=Sun, 1=Mon, ...
   const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
   const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceMonday, 0, 0, 0, 0)
-  return monday.toISOString().split("T")[0] // YYYY-MM-DD
+  return monday.toISOString().split("T")[0] ?? "" // YYYY-MM-DD
 }
 
 /**

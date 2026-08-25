@@ -28,7 +28,7 @@ function percentile(sortedValues: number[], pct: number): number {
 
   const rank = Math.ceil((pct / 100) * sortedValues.length)
   const index = Math.max(0, Math.min(sortedValues.length - 1, rank - 1))
-  return sortedValues[index]
+  return sortedValues[index] ?? sortedValues[sortedValues.length - 1] ?? 0
 }
 
 export async function GET(_req: Request) {

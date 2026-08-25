@@ -29,7 +29,7 @@ export function getSkillUpgradeCost(skill: Pick<Skill, "level" | "maxLevel">): n
   if (configuredCost) return configuredCost
 
   const levelsPastTable = Math.max(0, skill.level - 4)
-  return Math.round(SKILL_UPGRADE_COSTS[4] * Math.pow(1.8, levelsPastTable))
+  return Math.round((SKILL_UPGRADE_COSTS[4] ?? 0) * Math.pow(1.8, levelsPastTable))
 }
 
 export function getSkillUpgradeState(skill: Skill): SkillUpgradeState {

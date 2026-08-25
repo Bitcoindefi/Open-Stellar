@@ -154,10 +154,10 @@ export function listMarketplaceServices(): MarketplaceService[] {
     return {
       ...service,
       providerAgent: {
-        id: agent.id,
-        name: agent.name,
-        sprite: spritePaths[agent.spriteId % spritePaths.length],
-        color: agent.color,
+        id: agent!.id,
+        name: agent!.name,
+        sprite: spritePaths[agent!.spriteId % spritePaths.length] ?? "",
+        color: agent!.color,
       },
     }
   })

@@ -86,8 +86,8 @@ jobs:
             sleep 5
           done
 
-      - name: Type check
-        run: npx tsc --noEmit
+      - name: Type check (strict)
+        run: npm run typecheck
 
       - name: Unit tests
         run: npx vitest run

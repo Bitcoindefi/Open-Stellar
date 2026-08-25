@@ -114,7 +114,7 @@ describe("task-queue drain and purge", () => {
       expect(result).not.toBeNull()
       expect(result!.processed).toBe(2)
       expect(result!.errors).toHaveLength(1)
-      expect(result!.errors[0].error).toBe("Processing failed")
+      expect(result!!.errors[0]!.error).toBe("Processing failed")
 
       const stats = getQueueStats()
       expect(stats.completedTasks).toBe(2)
@@ -266,7 +266,7 @@ describe("task-queue drain and purge", () => {
 
       const tasks = listAgentTasks("agent-1")
       expect(tasks).toHaveLength(1)
-      expect(tasks[0].status).toBe("completed")
+      expect(tasks![0]!.status).toBe("completed")
     })
   })
 

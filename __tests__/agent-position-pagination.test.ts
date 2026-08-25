@@ -69,8 +69,8 @@ describe("agent position history pagination", () => {
     expect(result.newest).toBe("2026-06-01T03:19:00.000Z")
 
     // Newest first
-    expect(result.positions[0].updatedAt).toBe("2026-06-01T03:19:00.000Z")
-    expect(result.positions[49].updatedAt).toBe("2026-06-01T02:30:00.000Z")
+    expect(result!.positions[0]!.updatedAt).toBe("2026-06-01T03:19:00.000Z")
+    expect(result!.positions[49]!.updatedAt).toBe("2026-06-01T02:30:00.000Z")
   })
 
   it("limit=10 returns at most 10 entries", () => {

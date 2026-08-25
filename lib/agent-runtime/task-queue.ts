@@ -226,7 +226,7 @@ function sortTasks(a: QueuedTask, b: QueuedTask): number {
   const left = taskSortKey(a)
   const right = taskSortKey(b)
   for (let i = 0; i < left.length; i += 1) {
-    if (left[i] !== right[i]) return left[i] - right[i]
+    if (left[i] !== right[i]) return (left[i] ?? "") < (right[i] ?? "") ? -1 : 1
   }
   return a.id.localeCompare(b.id)
 }
@@ -281,7 +281,7 @@ export function failTask(id: string, error: string): QueuedTask {
     status: "pending" as const,
     retryCount: task.retryCount + 1,
     error,
-    scheduledFor: new Date(now.getTime() + backoffSeconds * 1000).toISOString(),
+    scheduledFor: new Date(now.getTime() + backoffSeconds! * 1000).toISOString(),
     updatedAt: now.toISOString(),
   }
   queueState.tasks.set(id, retry)
