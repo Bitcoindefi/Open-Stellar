@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { apiError } from "@/lib/api/error"
 import { listAgentHealth } from "@/lib/agents/agent-health-store"
 import { getAgentXP } from "@/lib/gamification/xp"
 import { getReputation } from "@/lib/reputation/reputation-store"
@@ -14,10 +15,7 @@ export async function GET(req: Request) {
     let limit = limitParam ? parseInt(limitParam, 10) : 20
     if (isNaN(limit) || limit < 1) limit = 20
     if (limit > 100) {
-      return NextResponse.json(
-        { error: "Bad Request: Limit cannot exceed 100" },
-        { status: 400 }
-      )
+      return apiError("Bad Request: Limit cannot exceed 100", "BAD_REQUEST", 400)
     }
     
     let offset = offsetParam ? parseInt(offsetParam, 10) : 0
@@ -61,9 +59,6 @@ export async function GET(req: Request) {
       { headers: { "Cache-Control": "no-store" } }
     )
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch leaderboard" },
-      { status: 500 }
-    )
+    return error instanceof Error ? apiError(error.message, "INTERNAL", 500) : apiError("Failed to fetch leaderboard", "INTERNAL", 500)
   }
 }
