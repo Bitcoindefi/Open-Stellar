@@ -26,6 +26,8 @@ export interface AgentCapabilityManifest {
   endpoint: string
   registeredAt: string
   updatedAt: string
+  /** Epoch ms of the last heartbeat; used by the staleness sweep (issue #193). */
+  lastSeenAt?: number
 }
 
 export interface AgentRegistryFilters {
@@ -242,6 +244,7 @@ export function registerAgent(input: unknown): AgentCapabilityManifest {
     endpoint: normalizeString(input.endpoint, "endpoint"),
     registeredAt: now,
     updatedAt: now,
+    lastSeenAt: Date.now(),
   }
 
   registry.agents.set(agent.agentId, agent)
@@ -269,6 +272,29 @@ export function updateAgentCapabilities(agentId: string, input: unknown): AgentC
   registry.agents.set(agentId, updated)
   emitRegistryChange("updated", updated)
   return updated
+}
+
+/** Heartbeat support (issue #193): refresh the staleness clock for one agent. */
+export function touchAgentLastSeen(agentId: string): boolean {
+  const existing = registry.agents.get(agentId)
+  if (!existing) return false
+  existing.lastSeenAt = Date.now()
+  existing.updatedAt = new Date().toISOString()
+  return true
+}
+
+/** Mark an agent offline without removing it (brief outage). */
+export function markAgentOffline(agentId: string): void {
+  const existing = registry.agents.get(agentId)
+  if (existing) existing.status = "offline"
+}
+
+/** Snapshot of all agents with their lastSeenAt, for the sweep. */
+export function listAgentsForSweep(): Array<{ agentId: string; lastSeenAt?: number }> {
+  return Array.from(registry.agents.values()).map((agent) => ({
+    agentId: agent.agentId,
+    lastSeenAt: agent.lastSeenAt,
+  }))
 }
 
 export function deregisterAgent(agentId: string): AgentCapabilityManifest | null {

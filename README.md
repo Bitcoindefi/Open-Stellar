@@ -447,3 +447,25 @@ npm run deploy:soroban:guide # guía interactiva Soroban
 ## Licencia
 
 MIT
+
+
+## Agent registry heartbeat contract (issue #193)
+
+Registered agents must ping:
+
+```
+POST /api/registry/[id]/heartbeat
+x-agent-token: <agent token>
+```
+
+every **60 s** (`HEARTBEAT_INTERVAL_MS`). Rules:
+
+- lastSeen older than **120 s** → agent reported `offline` (kept in registry)
+- lastSeen older than **600 s** → agent removed from the registry entirely
+- unknown ids get 404 and are never auto-created; missing/empty `x-agent-token`
+  gets 401 so nobody can keep a foreign agent alive
+
+A request-time sweep (no cron) enforces both rules on every registry listing,
+and `GET /api/registry/health` returns `{ online, offline, stale_removed_last_run }`.
+Filter with `GET /api/registry?status=online`. Thresholds live in
+`lib/registry/sweep.ts` — the single source of truth.
