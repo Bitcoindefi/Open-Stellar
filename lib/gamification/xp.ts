@@ -8,6 +8,7 @@ import {
   XP_AWARDS,
 } from "@/lib/gamification/constants"
 import { getSkillUpgradeCost } from "@/lib/gamification/skill-upgrades"
+import { invalidateAgentLeaderboard } from "@/lib/leaderboard/agent-leaderboard"
 
 export type XPAwardReason =
   | "task.completed"
@@ -89,6 +90,7 @@ export function awardXP(agentId: string, amount: number, reason: XPAwardReason):
   const next: AgentXPRecord = { agentId, xp, level: levelState.level }
   agentXpDb.set(agentId, next)
 
+  invalidateAgentLeaderboard()
   const result: XPAwardResult = {
     ...next,
     awardedXp,

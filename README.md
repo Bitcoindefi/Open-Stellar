@@ -447,3 +447,16 @@ npm run deploy:soroban:guide # guía interactiva Soroban
 ## Licencia
 
 MIT
+
+
+## Agent leaderboard (issue #313)
+
+`GET /api/agents-leaderboard?limit=20&metric=xp`
+
+Ranks every registered agent by one of three metrics — `xp`, `quests`
+(completed quests), or `districts` (unlocked districts) — with contiguous ranks
+starting at 1 and inactive agents ranked (not omitted).
+
+- Cached in-process for 60 s; invalidated automatically when a quest completes
+  or XP is awarded, so rankings never go stale after activity.
+- `limit` clamps to 1..100.
