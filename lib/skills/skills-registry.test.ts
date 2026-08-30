@@ -243,19 +243,19 @@ describe('skills-registry', () => {
     it('filters by search query - name match', () => {
       const skills = searchSkills({ q: 'payment' })
       expect(skills).toHaveLength(1)
-      expect(skills[0].skillId).toBe('payment')
+      expect(skills![0]!.skillId).toBe('payment')
     })
 
     it('filters by search query - description match', () => {
       const skills = searchSkills({ q: 'translate' })
       expect(skills).toHaveLength(1)
-      expect(skills[0].skillId).toBe('translation')
+      expect(skills![0]!.skillId).toBe('translation')
     })
 
     it('filters by search query - case insensitive', () => {
       const skills = searchSkills({ q: 'PAYMENT' })
       expect(skills).toHaveLength(1)
-      expect(skills[0].skillId).toBe('payment')
+      expect(skills![0]!.skillId).toBe('payment')
     })
 
     it('filters by maxPrice', () => {
@@ -268,7 +268,7 @@ describe('skills-registry', () => {
     it('combines search query and maxPrice', () => {
       const skills = searchSkills({ q: 'analysis', maxPrice: 5 })
       expect(skills).toHaveLength(1)
-      expect(skills[0].skillId).toBe('sentiment')
+      expect(skills![0]!.skillId).toBe('sentiment')
     })
 
     it('returns empty array when no matches', () => {
@@ -278,9 +278,9 @@ describe('skills-registry', () => {
 
     it('sorts by price ascending', () => {
       const skills = searchSkills()
-      expect(skills[0].priceXlm).toBe(2)
-      expect(skills[1].priceXlm).toBe(3)
-      expect(skills[2].priceXlm).toBe(5)
+      expect(skills![0]!.priceXlm).toBe(2)
+      expect(skills![1]!.priceXlm).toBe(3)
+      expect(skills![2]!.priceXlm).toBe(5)
     })
   })
 })

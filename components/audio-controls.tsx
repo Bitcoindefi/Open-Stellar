@@ -74,6 +74,7 @@ export function AudioControls({ engine }: AudioControlsProps) {
 
   const handleVolumeChange = useCallback(
     ([next]: number[]) => {
+      if (next === undefined) return
       setVolume(next)
       engine.setVolume(next)
       window.localStorage.setItem(VOLUME_KEY, String(next))

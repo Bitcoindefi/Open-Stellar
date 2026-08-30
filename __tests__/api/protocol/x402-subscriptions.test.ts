@@ -77,7 +77,7 @@ describe("x402 subscriptions", () => {
     const grace = renewX402Subscriptions(renewalTime, { "nexus-7": 1 })
     const accessDuringGrace = checkX402Subscription("nexus-7", "my-data-api")
 
-    expect(grace.paused[0].status).toBe("grace")
+    expect(grace!.paused[0]!.status).toBe("grace")
     expect(accessDuringGrace.active).toBe(true)
 
     const pauseTime = new Date("2026-07-23T12:01:00.000Z")
@@ -85,7 +85,7 @@ describe("x402 subscriptions", () => {
     const paused = renewX402Subscriptions(pauseTime, { "nexus-7": 1 })
     const accessAfterGrace = checkX402Subscription("nexus-7", "my-data-api")
 
-    expect(paused.paused[0].status).toBe("paused")
+    expect(paused!.paused[0]!.status).toBe("paused")
     expect(accessAfterGrace.active).toBe(false)
     expect(accessAfterGrace.status).toBe("paused")
   })

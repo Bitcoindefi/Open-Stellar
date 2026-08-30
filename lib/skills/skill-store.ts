@@ -72,7 +72,7 @@ export function getAllSkills(): { skillId: string; versions: string[]; latest: s
   return Array.from(skillMap.entries()).map(([skillId, versions]) => ({
     skillId,
     versions: versions.sort(compareSemver),
-    latest: latestPointers.get(skillId) ?? versions[0],
+    latest: latestPointers.get(skillId) ?? versions[0] ?? versions.sort(compareSemver)[0] ?? "",
   }));
 }
 

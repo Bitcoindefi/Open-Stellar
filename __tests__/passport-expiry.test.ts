@@ -59,8 +59,8 @@ describe("passport expiry cron", () => {
 
     expect(result.expiredCount).toBe(1)
     expect(result.newlyRevoked).toHaveLength(1)
-    expect(result.newlyRevoked[0].status).toBe("REVOKED")
-    expect(result.newlyRevoked[0].revokedReason).toBe("expired")
+    expect(result!.newlyRevoked[0]!.status).toBe("REVOKED")
+    expect(result!.newlyRevoked[0]!.revokedReason).toBe("expired")
   })
 
   it("skips already-revoked passports (idempotent)", () => {
@@ -156,7 +156,7 @@ describe("passport expiry cron", () => {
 
     const result = runPassportExpiryCheck()
     expect(result.expiredCount).toBe(2)
-    expect(result.newlyRevoked[0].agentId).toBe(agentId)
-    expect(result.newlyRevoked[1].agentId).toBe(agentId)
+    expect(result!.newlyRevoked[0]!.agentId).toBe(agentId)
+    expect(result!.newlyRevoked[1]!.agentId).toBe(agentId)
   })
 })

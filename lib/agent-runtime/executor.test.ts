@@ -49,10 +49,10 @@ describe("Claude-backed agent executor", () => {
 
     expect(result.summary).toBe("Threat scan completed.")
     expect(result.cost.costUsd).toBeGreaterThan(0)
-    expect(calls[0].model).toBe("claude-sonnet-4-5-20250929")
-    expect(String(calls[0].system)).toContain("Defense Grid")
-    expect(calls[0].messages).toEqual([{ role: "user", content: expect.stringContaining('"target": "edge"') }])
-    expect(calls[0].tools).toEqual(getAgentTools("defense"))
+    expect(calls![0]!.model).toBe("claude-sonnet-4-5-20250929")
+    expect(String(calls![0]!.system)).toContain("Defense Grid")
+    expect(calls![0]!.messages).toEqual([{ role: "user", content: expect.stringContaining('"target": "edge"') }])
+    expect(calls![0]!.tools).toEqual(getAgentTools("defense"))
   })
 
   it("tracks per-agent daily budget analytics", async () => {

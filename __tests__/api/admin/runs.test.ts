@@ -34,8 +34,8 @@ describe("orchestration run history", () => {
 
     expect(result?.run.status).toBe("running")
     expect(result?.run.goal).toBe(getOrchestrationRun("run_003")?.goal)
-    expect(result?.run.steps[0].status).toBe("running")
-    expect(result?.run.steps[1].status).toBe("queued")
+    expect(result!.run.steps[0]!.status).toBe("running")
+    expect(result!.run.steps[1]!.status).toBe("queued")
     expect(result?.estimate.estimatedCostXlm).toBe("0.01")
   })
 

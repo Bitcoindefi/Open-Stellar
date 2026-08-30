@@ -255,10 +255,11 @@ function getProcessedSprite(
   let bgR = 0, bgG = 0, bgB = 0, bgCount = 0
   for (const c of corners) {
     const idx = (c.y * srcW + c.x) * 4
-    if (fd[idx + 3] > 200) {
-      bgR += fd[idx]
-      bgG += fd[idx + 1]
-      bgB += fd[idx + 2]
+    const alpha = fd[idx + 3] ?? 0
+    if (alpha > 200) {
+      bgR += fd[idx] ?? 0
+      bgG += fd[idx + 1] ?? 0
+      bgB += fd[idx + 2] ?? 0
       bgCount++
     }
   }
@@ -274,7 +275,7 @@ function getProcessedSprite(
   for (let py = 0; py < srcH; py++) {
     for (let px = 0; px < srcW; px++) {
       const idx = (py * srcW + px) * 4
-      const r = fd[idx], g = fd[idx + 1], b = fd[idx + 2], a = fd[idx + 3]
+      const r = fd[idx] ?? 0, g = fd[idx + 1] ?? 0, b = fd[idx + 2] ?? 0, a = fd[idx + 3] ?? 0
       if (a < 50) continue
       const dist = Math.abs(r - bgR) + Math.abs(g - bgG) + Math.abs(b - bgB)
       if (dist > tolerance) {
@@ -308,7 +309,7 @@ function getProcessedSprite(
   const imgData = oc.getImageData(0, 0, size, size)
   const d_pixels = imgData.data
   for (let i = 0; i < d_pixels.length; i += 4) {
-    const r = d_pixels[i], g = d_pixels[i + 1], b = d_pixels[i + 2], a = d_pixels[i + 3]
+    const r = d_pixels[i] ?? 0, g = d_pixels[i + 1] ?? 0, b = d_pixels[i + 2] ?? 0, a = d_pixels[i + 3] ?? 0
     if (a < 50) { d_pixels[i + 3] = 0; continue }
     const dist = Math.abs(r - bgR) + Math.abs(g - bgG) + Math.abs(b - bgB)
     if (dist < tolerance) {
@@ -763,6 +764,7 @@ export function drawScaffolding(ctx: CanvasRenderingContext2D, district: Distric
 
   for (let i = 0; i < buildingSets.length; i++) {
     const b = buildingSets[i]
+    if (!b) continue
     const stagger = i * 0.14
     const local = Math.max(0, Math.min(1, (p - stagger) / (1 - stagger)))
     const hNow = 2 + (b.h - 2) * local
@@ -799,6 +801,7 @@ export function drawRoads(ctx: CanvasRenderingContext2D, districts: District[]) 
   for (let i = 0; i < districts.length - 1; i++) {
     const a = districts[i]
     const b = districts[i + 1]
+    if (!a || !b) continue
     ctx.beginPath()
     ctx.moveTo(a.x + a.w / 2, a.y + a.h / 2)
     ctx.lineTo(b.x + b.w / 2, b.y + b.h / 2)
@@ -811,6 +814,7 @@ export function drawRoads(ctx: CanvasRenderingContext2D, districts: District[]) 
   for (let i = 0; i < districts.length - 1; i++) {
     const a = districts[i]
     const b = districts[i + 1]
+    if (!a || !b) continue
     ctx.beginPath()
     ctx.moveTo(a.x + a.w / 2, a.y + a.h / 2)
     ctx.lineTo(b.x + b.w / 2, b.y + b.h / 2)
@@ -824,6 +828,7 @@ export function drawRoads(ctx: CanvasRenderingContext2D, districts: District[]) 
   for (let i = 0; i < districts.length - 1; i++) {
     const a = districts[i]
     const b = districts[i + 1]
+    if (!a || !b) continue
     ctx.beginPath()
     ctx.moveTo(a.x + a.w / 2, a.y + a.h / 2)
     ctx.lineTo(b.x + b.w / 2, b.y + b.h / 2)

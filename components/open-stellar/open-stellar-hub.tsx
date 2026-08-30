@@ -32,7 +32,7 @@ function secureRandom(): number {
   const array = new Uint32Array(1)
   const c = typeof crypto !== "undefined" ? crypto : (globalThis as any).crypto
   c.getRandomValues(array)
-  return array[0] / 4294967296
+  return (array[0] ?? 0) / 4294967296
 }
 
 const ONBOARDING_STEPS = [
@@ -145,15 +145,15 @@ function OnboardingModal({ onDone }: { onDone: () => void }) {
         </div>
 
         <div style={{ fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: "#e2e8f0", marginBottom: 12 }}>
-          {current.title}
+          {current!.title}
         </div>
 
         <div style={{ fontFamily: "monospace", fontSize: 11, color: "#94a3b8", lineHeight: 1.7, marginBottom: 16 }}>
-          {current.body}
+          {current!.body}
         </div>
 
         <div style={{ fontFamily: "monospace", fontSize: 10, color: "#475569", marginBottom: 28 }}>
-          {current.hint}
+          {current!.hint}
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>

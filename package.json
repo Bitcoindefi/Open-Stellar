@@ -13,6 +13,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "lint:fix": "eslint . --fix",
     "secretlint": "secretlint \"**/*\"",
     "size-limit": "size-limit",

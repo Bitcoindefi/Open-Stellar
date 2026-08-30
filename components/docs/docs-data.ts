@@ -43,7 +43,7 @@ export function getDocPage(slug = "getting-started"): DocPage | null {
   const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
   const meta = Object.fromEntries((match?.[1] ?? "").split("\n").filter(Boolean).map((line) => {
     const [key, ...rest] = line.split(":")
-    return [key.trim(), rest.join(":").trim().replace(/^['"]|['"]$/g, "")]
+    return [key!.trim(), rest.join(":").trim().replace(/^['"]|['"]$/g, "")]
   })) as Record<string, string>
   return { slug, title: meta.title ?? slug, description: meta.description ?? "", body: match?.[2] ?? raw }
 }

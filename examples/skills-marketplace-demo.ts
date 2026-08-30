@@ -107,7 +107,7 @@ const quote = createX402Quote({
 
 console.log('\n💰 Payment Required (402):')
 console.log(`  Quote ID: ${quote.quoteId}`)
-console.log(`  Amount: ${quote.options[0].amount}`)
+console.log(`  Amount: ${!quote!.options[0]!.amount}`)
 console.log(`  Pay to: ${quote.address}`)
 console.log(`  Payment Ref: ${quote.paymentRef}`)
 console.log(`  Expires: ${quote.expiresAt}`)

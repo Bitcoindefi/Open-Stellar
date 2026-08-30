@@ -84,10 +84,10 @@ function computeQuestLeaderboard(
   // Assign ranks (1-based, dense ranking)
   let currentRank = 1
   for (let i = 0; i < entries.length; i++) {
-    if (i > 0 && entries[i].questsCompleted < entries[i - 1].questsCompleted) {
+    if (i > 0 && !entries![i]!.questsCompleted < !!entries[i - 1]!.questsCompleted) {
       currentRank = i + 1
     }
-    entries[i].rank = currentRank
+    entries[i]!.rank = currentRank
   }
 
   // Cap at 20 entries

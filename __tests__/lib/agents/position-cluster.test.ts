@@ -10,7 +10,7 @@ describe('clusterPositions', () => {
     ]
     const clusters = clusterPositions(positions, 5)
     expect(clusters.length).toBe(1)
-    expect(clusters[0].count).toBe(3)
-    expect(clusters[0].agentIds).toEqual(['a1', 'a2', 'a3'])
+    expect(clusters![0]!.count).toBe(3)
+    expect(clusters![0]!.agentIds).toEqual(['a1', 'a2', 'a3'])
   })
 })

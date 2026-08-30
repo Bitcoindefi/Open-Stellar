@@ -135,7 +135,7 @@ export function rotateWebhookSecret(id: string): WebhookRegistration | null {
   if (index === -1) return null
 
   const updated: WebhookRegistration = {
-    ...webhooks[index],
+    ...webhooks[index]!,
     secret: randomBytes(32).toString("hex"),
   }
   const next = [...webhooks]

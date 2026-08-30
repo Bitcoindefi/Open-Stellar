@@ -102,7 +102,7 @@ describe("district map route", () => {
     const result = getDistrictUnlockMap("bot-3")
 
     for (let i = 0; i < DISTRICT_REGISTRY.length; i++) {
-      expect(result.districts[i].xpRequired).toBe(DISTRICT_REGISTRY[i].xpRequired)
+      expect(result!.districts[i]!.xpRequired).toBe(DISTRICT_REGISTRY![i]!.xpRequired)
     }
   })
 })

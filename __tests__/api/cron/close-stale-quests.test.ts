@@ -129,7 +129,7 @@ describe("GET /api/cron/close-stale-quests — unassigned quests with no applica
 
     const expiredCalls = publishMock.mock.calls.filter(([e]) => e.type === "quest.expired")
     expect(expiredCalls).toHaveLength(1)
-    expect((expiredCalls[0][0] as { questId: string }).questId).toBe("q-e1")
+    expect((expiredCalls![0]![0] as { questId: string }).questId).toBe("q-e1")
   })
 
   it("does not expire unassigned quests that still have applicants", async () => {

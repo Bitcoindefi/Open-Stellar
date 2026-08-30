@@ -34,7 +34,7 @@ function priceForModel(model: string) {
 
 export function estimateClaudeCostUsd(model: string, inputTokens: number, outputTokens: number): number {
   const price = priceForModel(model)
-  return Number(((inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output).toFixed(6))
+  return Number(((inputTokens / 1_000_000) * price!.input + (outputTokens / 1_000_000) * price!.output).toFixed(6))
 }
 
 export function recordClaudeTaskCost(input: Omit<ClaudeCostRecord, "id" | "createdAt" | "costUsd">): ClaudeCostRecord {

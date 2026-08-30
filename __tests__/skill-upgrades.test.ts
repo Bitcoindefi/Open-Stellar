@@ -83,7 +83,7 @@ describe("skill upgrade helpers", () => {
     const { agent: updatedAgent, result } = upgradeAgentSkill(agent, "skill-1")
 
     expect(result?.upgraded).toBe(true)
-    expect(updatedAgent.skills[0].level).toBe(2)
-    expect(updatedAgent.skills[0].xp).toBe(25)
+    expect(updatedAgent!.skills[0]!.level).toBe(2)
+    expect(updatedAgent!.skills[0]!.xp).toBe(25)
   })
 })

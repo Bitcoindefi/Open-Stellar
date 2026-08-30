@@ -110,7 +110,7 @@ describe("normalizeFilters", () => {
       "not an object",
     ])
     expect(result).toHaveLength(1)
-    expect(result[0].field).toBe("ok")
+    expect(result![0]!.field).toBe("ok")
   })
 
   it("returns empty array for non-array input", () => {

@@ -71,7 +71,7 @@ function eventForAgent(
 
 function buildSeedEvents(): FeedEvent[] {
   const agents = createAgents()
-  const [nexus, cipher, pulse, vector, halo, stratos] = agents
+  const [nexus, cipher, pulse, vector, halo, stratos] = agents as [MoltbotAgent, MoltbotAgent, MoltbotAgent, MoltbotAgent, MoltbotAgent, MoltbotAgent]
 
   return [
     eventForAgent(

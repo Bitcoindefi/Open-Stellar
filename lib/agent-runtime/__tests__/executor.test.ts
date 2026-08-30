@@ -100,6 +100,6 @@ describe("executor — core logic paths", () => {
     await executeTask(baseAgent, baseTask, { client })
 
     expect(captured).toHaveLength(1)
-    expect(captured[0].tools).toEqual(getAgentTools(baseAgent.district))
+    expect(captured![0]!.tools).toEqual(getAgentTools(baseAgent.district))
   })
 })

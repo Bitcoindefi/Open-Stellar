@@ -60,7 +60,7 @@ function detectCycle(
         let earliestIndex = 0
         let earliestOrder = Infinity
         for (let i = 0; i < cyclePath.length; i++) {
-          const order = subtaskOrder.get(cyclePath[i]) ?? Infinity
+          const order = subtaskOrder.get(cyclePath[i] ?? "") ?? Infinity
           if (order < earliestOrder) {
             earliestOrder = order
             earliestIndex = i

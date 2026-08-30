@@ -186,8 +186,8 @@ export function createX402Quote(input: X402QuoteRequest): X402Quote {
   const preferred = options.find((option) => option.chain === preferredChain) ?? options[0]
   const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString()
   const quoteId = `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-  const paymentRef = `${input.serviceId}:${preferred.chain}:${Date.now()}`
-  const quote: X402Quote = { code: 402, quoteId, service: input.serviceId, serviceId: input.serviceId, chain: preferred.chain, payer: input.payer, amountUsd, amountUnits: preferred.amountUnits, address: preferred.address, options, expiresAt, paymentRef, memo: `x402/${input.serviceId}/${quoteId}` }
+  const paymentRef = `${input.serviceId}:${preferred!.chain}:${Date.now()}`
+  const quote: X402Quote = { code: 402, quoteId, service: input.serviceId, serviceId: input.serviceId, chain: preferred!.chain, payer: input.payer, amountUsd, amountUnits: preferred!.amountUnits, address: preferred!.address, options, expiresAt, paymentRef, memo: `x402/${input.serviceId}/${quoteId}` }
   quoteRegistry.set(paymentRef, quote)
   quoteRegistry.set(quoteId, quote)
   return quote

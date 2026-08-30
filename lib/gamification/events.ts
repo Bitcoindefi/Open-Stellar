@@ -115,9 +115,9 @@ export function getWeeklyTasksCompleted(agent: MoltbotAgent, weekIndex: number):
 
 export function getActiveDistrictEvent(now: Date = new Date()): ActiveDistrictEvent {
   const bounds = getWeekBounds(now)
-  const challenge = DISTRICT_CHALLENGES[bounds.weekIndex % DISTRICT_CHALLENGES.length]
+  const challenge = DISTRICT_CHALLENGES[bounds.weekIndex % DISTRICT_CHALLENGES.length]!
   return {
-    id: `district-${bounds.weekIndex}-${challenge.type}`,
+    id: `district-${bounds.weekIndex}-${challenge!.type}`,
     weekIndex: bounds.weekIndex,
     challenge,
     startedAt: bounds.startedAt.toISOString(),
@@ -169,12 +169,12 @@ export function getDistrictEventHistory(agents: MoltbotAgent[], now: Date = new 
     const winner = standings[0]
     const challenge = DISTRICT_CHALLENGES[weekIndex % DISTRICT_CHALLENGES.length]
     return {
-      id: `district-${weekIndex}-${challenge.type}`,
+      id: `district-${weekIndex}-${challenge!.type}`,
       weekIndex,
-      challengeName: challenge.name,
-      winningDistrictId: winner.districtId,
-      winningDistrictName: winner.districtName,
-      topAgentName: winner.topAgent?.name ?? "Unassigned",
+      challengeName: challenge!.name,
+      winningDistrictId: winner!.districtId,
+      winningDistrictName: winner!.districtName,
+      topAgentName: winner!.topAgent?.name ?? "Unassigned",
       endedAt: new Date(EPOCH_START_MS + (weekIndex + 1) * WEEK_MS).toISOString(),
     }
   })
