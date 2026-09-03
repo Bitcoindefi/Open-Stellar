@@ -44,9 +44,12 @@ describe("x402 subscriptions", () => {
       pricePerMonth: "1 XLM",
     })
 
-    const first = await checkSubscription(new Request("http://localhost/api/protocol/x402/subscriptions/nexus-7/my-data-api?consume=true"), {
-      params: Promise.resolve({ agentId: "nexus-7", serviceId: "my-data-api" }),
-    })
+    const first = await checkSubscription(
+      new Request("http://localhost/api/protocol/x402/subscriptions/nexus-7/my-data-api?consume=true"),
+      {
+        params: Promise.resolve({ agentId: "nexus-7", serviceId: "my-data-api" }),
+      },
+    )
     const firstData = await first.json()
     const second = checkX402Subscription("nexus-7", "my-data-api", { consumeCall: true })
     const exhausted = checkX402Subscription("nexus-7", "my-data-api")

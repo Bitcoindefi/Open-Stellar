@@ -780,7 +780,7 @@ export function SidebarPanel({
 
   const chatCount = chatMessages.length
   const errorCount = agents.filter(a => a.status === "error").length
-  const walletAlert = agents.some(a => !a.wallet || (a.wallet.funded && parseFloat(a.wallet.balance) < 10))
+  const walletAlert = agents.some(a => !a.wallet || (a.wallet.funded && Number.parseFloat(a.wallet.balance) < 10))
   const openOfferCount = MOCK_OFFERS.filter(offer => offer.status === "open").length
 
   return (

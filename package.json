@@ -8,6 +8,9 @@
   "workspaces": [
     "packages/*"
   ],
+  "bin": {
+    "open-stellar": "./bin/open-stellar.js"
+  },
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
