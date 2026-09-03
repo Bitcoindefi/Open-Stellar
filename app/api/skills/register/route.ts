@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiError } from "@/lib/api/error";
 import { registerSkill, getSkill } from "@/lib/skills/skill-store";
 import { z } from "zod";
 
@@ -23,10 +24,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const parsed = RegisterSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Invalid request body", details: parsed.error.flatten() },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false as const, error: "Invalid request body", details: parsed.error.flatten() }, { status: 400 });
     }
 
     const { skillId, version, handler, metadata } = parsed.data;
@@ -34,10 +32,7 @@ export async function POST(req: NextRequest) {
     // 409 guard: duplicate id + version
     const existing = getSkill(skillId, version);
     if (existing) {
-      return NextResponse.json(
-        { error: "Skill version already exists", skillId, version },
-        { status: 409 }
-      );
+      return apiError("Skill version already exists", "CONFLICT", 409);
     }
 
     registerSkill({
@@ -57,9 +52,6 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     console.error("[skills/register]", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return apiError("Internal server error", "INTERNAL", 500);
   }
 }

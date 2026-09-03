@@ -1,4 +1,5 @@
 import type { Quest, QuestType, QuestReward, SubTask } from "./quests"
+import { invalidateAgentLeaderboard } from "@/lib/leaderboard/agent-leaderboard"
 import { addNotification } from "@/lib/notifications/notification-store"
 import { publishSystemEvent } from "@/lib/events/system-events"
 
@@ -86,6 +87,10 @@ export function listStoredQuests(options?: { includeExpired?: boolean }): Stored
 }
 
 export function updateQuestStatus(id: string, status: QuestStatus): StoredQuest | null {
+  if (status === "completed") {
+    // Leaderboard ranks by completed quests; drop the cached snapshot (issue #313).
+    invalidateAgentLeaderboard()
+  }
   const store = getStore()
   const quest = store.quests.get(id)
   if (!quest) return null
