@@ -1,12 +1,27 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterAll } from 'vitest'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { existsSync, unlinkSync } from 'node:fs'
 import { POST } from '@/app/api/protocol/x402/subscriptions/renew/route'
 import { createX402Subscription, resetX402SubscriptionsForTests } from '@/lib/protocols/x402'
 import { resetX402SubscriptionStoreForTests } from '@/lib/protocols/x402-subscription-store'
 
 describe('/api/protocol/x402/subscriptions/renew API Route', () => {
+  const testDb = join(tmpdir(), `x402-subs-renew-${process.pid}-${Date.now()}.json`)
+
   beforeEach(() => {
+    process.env.X402_SUBSCRIPTION_DB_PATH = testDb
     resetX402SubscriptionsForTests()
     resetX402SubscriptionStoreForTests()
+  })
+
+  afterAll(() => {
+    delete process.env.X402_SUBSCRIPTION_DB_PATH
+    try {
+      if (existsSync(testDb)) unlinkSync(testDb)
+    } catch {
+      /* best effort cleanup */
+    }
   })
 
   it('triggers recurring renewals and returns summary', async () => {

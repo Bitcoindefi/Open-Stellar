@@ -1,4 +1,7 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterAll } from 'vitest'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { existsSync, unlinkSync } from 'node:fs'
 import {
   saveX402SubscriptionStoreRecord,
   saveX402SubscriptionStoreRecordSync,
@@ -7,8 +10,20 @@ import {
 } from '@/lib/protocols/x402-subscription-store'
 
 describe('Subscription Store Concurrency & Storage', () => {
+  const testDb = join(tmpdir(), `x402-subs-concurrency-${process.pid}-${Date.now()}.json`)
+
   beforeEach(() => {
+    process.env.X402_SUBSCRIPTION_DB_PATH = testDb
     resetX402SubscriptionStoreForTests()
+  })
+
+  afterAll(() => {
+    delete process.env.X402_SUBSCRIPTION_DB_PATH
+    try {
+      if (existsSync(testDb)) unlinkSync(testDb)
+    } catch {
+      /* best effort cleanup */
+    }
   })
 
   it('handles concurrent writeSubscriptions calls sequentially without corruption', async () => {

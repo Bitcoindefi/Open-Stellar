@@ -1,4 +1,7 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, afterAll } from 'vitest'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { existsSync, unlinkSync } from 'node:fs'
 import {
   createX402Subscription,
   checkX402Subscription,
@@ -11,9 +14,21 @@ import {
 } from '@/lib/protocols/x402-subscription-store'
 
 describe('x402 Subscriptions Persistence', () => {
+  const testDb = join(tmpdir(), `x402-subs-persistence-${process.pid}-${Date.now()}.json`)
+
   beforeEach(() => {
+    process.env.X402_SUBSCRIPTION_DB_PATH = testDb
     resetX402SubscriptionsForTests()
     resetX402SubscriptionStoreForTests()
+  })
+
+  afterAll(() => {
+    delete process.env.X402_SUBSCRIPTION_DB_PATH
+    try {
+      if (existsSync(testDb)) unlinkSync(testDb)
+    } catch {
+      /* best effort cleanup */
+    }
   })
 
   it('persists subscriptions to disk and restores them on reload', () => {
