@@ -25,6 +25,9 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@open-stellar/x402": [
+        "./packages/x402/index.ts"
       ]
     }
   },

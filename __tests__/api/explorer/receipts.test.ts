@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, beforeEach } from "vitest"
 import { createX402Quote, listX402ExplorerReceipts, settleX402 } from "@/lib/protocols/x402"
+import { resetX402ReceiptStoreForTests } from "@/lib/protocols/x402-receipt-store"
 
 describe("x402 explorer receipts", () => {
+  beforeEach(() => {
+    resetX402ReceiptStoreForTests()
+  })
   it("records accepted settlements for explorer queries", () => {
     const quote = createX402Quote({
       serviceId: "data-api",

@@ -1,11 +1,26 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest"
+import { describe, expect, it, beforeEach, afterEach, afterAll, vi } from "vitest"
+import { join } from "node:path"
+import { tmpdir } from "node:os"
+import { existsSync, unlinkSync } from "node:fs"
 import { GET as checkSubscription } from "@/app/api/protocol/x402/subscriptions/[agentId]/[serviceId]/route"
 import { POST as createSubscription } from "@/app/api/protocol/x402/subscriptions/route"
 import { checkX402Subscription, createX402Subscription, renewX402Subscriptions, resetX402SubscriptionsForTests } from "@/lib/protocols/x402"
 
 describe("x402 subscriptions", () => {
+  const testDb = join(tmpdir(), `x402-subs-api-${process.pid}-${Date.now()}.json`)
+
   beforeEach(() => {
+    process.env.X402_SUBSCRIPTION_DB_PATH = testDb
     resetX402SubscriptionsForTests()
+  })
+
+  afterAll(() => {
+    delete process.env.X402_SUBSCRIPTION_DB_PATH
+    try {
+      if (existsSync(testDb)) unlinkSync(testDb)
+    } catch {
+      /* best effort cleanup */
+    }
   })
 
   afterEach(() => {

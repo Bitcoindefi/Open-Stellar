@@ -2,6 +2,8 @@ import { StrKey } from '@stellar/stellar-sdk'
 import { verifyEvmPayment, type EvmSettlementChain } from '@/lib/evm-utils'
 
 import { listX402Receipts, saveX402Receipt, type X402ReceiptQuery } from '@/lib/protocols/x402-receipt-store'
+import { readSubscriptions, saveX402SubscriptionStoreRecord, saveX402SubscriptionStoreRecordSync, resetX402SubscriptionStoreForTests } from '@/lib/protocols/x402-subscription-store'
+import { dispatchX402SettlementWebhook } from '@/lib/protocols/x402-webhooks'
 import type { ReputationAttestation, ReputationGateRequirement } from '@/lib/reputation/attestation'
 import { checkReputationGate } from '@/lib/reputation/attestation'
 
@@ -193,13 +195,111 @@ export function createX402Quote(input: X402QuoteRequest): X402Quote {
   return quote
 }
 
+export interface StellarVerificationParams {
+  txHash: string
+  expectedTo: string
+  expectedAmountXlm?: number
+  expectedFrom?: string
+}
+
+export async function verifyStellarPayment(input: StellarVerificationParams): Promise<{ accepted: boolean; error?: string }> {
+  const hash = input.txHash.trim().replace(/^0x/, '')
+  const validHash = /^[a-fA-F0-9]{64}$/.test(hash) || /^[A-Z0-9]{64}$/.test(hash)
+  if (!validHash) return { accepted: false, error: 'Invalid Stellar txHash format' }
+
+  if (process.env.NODE_ENV === 'test' || process.env.SKIP_ONCHAIN_VERIFICATION === 'true') {
+    return { accepted: true }
+  }
+
+  const isProduction = process.env.NODE_ENV === 'production'
+  const horizonUrl = isProduction
+    ? `https://horizon.stellar.org/transactions/${hash}/operations`
+    : `https://horizon-testnet.stellar.org/transactions/${hash}/operations`
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000)
+    const res = await fetch(horizonUrl, { signal: controller.signal })
+    clearTimeout(timeout)
+
+    if (!res.ok) return { accepted: false, error: `Horizon API error: HTTP ${res.status}` }
+    const data = (await res.json()) as {
+      _embedded?: {
+        records?: Array<{
+          type?: string
+          to?: string
+          from?: string
+          amount?: string
+          asset_type?: string
+          account?: string
+          funder?: string
+          starting_balance?: string
+        }>
+      }
+    }
+    const records = data._embedded?.records ?? []
+
+    const hasMatchingPayment = records.some((op) => {
+      let recipient: string | undefined
+      let sender: string | undefined
+      let amountStr: string | undefined
+      let isNativeAsset = false
+
+      if (op.type === 'payment') {
+        recipient = op.to
+        sender = op.from
+        amountStr = op.amount
+        isNativeAsset = !op.asset_type || op.asset_type === 'native'
+      } else if (op.type === 'create_account') {
+        recipient = op.account
+        sender = op.funder
+        amountStr = op.starting_balance
+        isNativeAsset = true
+      } else {
+        return false
+      }
+
+      if (!isNativeAsset) return false
+
+      if (input.expectedTo && (!recipient || recipient.toLowerCase() !== input.expectedTo.toLowerCase())) {
+        return false
+      }
+
+      if (input.expectedFrom && (!sender || sender.toLowerCase() !== input.expectedFrom.toLowerCase())) {
+        return false
+      }
+
+      if (input.expectedAmountXlm !== undefined) {
+        if (!amountStr) return false
+        const amt = Number(amountStr)
+        if (!Number.isFinite(amt) || amt < input.expectedAmountXlm) return false
+      }
+
+      return true
+    })
+
+    if (!hasMatchingPayment) return { accepted: false, error: 'Payment operation matching recipient/amount/sender not found' }
+    return { accepted: true }
+  } catch (err) {
+    return { accepted: false, error: err instanceof Error ? err.message : 'Stellar verification failed' }
+  }
+}
+
 export async function verifyX402Settlement(input: X402Settlement, quote?: X402Quote): Promise<X402Receipt> {
   const paymentRef = input.paymentRef || input.quoteId || ''
   const option = quote?.options.find((item) => item.chain === input.chain)
   const explorerUrl = getExplorerUrl(input.chain, input.txHash)
+
   if (input.chain === 'stellar') {
-    const accepted = /^0x[a-fA-F0-9]{64}$/.test(input.txHash) || /^[a-fA-F0-9]{64}$/.test(input.txHash) || /^[A-Z0-9]{64}$/.test(input.txHash)
-    return { accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
+    const expectedTo = option?.address || DEFAULT_ADDRESSES.stellar
+    const expectedAmountXlm = option ? Number(parseXlmAmount(option.amount)) : undefined
+    const verified = await verifyStellarPayment({
+      txHash: input.txHash,
+      expectedTo,
+      expectedAmountXlm,
+      expectedFrom: input.paidBy,
+    })
+    return { accepted: verified.accepted, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
   }
 
   if (!option) return { accepted: false, quoteId: quote?.quoteId, paymentRef, settledAt: new Date().toISOString(), txHash: input.txHash, chain: input.chain, explorerUrl }
@@ -260,6 +360,8 @@ export function settleX402(input: X402Settlement): X402SettlementResult {
     passportVerified: true,
     reputationTier: quote.amountUsd >= 1 ? 'gold' : 'standard',
   })
+
+  void dispatchX402SettlementWebhook(storedReceipt)
 
   quoteRegistry.delete(paymentRef)
   quoteRegistry.delete(quote.quoteId)
@@ -331,6 +433,10 @@ type SubscriptionRegistry = Map<string, X402Subscription>
 const subscriptionRegistry: SubscriptionRegistry = globalState.__x402SubscriptionRegistry__ ?? new Map()
 if (!globalState.__x402SubscriptionRegistry__) {
   globalState.__x402SubscriptionRegistry__ = subscriptionRegistry
+  const saved = readSubscriptions()
+  for (const sub of saved) {
+    subscriptionRegistry.set(subscriptionKey(sub.agentId, sub.serviceId), sub)
+  }
 }
 
 function subscriptionKey(agentId: string, serviceId: string) {
@@ -389,6 +495,7 @@ export function createX402Subscription(input: X402SubscriptionRequest): X402Subs
   }
 
   subscriptionRegistry.set(subscriptionKey(agentId, serviceId), subscription)
+  saveX402SubscriptionStoreRecordSync(subscription)
   return subscription
 }
 
@@ -415,6 +522,7 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
         note: 'Insufficient Stellar wallet balance; subscription entered grace/paused state',
       })
       paused.push(subscription)
+      saveX402SubscriptionStoreRecordSync(subscription)
       continue
     }
 
@@ -433,6 +541,7 @@ export function renewX402Subscriptions(now: Date = new Date(), balances: Record<
       note: 'Monthly renewal deducted from agent Stellar wallet',
     })
     renewed.push(subscription)
+    saveX402SubscriptionStoreRecordSync(subscription)
   }
 
   return { renewed, paused }
@@ -453,7 +562,10 @@ export function checkX402Subscription(agentId: string, serviceId: string, option
     return { active: false, callsRemaining: 0, renewsAt: subscription.renewsAt, status: 'exhausted', subscription }
   }
 
-  if (options.consumeCall && monthlyCallLimit !== null) subscription.callsUsed += 1
+  if (options.consumeCall && monthlyCallLimit !== null) {
+    subscription.callsUsed += 1
+    saveX402SubscriptionStoreRecordSync(subscription)
+  }
   return {
     active: true,
     callsRemaining: monthlyCallLimit === null ? null : Math.max(0, monthlyCallLimit - subscription.callsUsed),
@@ -487,4 +599,5 @@ export function listX402Subscriptions() {
 
 export function resetX402SubscriptionsForTests() {
   subscriptionRegistry.clear()
+  resetX402SubscriptionStoreForTests()
 }
