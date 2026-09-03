@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiError } from "@/lib/api/error";
 import { getSkill } from "@/lib/skills/skill-store";
 
 export async function POST(
@@ -13,11 +14,7 @@ export async function POST(
     const skill = getSkill(skillId, version);
     if (!skill) {
       return NextResponse.json(
-        {
-          error: "Skill not found",
-          skillId,
-          version: version ?? "latest",
-        },
+        { ok: false as const, error: "Skill not found", skillId, version: version ?? "latest" },
         { status: 404 }
       );
     }
@@ -32,9 +29,6 @@ export async function POST(
     });
   } catch (err) {
     console.error("[skills/invoke]", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return apiError("Internal server error", "INTERNAL", 500);
   }
 }
