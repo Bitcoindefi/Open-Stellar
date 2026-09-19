@@ -12,14 +12,34 @@ import {
   FileText,
   RefreshCw,
 } from 'lucide-react';
-import type { EscrowMilestoneDeal, Milestone } from '@/lib/escrow/milestones';
+import type { EscrowMilestoneDeal, Milestone, EscrowStatus } from '@/lib/escrow/milestones';
 import { formatStroopsToXlm } from '@/lib/escrow/milestones';
 
 interface MilestoneTrackerProps {
-  initialDeal: EscrowMilestoneDeal;
+  readonly initialDeal: EscrowMilestoneDeal;
 }
 
-export function MilestoneTracker({ initialDeal }: MilestoneTrackerProps) {
+function getProgressBarColor(status: EscrowStatus): string {
+  if (status === 'disputed') {
+    return 'bg-rose-500';
+  }
+  if (status === 'completed') {
+    return 'bg-purple-500';
+  }
+  return 'bg-emerald-500';
+}
+
+function getMilestoneCardClass(isCompleted: boolean, isNext: boolean): string {
+  if (isCompleted) {
+    return 'bg-emerald-950/20 border-emerald-900/40 text-slate-300';
+  }
+  if (isNext) {
+    return 'bg-slate-800/80 border-slate-700 text-white shadow';
+  }
+  return 'bg-slate-950/50 border-slate-800/60 text-slate-500';
+}
+
+export function MilestoneTracker({ initialDeal }: Readonly<MilestoneTrackerProps>) {
   const [deal, setDeal] = useState<EscrowMilestoneDeal>(initialDeal);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [disputeReason, setDisputeReason] = useState('');
@@ -147,25 +167,25 @@ export function MilestoneTracker({ initialDeal }: MilestoneTrackerProps) {
           {deal.status === 'active' && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Active Escrow
+              <span>Active Escrow</span>
             </span>
           )}
           {deal.status === 'completed' && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
               <CheckCircle2 className="w-4 h-4" />
-              Fully Completed
+              <span>Fully Completed</span>
             </span>
           )}
           {deal.status === 'disputed' && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
               <AlertTriangle className="w-4 h-4" />
-              Disputed (Funds Frozen)
+              <span>Disputed (Funds Frozen)</span>
             </span>
           )}
           {deal.status === 'cancelled' && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-700/50 text-slate-400 border border-slate-600">
               <Ban className="w-4 h-4" />
-              Cancelled & Refunded
+              <span>Cancelled & Refunded</span>
             </span>
           )}
         </div>
@@ -260,13 +280,7 @@ export function MilestoneTracker({ initialDeal }: MilestoneTrackerProps) {
         </div>
         <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
           <div
-            className={`h-full transition-all duration-500 rounded-full ${
-              deal.status === 'disputed'
-                ? 'bg-rose-500'
-                : deal.status === 'completed'
-                ? 'bg-purple-500'
-                : 'bg-emerald-500'
-            }`}
+            className={`h-full transition-all duration-500 rounded-full ${getProgressBarColor(deal.status)}`}
             style={{ width: `${progressPercent}%` }}
           />
         </div>
@@ -292,13 +306,7 @@ export function MilestoneTracker({ initialDeal }: MilestoneTrackerProps) {
             return (
               <div
                 key={m.id}
-                className={`p-4 rounded-lg border transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${
-                  isCompleted
-                    ? 'bg-emerald-950/20 border-emerald-900/40 text-slate-300'
-                    : isNext
-                    ? 'bg-slate-800/80 border-slate-700 text-white shadow'
-                    : 'bg-slate-950/50 border-slate-800/60 text-slate-500'
-                }`}
+                className={`p-4 rounded-lg border transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${getMilestoneCardClass(isCompleted, isNext)}`}
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -394,10 +402,11 @@ export function MilestoneTracker({ initialDeal }: MilestoneTrackerProps) {
               Raising a dispute will immediately freeze all remaining locked funds ({lockedXlm}). Neither client nor provider can release or refund funds until arbitration completes.
             </p>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">
+              <label htmlFor="dispute-reason-input" className="block text-xs font-semibold text-slate-400 mb-1">
                 Reason for dispute
               </label>
               <textarea
+                id="dispute-reason-input"
                 value={disputeReason}
                 onChange={(e) => setDisputeReason(e.target.value)}
                 placeholder="e.g. Milestone 2 deliverable does not match specifications..."
@@ -444,7 +453,7 @@ export function MilestoneTracker({ initialDeal }: MilestoneTrackerProps) {
           <div className="space-y-1.5">
             {deal.history.map((ev, i) => (
               <div
-                key={i}
+                key={`${ev.timestamp}-${ev.action}-${i}`}
                 className="text-xs font-mono text-slate-400 p-2 bg-slate-950/60 rounded flex justify-between items-center"
               >
                 <div className="flex items-center gap-2">

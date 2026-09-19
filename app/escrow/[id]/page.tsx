@@ -7,7 +7,7 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export default async function EscrowDetailPage({ params }: PageProps) {
+export default async function EscrowDetailPage({ params }: Readonly<PageProps>) {
   const { id } = await params;
   const deal = getEscrowById(id);
 

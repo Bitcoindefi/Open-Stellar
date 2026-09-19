@@ -226,7 +226,7 @@ describe('Escrow Milestone Payments State Machine (Issue #60)', () => {
       milestones: [{ id: 1, description: 'Single job', releaseAmount: '0.5 XLM' }],
     });
 
-    expect(deal.history.length).toBe(1);
+    expect(deal.history).toHaveLength(1);
     expect(deal.history[0].action).toBe('created');
     expect(deal.history[0].actor).toBe('GAUDIT_CLIENT');
 

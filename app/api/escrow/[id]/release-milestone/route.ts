@@ -13,7 +13,7 @@ export async function POST(
     const body = await req.json();
 
     const milestoneId = Number(body.milestoneId);
-    if (!milestoneId || isNaN(milestoneId)) {
+    if (!milestoneId || Number.isNaN(milestoneId)) {
       return NextResponse.json(
         { ok: false, error: 'Valid milestoneId is required' },
         { status: 400 }

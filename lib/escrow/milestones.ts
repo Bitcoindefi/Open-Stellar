@@ -7,9 +7,9 @@
  */
 
 export interface MilestoneInput {
-  id?: number;
-  description: string;
-  releaseAmount: string; // e.g. "0.2 XLM" or raw number string
+  readonly id?: number;
+  readonly description: string;
+  readonly releaseAmount: string; // e.g. "0.2 XLM" or raw number string
 }
 
 export interface Milestone {
@@ -56,12 +56,12 @@ export interface EscrowMilestoneDeal {
 }
 
 export interface CreateEscrowParams {
-  clientAddress: string;
-  providerAddress: string;
-  totalAmount?: string;
-  milestones: MilestoneInput[];
-  sorobanContractId?: string;
-  customId?: string;
+  readonly clientAddress: string;
+  readonly providerAddress: string;
+  readonly totalAmount?: string;
+  readonly milestones: readonly MilestoneInput[];
+  readonly sorobanContractId?: string;
+  readonly customId?: string;
 }
 
 const ZERO_BI = BigInt(0);
@@ -74,8 +74,13 @@ export function parseAmountToStroops(amount: string | number): bigint {
   if (typeof amount === 'number') {
     return BigInt(Math.round(amount * 10000000));
   }
-  const cleaned = amount.trim().replace(/\s*XLM$/i, '').replace(/,/g, '');
-  if (!cleaned || isNaN(Number(cleaned))) {
+  const trimmed = amount.trim();
+  const withoutSuffix = (trimmed.toUpperCase().endsWith('XLM'))
+    ? trimmed.slice(0, -3).trim()
+    : trimmed;
+  const cleaned = withoutSuffix.replace(/,/g, '');
+
+  if (!cleaned || Number.isNaN(Number(cleaned))) {
     throw new Error(`Invalid amount format: "${amount}"`);
   }
 
@@ -104,7 +109,10 @@ export function formatStroopsToXlm(stroops: bigint): string {
   if (frac === ZERO_BI) {
     return `${isNegative ? '-' : ''}${whole}.0 XLM`;
   }
-  const fracStr = frac.toString().padStart(7, '0').replace(/0+$/, '');
+  let fracStr = frac.toString().padStart(7, '0');
+  while (fracStr.length > 0 && fracStr.endsWith('0')) {
+    fracStr = fracStr.slice(0, -1);
+  }
   return `${isNegative ? '-' : ''}${whole}.${fracStr} XLM`;
 }
 
@@ -147,6 +155,14 @@ export function getAllEscrows(): EscrowMilestoneDeal[] {
 
 export function getEscrowById(id: string): EscrowMilestoneDeal | undefined {
   return globalEscrowStore.get(id);
+}
+
+function generateSecureEscrowId(): string {
+  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
+    return `esc_${globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+  }
+  const timestampHex = Date.now().toString(16);
+  return `esc_${timestampHex.slice(-8)}`;
 }
 
 /**
@@ -194,7 +210,7 @@ export function createEscrowDeal(params: CreateEscrowParams): EscrowMilestoneDea
   }
 
   const now = new Date().toISOString();
-  const id = params.customId || `esc_${Math.random().toString(36).substring(2, 9)}`;
+  const id = params.customId || generateSecureEscrowId();
   const dealIdNumeric = ++nextDealNumericCounter;
 
   const deal: EscrowMilestoneDeal = {
