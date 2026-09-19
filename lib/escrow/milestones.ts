@@ -158,7 +158,7 @@ export function getEscrowById(id: string): EscrowMilestoneDeal | undefined {
 }
 
 function generateSecureEscrowId(): string {
-  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
+  if (globalThis.crypto !== undefined && typeof globalThis.crypto.randomUUID === 'function') {
     return `esc_${globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
   }
   const timestampHex = Date.now().toString(16);
