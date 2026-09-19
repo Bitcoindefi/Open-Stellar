@@ -6,24 +6,43 @@ import { POST as disputeEscrowRoute } from '@/app/api/escrow/[id]/dispute/route'
 import { POST as cancelEscrowRoute } from '@/app/api/escrow/[id]/cancel/route';
 import { resetEscrowStore } from '@/lib/escrow/milestones';
 
+function createMockEscrowRequest(options: {
+  id?: string;
+  client?: string;
+  provider?: string;
+  total?: string;
+  milestones?: Array<{ id?: number; description: string; releaseAmount: string }>;
+}) {
+  return new Request('http://localhost/api/escrow', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: options.id,
+      clientAddress: options.client ?? 'GCLIENT_DEFAULT',
+      providerAddress: options.provider ?? 'GPROVIDER_DEFAULT',
+      totalAmount: options.total ?? '1.0 XLM',
+      milestones: options.milestones ?? [
+        { id: 1, description: 'Phase 1', releaseAmount: '0.5 XLM' },
+        { id: 2, description: 'Phase 2', releaseAmount: '0.5 XLM' },
+      ],
+    }),
+  });
+}
+
 describe('Escrow API Routes (Issue #60)', () => {
   beforeEach(() => {
     resetEscrowStore();
   });
 
   it('creates an escrow via POST /api/escrow and lists it via GET /api/escrow', async () => {
-    const postReq = new Request('http://localhost/api/escrow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        clientAddress: 'GCLIENT_API_TEST',
-        providerAddress: 'GPROVIDER_API_TEST',
-        totalAmount: '1.0 XLM',
-        milestones: [
-          { id: 1, description: 'Milestone 1', releaseAmount: '0.5 XLM' },
-          { id: 2, description: 'Milestone 2', releaseAmount: '0.5 XLM' },
-        ],
-      }),
+    const postReq = createMockEscrowRequest({
+      client: 'GCLIENT_API_TEST',
+      provider: 'GPROVIDER_API_TEST',
+      total: '1.0 XLM',
+      milestones: [
+        { id: 1, description: 'Milestone 1', releaseAmount: '0.5 XLM' },
+        { id: 2, description: 'Milestone 2', releaseAmount: '0.5 XLM' },
+      ],
     });
 
     const createRes = await createEscrowRoute(postReq);
@@ -42,16 +61,10 @@ describe('Escrow API Routes (Issue #60)', () => {
   });
 
   it('fetches escrow by ID via GET /api/escrow/[id]', async () => {
-    const postReq = new Request('http://localhost/api/escrow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: 'esc_custom_test_123',
-        clientAddress: 'GCLIENT',
-        providerAddress: 'GPROVIDER',
-        totalAmount: '0.2 XLM',
-        milestones: [{ id: 1, description: 'Single', releaseAmount: '0.2 XLM' }],
-      }),
+    const postReq = createMockEscrowRequest({
+      id: 'esc_custom_test_123',
+      total: '0.2 XLM',
+      milestones: [{ id: 1, description: 'Single', releaseAmount: '0.2 XLM' }],
     });
 
     await createEscrowRoute(postReq);
@@ -67,21 +80,7 @@ describe('Escrow API Routes (Issue #60)', () => {
   });
 
   it('releases milestone via POST /api/escrow/[id]/release-milestone with idempotency', async () => {
-    const postReq = new Request('http://localhost/api/escrow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: 'esc_release_test',
-        clientAddress: 'GCLIENT',
-        providerAddress: 'GPROVIDER',
-        totalAmount: '1.0 XLM',
-        milestones: [
-          { id: 1, description: 'First', releaseAmount: '0.5 XLM' },
-          { id: 2, description: 'Second', releaseAmount: '0.5 XLM' },
-        ],
-      }),
-    });
-
+    const postReq = createMockEscrowRequest({ id: 'esc_release_test' });
     await createEscrowRoute(postReq);
 
     // Release Milestone 1
@@ -116,21 +115,7 @@ describe('Escrow API Routes (Issue #60)', () => {
   });
 
   it('raises dispute via POST /api/escrow/[id]/dispute and freezes funds', async () => {
-    const postReq = new Request('http://localhost/api/escrow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: 'esc_dispute_test',
-        clientAddress: 'GCLIENT',
-        providerAddress: 'GPROVIDER',
-        totalAmount: '1.0 XLM',
-        milestones: [
-          { id: 1, description: 'Phase 1', releaseAmount: '0.5 XLM' },
-          { id: 2, description: 'Phase 2', releaseAmount: '0.5 XLM' },
-        ],
-      }),
-    });
-
+    const postReq = createMockEscrowRequest({ id: 'esc_dispute_test' });
     await createEscrowRoute(postReq);
 
     const disputeReq = new Request('http://localhost/api/escrow/esc_dispute_test/dispute', {
@@ -149,18 +134,11 @@ describe('Escrow API Routes (Issue #60)', () => {
   });
 
   it('cancels early via POST /api/escrow/[id]/cancel before first milestone', async () => {
-    const postReq = new Request('http://localhost/api/escrow', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: 'esc_cancel_test',
-        clientAddress: 'GCLIENT',
-        providerAddress: 'GPROVIDER',
-        totalAmount: '1.0 XLM',
-        milestones: [{ id: 1, description: 'Work', releaseAmount: '1.0 XLM' }],
-      }),
+    const postReq = createMockEscrowRequest({
+      id: 'esc_cancel_test',
+      total: '1.0 XLM',
+      milestones: [{ id: 1, description: 'Work', releaseAmount: '1.0 XLM' }],
     });
-
     await createEscrowRoute(postReq);
 
     const cancelReq = new Request('http://localhost/api/escrow/esc_cancel_test/cancel', {
