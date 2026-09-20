@@ -96,10 +96,10 @@ export function ReceiptTable({ initialData }: { initialData: ReceiptExplorerPayl
       if (svcNeedle && !receipt.service?.toLowerCase().includes(svcNeedle) && !receipt.serviceId?.toLowerCase().includes(svcNeedle)) {
         return false
       }
-      if (fromTime !== null && !isNaN(fromTime)) {
+      if (fromTime !== null && !Number.isNaN(fromTime)) {
         if (new Date(receipt.settledAt).getTime() < fromTime) return false
       }
-      if (toTime !== null && !isNaN(toTime)) {
+      if (toTime !== null && !Number.isNaN(toTime)) {
         // match up to end of selected day (23:59:59)
         const endOfDay = toTime + 86400000 - 1
         if (new Date(receipt.settledAt).getTime() > endOfDay) return false
@@ -343,19 +343,29 @@ export function ReceiptTable({ initialData }: { initialData: ReceiptExplorerPayl
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-          onClick={() => setSelected(null)}
+          aria-labelledby="receipt-modal-title"
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setSelected(null)
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
         >
+          <button
+            type="button"
+            aria-label="Close backdrop"
+            className="fixed inset-0 h-full w-full cursor-default bg-black/80 backdrop-blur-sm"
+            onClick={() => setSelected(null)}
+          />
           <div
-            className="w-full max-w-2xl rounded-2xl border border-cyan-500/30 bg-slate-950 p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            role="document"
+            className="relative z-10 w-full max-w-2xl rounded-2xl border border-cyan-500/30 bg-slate-950 p-6 shadow-2xl"
           >
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <div className="font-mono text-xs uppercase tracking-[0.24em] text-cyan-400">
                   x402 Verified Receipt
                 </div>
-                <h2 className="mt-1 font-mono text-lg font-bold text-slate-100">
+                <h2 id="receipt-modal-title" className="mt-1 font-mono text-lg font-bold text-slate-100">
                   {selected.id}
                 </h2>
               </div>

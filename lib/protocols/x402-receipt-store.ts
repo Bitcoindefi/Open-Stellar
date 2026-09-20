@@ -79,13 +79,15 @@ export function getX402Receipt(receiptId: string): X402ExplorerReceipt | undefin
   return readReceipts().find((receipt) => receipt.id === receiptId)
 }
 
+const XLM_REGEX = /^([\d.]+)\s*XLM/i
+
 function extractXlmAmount(receipt: X402ExplorerReceipt): number {
   if (receipt.chain !== 'stellar') return 0
   if (receipt.amount) {
-    const m = receipt.amount.match(/^([\d.]+)\s*XLM/i)
-    if (m) return parseFloat(m[1])
+    const m = XLM_REGEX.exec(receipt.amount)
+    if (m) return Number.parseFloat(m[1])
   }
-  if (receipt.amountUnits && !isNaN(Number(receipt.amountUnits))) {
+  if (receipt.amountUnits && !Number.isNaN(Number(receipt.amountUnits))) {
     return Number(receipt.amountUnits) / 10_000_000
   }
   if (receipt.amountUsd) {
@@ -104,6 +106,32 @@ export function sanitizeReceiptForExplorer(receipt: X402ExplorerReceipt): X402Ex
   return clean
 }
 
+function matchesDateRange(settledAt: string, fromTime: number | null, toTime: number | null): boolean {
+  if (fromTime !== null && !Number.isNaN(fromTime)) {
+    if (new Date(settledAt).getTime() < fromTime) return false
+  }
+  if (toTime !== null && !Number.isNaN(toTime)) {
+    if (new Date(settledAt).getTime() > toTime) return false
+  }
+  return true
+}
+
+function matchesSearchQuery(receipt: X402ExplorerReceipt, q: string): boolean {
+  if (!q) return true
+  const haystack = [
+    receipt.id,
+    receipt.paymentRef,
+    receipt.agentId,
+    receipt.agent,
+    receipt.service,
+    receipt.serviceId,
+    receipt.txHash,
+    receipt.chain,
+    receipt.amount,
+  ].join(' ').toLowerCase()
+  return haystack.includes(q)
+}
+
 export function listX402Receipts(filters: X402ReceiptQuery = {}): X402ReceiptPage {
   const pageSize = Math.max(1, Math.min(50, Math.floor(filters.pageSize ?? 50)))
   const page = Math.max(1, Math.floor(filters.page ?? 1))
@@ -120,29 +148,8 @@ export function listX402Receipts(filters: X402ReceiptQuery = {}): X402ReceiptPag
     if (chain && receipt.chain !== chain) return false
     if (agent && receipt.agentId.toLowerCase() !== agent && receipt.agent.toLowerCase() !== agent) return false
     if (service && receipt.serviceId.toLowerCase() !== service && receipt.service.toLowerCase() !== service) return false
-
-    if (fromTime !== null && !isNaN(fromTime)) {
-      if (new Date(receipt.settledAt).getTime() < fromTime) return false
-    }
-    if (toTime !== null && !isNaN(toTime)) {
-      if (new Date(receipt.settledAt).getTime() > toTime) return false
-    }
-
-    if (q) {
-      const haystack = [
-        receipt.id,
-        receipt.paymentRef,
-        receipt.agentId,
-        receipt.agent,
-        receipt.service,
-        receipt.serviceId,
-        receipt.txHash,
-        receipt.chain,
-        receipt.amount,
-      ].join(' ').toLowerCase()
-      if (!haystack.includes(q)) return false
-    }
-    return true
+    if (!matchesDateRange(receipt.settledAt, fromTime, toTime)) return false
+    return matchesSearchQuery(receipt, q)
   })
 
   const total = filtered.length

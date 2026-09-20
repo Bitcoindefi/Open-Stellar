@@ -148,7 +148,7 @@ describe('x402 payment explorer acceptance suite (#51)', () => {
     })
 
     const result = listX402ExplorerReceipts({ q: largeId })
-    expect(result.receipts.length).toBe(1)
+    expect(result.receipts).toHaveLength(1)
     const receipt = result.receipts[0]
 
     // Assert exact preservation without floating-point truncation

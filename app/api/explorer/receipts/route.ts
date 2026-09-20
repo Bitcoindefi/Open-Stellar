@@ -13,8 +13,8 @@ export async function GET(req: Request) {
   const startDate = searchParams.get('startDate') || searchParams.get('from') || undefined
   const endDate = searchParams.get('endDate') || searchParams.get('to') || undefined
 
-  const rawPage = parseInt(searchParams.get('page') || '1', 10)
-  const rawPageSize = parseInt(searchParams.get('pageSize') || '50', 10)
+  const rawPage = Number.parseInt(searchParams.get('page') || '1', 10)
+  const rawPageSize = Number.parseInt(searchParams.get('pageSize') || '50', 10)
 
   const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
   const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0 ? Math.min(100, rawPageSize) : 50
