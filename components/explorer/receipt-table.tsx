@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { X402ExplorerReceipt } from '@/lib/protocols/x402'
 
 interface ReceiptExplorerPayload {
@@ -75,6 +75,19 @@ export function ReceiptTable({ initialData }: { initialData: ReceiptExplorerPayl
       // ignore
     }
   }
+
+  useEffect(() => {
+    if (!selected) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelected(null)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selected])
 
   const resetFilters = () => {
     setQuery('')
@@ -340,26 +353,14 @@ export function ReceiptTable({ initialData }: { initialData: ReceiptExplorerPayl
 
       {/* Receipt detail modal */}
       {selected && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="receipt-modal-title"
-          tabIndex={-1}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setSelected(null)
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button
             type="button"
             aria-label="Close backdrop"
             className="fixed inset-0 h-full w-full cursor-default bg-black/80 backdrop-blur-sm"
             onClick={() => setSelected(null)}
           />
-          <div
-            role="document"
-            className="relative z-10 w-full max-w-2xl rounded-2xl border border-cyan-500/30 bg-slate-950 p-6 shadow-2xl"
-          >
+          <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-cyan-500/30 bg-slate-950 p-6 shadow-2xl">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <div className="font-mono text-xs uppercase tracking-[0.24em] text-cyan-400">
