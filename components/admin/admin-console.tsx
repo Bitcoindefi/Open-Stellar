@@ -31,6 +31,9 @@ type JevAdminStatus = {
   serverGatewayConfigured: boolean
   userKeyHeader: string
   authorizationFormat: string
+  layaConfigured?: boolean
+  layaEngine?: string
+  decisionPolicy?: string
 }
 
 const plans: Plan[] = [
@@ -791,10 +794,17 @@ function CloudAgentsTab() {
           value={jevStatus?.serverGatewayConfigured ? "configured" : "not exposed"}
           tone={jevStatus?.serverGatewayConfigured ? "text-emerald-300" : "text-slate-400"}
         />
+        <TelemetryRow
+          icon={<Cpu className="h-4 w-4" />}
+          label="Laya local"
+          value={jevStatus?.layaConfigured ? "connected" : "optional / offline"}
+          tone={jevStatus?.layaConfigured ? "text-emerald-300" : "text-slate-400"}
+        />
         <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
           <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">User configuration</p>
           <p className="mt-3 font-vt323 text-lg leading-6 text-slate-300">
             Open Stellar keeps JEV in bring-your-own-key mode by default. Users send their own Vercel AI Gateway key as <span className="font-mono text-cyan-300">x-ai-gateway-key</span> or <span className="font-mono text-cyan-300">Authorization: Bearer</span> when evaluating with JEV.
+            Laya handles local typed decisions when its sidecar is configured; JEV remains the remote BYOK fallback.
           </p>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-[#09101a] p-4">

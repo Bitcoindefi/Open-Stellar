@@ -23,6 +23,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "check:jev": "node scripts/check-jev.mjs",
+    "laya:sidecar": "python scripts/laya-sidecar.py",
     "deploy:evm:guide": "node scripts/deploy/evm/guide.mjs",
     "deploy:soroban:guide": "node scripts/deploy/soroban/guide.mjs",
     "generate:audio": "node scripts/generate-audio-assets.mjs"
