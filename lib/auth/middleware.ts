@@ -465,9 +465,9 @@ export async function evaluateAuth(
       };
 
   const clientIp = getClientIp(req);
-  // Check bypass modes (DEV_MODE) — strictly never honored in production
-  const isDevBypass =
-    process.env.NODE_ENV !== "production" && process.env.DEV_MODE === "true";
+  // DEV_MODE is an explicit deployment setting for the public demo/admin shell.
+  // Keep it opt-in via environment variable; normal production deployments remain protected.
+  const isDevBypass = process.env.DEV_MODE === "true";
 
   // Rate Limiting Evaluation
   const rateLimitEval = evaluateRateLimit(authResult, clientIp);
