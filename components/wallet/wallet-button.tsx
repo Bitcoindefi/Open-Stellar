@@ -37,6 +37,7 @@ export function WalletButton() {
     stellar: { publicKey: null, network: null, connected: false }
   })
   const [freighterAvailable, setFreighterAvailable] = useState(false)
+  const [cosmosStatus, setCosmosStatus] = useState<{ configured: boolean; network: string } | null>(null)
   const [isConnecting, setIsConnecting] = useState<WalletType>(null)
 
   // Wagmi hooks (siempre disponibles)
@@ -89,6 +90,15 @@ export function WalletButton() {
     const interval = window.setInterval(syncFreighterState, 8000)
     return () => window.clearInterval(interval)
   }, [syncFreighterState])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/cosmos/status', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => { if (!cancelled) setCosmosStatus({ configured: Boolean(data.configured), network: String(data.network || 'unknown') }) })
+      .catch(() => { if (!cancelled) setCosmosStatus({ configured: false, network: 'unknown' }) })
+    return () => { cancelled = true }
+  }, [])
 
   // Sync BNB connection state
   useEffect(() => {
@@ -401,6 +411,25 @@ export function WalletButton() {
                   Download Extension
                 </a>
               )}
+            </div>
+
+            {/* CosmosPay Section */}
+            <div className="p-3" style={{ borderTop: '2px solid #4a3728' }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span aria-hidden className="text-sm">◎</span>
+                  <span className="text-xs font-bold" style={{ fontFamily: 'var(--font-vt323)', color: '#4a3728' }}>
+                    CosmosPay {cosmosStatus?.network && cosmosStatus.network !== 'unknown' ? cosmosStatus.network : 'rail'}
+                  </span>
+                </div>
+                <PixelStatusBadge active={Boolean(cosmosStatus?.configured)} />
+              </div>
+              <p className="text-[11px] leading-4" style={{ fontFamily: 'var(--font-vt323)', color: '#666' }}>
+                {cosmosStatus?.configured ? 'CosmosPay checkout is available for payments.' : 'CosmosPay is not configured on this deployment.'}
+              </p>
+              <a href="/docs" className="mt-2 block text-center text-[11px] underline" style={{ fontFamily: 'var(--font-vt323)', color: '#7c3f20' }}>
+                View Cosmos payment docs
+              </a>
             </div>
           </motion.div>
         )}
