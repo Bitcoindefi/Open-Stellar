@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { toast } from "sonner"
+import { WebClient } from "@cosmosapp/pay_sdk/web"
 import type { MoltbotAgent, WalletTransaction } from "@/lib/types"
 
 interface X402QuoteView {
@@ -93,6 +94,7 @@ function CopyBtn({ text, label }: { text: string; label?: string }) {
 export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent, onAddTransaction }: WalletPanelProps) {
   const [freighterAvailable, setFreighterAvailable] = useState<boolean | null>(null)
   const [cosmosStatus, setCosmosStatus] = useState<{ configured: boolean; network: string } | null>(null)
+  const [cosmosWallet, setCosmosWallet] = useState<{ wallet: string; address: string; network?: string } | null>(null)
   const [connectedKey, setConnectedKey] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -549,12 +551,23 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
   }
 
   const statusBanner = renderFreighterStatus()
+  const handleConnectCosmos = async () => {
+    try {
+      const client = new WebClient({ network: "testnet" })
+      const result = await client.connect()
+      setCosmosWallet({ wallet: result.wallet, address: result.address, network: result.network })
+      toast.success("Cosmos wallet connected", { description: result.wallet })
+    } catch (error) {
+      toast.error("Cosmos wallet unavailable", { description: error instanceof Error ? error.message : "Install a supported Stellar wallet" })
+    }
+  }
   const cosmosBanner = (
     <div style={{ margin: "0 12px 12px", padding: 10, border: "1px solid #334155", borderRadius: 6, background: "#0f172a" }}>
-      <div style={{ fontFamily: "monospace", fontSize: 9, color: "#a78bfa", textTransform: "uppercase", letterSpacing: 1 }}>CosmosPay wallet rail</div>
+      <div style={{ fontFamily: "monospace", fontSize: 9, color: "#a78bfa", textTransform: "uppercase", letterSpacing: 1 }}>Cosmos Pay wallet</div>
       <div style={{ marginTop: 4, fontFamily: "monospace", fontSize: 10, color: cosmosStatus?.configured ? "#34d399" : "#94a3b8" }}>
-        {cosmosStatus?.configured ? `Connected · ${cosmosStatus.network}` : "Configure COSMOS_PAY_API_KEY to enable checkout"}
+        {cosmosWallet ? `Connected · ${cosmosWallet.wallet} · ${truncAddr(cosmosWallet.address)}` : "Connect a browser wallet to sign Cosmos Pay payments"}
       </div>
+      {!cosmosWallet && <button onClick={handleConnectCosmos} style={{ marginTop: 7, width: "100%", padding: "6px 8px", border: "1px solid #8b5cf666", borderRadius: 4, background: "#8b5cf622", color: "#c4b5fd", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>Connect Cosmos wallet</button>}
       <a href="/docs" style={{ display: "block", marginTop: 5, fontFamily: "monospace", fontSize: 9, color: "#c4b5fd", textDecoration: "underline" }}>Open Cosmos payment docs</a>
     </div>
   )
