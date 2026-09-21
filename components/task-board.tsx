@@ -5,6 +5,7 @@ import type { MoltbotAgent } from "@/lib/types"
 import { TaskOfferSheet, type TaskOffer } from "./task-offer-sheet"
 
 export type { TaskOffer }
+export type TaskBoardLoadState = "loading" | "ready" | "error"
 
 const MOCK_OFFERS: TaskOffer[] = [
   {
@@ -73,6 +74,13 @@ function normalizeOffers(value: unknown): TaskOffer[] {
     }))
 }
 
+export function getTaskBoardStatusCopy(loadState: TaskBoardLoadState, visibleOfferCount: number) {
+  if (loadState === "loading") return "Loading task offers..."
+  if (loadState === "error") return "Task offers are unavailable. Retrying automatically."
+  if (visibleOfferCount === 0) return "No open offers match this capability."
+  return null
+}
+
 function getDeadlineText(deadline: string) {
   const diff = new Date(deadline).getTime() - Date.now()
   if (!Number.isFinite(diff)) return "unknown"
@@ -99,7 +107,8 @@ interface TaskBoardProps {
 }
 
 export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
-  const [offers, setOffers] = useState<TaskOffer[]>(MOCK_OFFERS)
+  const [offers, setOffers] = useState<TaskOffer[]>([])
+  const [loadState, setLoadState] = useState<TaskBoardLoadState>("loading")
   const [filter, setFilter] = useState("all")
   const [selectedOffer, setSelectedOffer] = useState<TaskOffer | null>(null)
 
@@ -109,14 +118,15 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
     async function loadOffers() {
       try {
         const response = await fetch("/api/task-offers", { cache: "no-store" })
-        if (!response.ok) return
+        if (!response.ok) throw new Error(`Task offers request failed: ${response.status}`)
+
         const data = await response.json()
-        const nextOffers = normalizeOffers(data)
-        if (active && nextOffers.length > 0) {
-          setOffers(nextOffers)
-        }
+        if (!active) return
+
+        setOffers(normalizeOffers(data))
+        setLoadState("ready")
       } catch {
-        // Keep mock offers until the backend task-offer API lands.
+        if (active) setLoadState("error")
       }
     }
 
@@ -140,6 +150,8 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
   const agentNameById = useMemo(() => {
     return new Map(agents.map((agent) => [agent.id, agent.name]))
   }, [agents])
+
+  const statusCopy = getTaskBoardStatusCopy(loadState, filteredOffers.length)
 
   return (
     <div style={{ position: "relative", display: "flex", height: "100%", flexDirection: "column", overflow: "hidden" }}>
@@ -173,7 +185,7 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
       </div>
 
       <div style={{ flex: 1, overflow: "auto", padding: 8 }}>
-        {filteredOffers.map((offer) => (
+        {loadState === "ready" && filteredOffers.map((offer) => (
           <button
             key={offer.id}
             type="button"
@@ -209,9 +221,20 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
           </button>
         ))}
 
-        {filteredOffers.length === 0 && (
-          <div style={{ padding: 16, border: "1px dashed #334155", borderRadius: 8, color: "#64748b", fontSize: 12 }}>
-            No open offers match this capability.
+        {statusCopy && (
+          <div
+            role={loadState === "error" ? "alert" : "status"}
+            aria-live="polite"
+            style={{
+              padding: 16,
+              border: loadState === "error" ? "1px solid #7f1d1d" : "1px dashed #334155",
+              borderRadius: 8,
+              background: loadState === "error" ? "rgba(127, 29, 29, 0.12)" : "transparent",
+              color: loadState === "error" ? "#fca5a5" : "#64748b",
+              fontSize: 12,
+            }}
+          >
+            {statusCopy}
           </div>
         )}
       </div>
