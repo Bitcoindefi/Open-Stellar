@@ -467,7 +467,7 @@ export async function evaluateAuth(
   const clientIp = getClientIp(req);
   // DEV_MODE is an explicit deployment setting for the public demo/admin shell.
   // Keep it opt-in via environment variable; normal production deployments remain protected.
-  const isDevBypass = process.env.DEV_MODE === "true";
+  const isDevBypass = process.env.DEV_MODE?.trim().toLowerCase() === "true";
 
   // Rate Limiting Evaluation
   const rateLimitEval = evaluateRateLimit(authResult, clientIp);
