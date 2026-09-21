@@ -1056,6 +1056,34 @@ export function OpenStellarHub() {
 
       {/* Canvas area */}
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
+        <a
+          href="/admin"
+          aria-label="Open admin console"
+          style={{
+            position: "absolute",
+            top: 14,
+            right: 14,
+            zIndex: 12,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 11px",
+            border: "1px solid #22d3ee88",
+            borderRadius: 6,
+            background: "rgba(3,7,18,0.88)",
+            color: "#67e8f9",
+            fontFamily: "monospace",
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: 1,
+            textDecoration: "none",
+            textTransform: "uppercase",
+            boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+          }}
+        >
+          <Bot size={14} aria-hidden="true" />
+          Admin / AI control
+        </a>
         <PixelCity
           agents={agents}
           districts={DISTRICTS}
