@@ -20,11 +20,41 @@ const vt323 = VT323({
 });
 
 export const metadata: Metadata = {
-  title: "Open Stellar - Agent City",
-  description: "Open Stellar - multi-chain platform with AI agents and Web3 protocols",
-  generator: "v0.app",
-  manifest: "/manifest.webmanifest",
+  metadataBase: new URL("https://openstellar.vercel.app"),
+  title: {
+    default: "Open Stellar | AI Agent City for Stellar and Web3",
+    template: "%s | Open Stellar",
+  },
+  description:
+    "Build, fund, orchestrate, and discover autonomous AI agents with Stellar payments, CosmosPay wallet rails, x402 services, reputation, and escrow workflows.",
+  keywords: [
+    "Open Stellar", "AI agents", "agentic infrastructure", "Stellar blockchain",
+    "CosmosPay", "x402 payments", "Web3 agents", "AI agent marketplace", "JEV",
+  ],
+  authors: [{ name: "Open Stellar" }],
+  creator: "Open Stellar",
+  publisher: "Open Stellar",
   applicationName: "Open Stellar",
+  category: "technology",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "https://openstellar.vercel.app/",
+    siteName: "Open Stellar",
+    title: "Open Stellar | AI Agent City for Stellar and Web3",
+    description:
+      "A developer platform for autonomous AI agents, Stellar payments, CosmosPay wallets, x402 services, reputation, and orchestration.",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary",
+    title: "Open Stellar | AI Agent City for Stellar and Web3",
+    description:
+      "Build and orchestrate autonomous AI agents with wallets, payments, services, and reputation.",
+  },
+  robots: { index: true, follow: true },
+  generator: "Open Stellar",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     title: "Open Stellar",
