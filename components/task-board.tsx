@@ -55,7 +55,15 @@ const MOCK_OFFERS: TaskOffer[] = [
 ]
 
 function normalizeOffers(value: unknown): TaskOffer[] {
-  const raw = Array.isArray(value) ? value : Array.isArray((value as { offers?: unknown })?.offers) ? (value as { offers: unknown[] }).offers : []
+  const raw = Array.isArray(value)
+    ? value
+    : Array.isArray((value as { offers?: unknown })?.offers)
+      ? (value as { offers: unknown[] }).offers
+      : null
+
+  if (!raw) {
+    throw new Error("Task-offer API returned an invalid payload")
+  }
 
   return raw
     .filter((offer): offer is Partial<TaskOffer> => typeof offer === "object" && offer !== null)
@@ -98,8 +106,12 @@ interface TaskBoardProps {
   selectedAgent: MoltbotAgent | null
 }
 
+type LoadState = "loading" | "ready" | "error"
+
 export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
-  const [offers, setOffers] = useState<TaskOffer[]>(MOCK_OFFERS)
+  const [offers, setOffers] = useState<TaskOffer[]>([])
+  const [loadState, setLoadState] = useState<LoadState>("loading")
+  const [apiErrorMessage, setApiErrorMessage] = useState<string | null>(null)
   const [filter, setFilter] = useState("all")
   const [selectedOffer, setSelectedOffer] = useState<TaskOffer | null>(null)
 
@@ -109,14 +121,23 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
     async function loadOffers() {
       try {
         const response = await fetch("/api/task-offers", { cache: "no-store" })
-        if (!response.ok) return
+        if (!response.ok) {
+          throw new Error(`Task-offer API returned ${response.status}`)
+        }
+
         const data = await response.json()
         const nextOffers = normalizeOffers(data)
-        if (active && nextOffers.length > 0) {
+
+        if (active) {
           setOffers(nextOffers)
+          setApiErrorMessage(null)
+          setLoadState("ready")
         }
-      } catch {
-        // Keep mock offers until the backend task-offer API lands.
+      } catch (error) {
+        if (active) {
+          setApiErrorMessage(error instanceof Error ? error.message : "Task-offer API is unavailable")
+          setLoadState("error")
+        }
       }
     }
 
@@ -173,7 +194,25 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
       </div>
 
       <div style={{ flex: 1, overflow: "auto", padding: 8 }}>
-        {filteredOffers.map((offer) => (
+        {loadState === "loading" && (
+          <div style={{ padding: 16, border: "1px dashed #334155", borderRadius: 8, color: "#94a3b8", fontSize: 12 }}>
+            Loading live task offers...
+          </div>
+        )}
+
+        {loadState === "error" && (
+          <div
+            role="alert"
+            style={{ marginBottom: 8, padding: 16, border: "1px solid #7f1d1d", borderRadius: 8, background: "#2a1015", color: "#fecaca", fontSize: 12 }}
+          >
+            <strong>Task offers unavailable.</strong>
+            <div style={{ marginTop: 5, color: "#fca5a5", fontFamily: "monospace", fontSize: 10 }}>
+              {apiErrorMessage ?? "The API could not be reached."}
+            </div>
+          </div>
+        )}
+
+        {loadState !== "loading" && filteredOffers.map((offer) => (
           <button
             key={offer.id}
             type="button"
@@ -209,7 +248,7 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
           </button>
         ))}
 
-        {filteredOffers.length === 0 && (
+        {loadState === "ready" && filteredOffers.length === 0 && (
           <div style={{ padding: 16, border: "1px dashed #334155", borderRadius: 8, color: "#64748b", fontSize: 12 }}>
             No open offers match this capability.
           </div>
