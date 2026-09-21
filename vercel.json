@@ -1,19 +1,5 @@
 {
   "buildCommand": "next build --webpack",
   "installCommand": "npm install",
-  "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/cron/health-check",
-      "schedule": "*/1 * * * *"
-    },
-    {
-      "path": "/api/cron/passport-expiry",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/expire-quests",
-      "schedule": "*/10 * * * *"
-    }
-  ]
+  "framework": "nextjs"
 }
