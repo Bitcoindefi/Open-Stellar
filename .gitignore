@@ -21,3 +21,5 @@ node_modules
 tsconfig.tsbuildinfo
 test-results/
 playwright-report/
+
+.env.local

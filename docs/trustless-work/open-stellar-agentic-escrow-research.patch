@@ -1,0 +1,422 @@
+diff --git a/research-notes/README.md b/research-notes/README.md
+index 1bd2efc..029f742 100644
+--- a/research-notes/README.md
++++ b/research-notes/README.md
+@@ -24,6 +24,7 @@ Research notes do **not** establish a production commitment, approved API, smart
+ | [Authority, intent, and delegation - 2026-09-21](authority-intent-and-delegation-2026-09-21.md) | RFC 0002, RFC 0004 | Reference scaffold for Verifiable Intent, bounded authority, missing-parameter authority, signer modes, and capability limits |
+ | [Verification and evidence envelope - 2026-09-21](verification-and-evidence-envelope-2026-09-21.md) | RFC 0001, RFC 0004 | Reference scaffold for evidence, verifier identity, attestation, and release reasoning |
+ | [Agent-facing interface recovery semantics - 2026-09-21](agent-facing-interface-recovery-semantics-2026-09-21.md) | RFC 0004 | Reference scaffold for transaction state, read-model state, retry safety, dependency state, and next valid actions |
++| [Open Stellar agentic payment evidence - 2026-09-21](open-stellar-agentic-payment-evidence-2026-09-21.md) | RFC 0002, RFC 0003, RFC 0004, verification note, use-case library | Adjacent implementation evidence for Stellar x402 skill payments, ZK spend-cap authorization, direct-payment vs escrow boundaries, and evaluator-assisted release reasoning |
+ 
+ ### Provenance note
+ 
+diff --git a/research-notes/open-stellar-agentic-payment-evidence-2026-09-21.md b/research-notes/open-stellar-agentic-payment-evidence-2026-09-21.md
+new file mode 100644
+index 0000000..608ec4d
+--- /dev/null
++++ b/research-notes/open-stellar-agentic-payment-evidence-2026-09-21.md
+@@ -0,0 +1,219 @@
++# Open Stellar Agentic Payment Evidence - 2026-09-21
++
++Status: Research reference  
++Scope: Stellar x402 payments, agent skills, ZK spend-cap authorization, evaluation-driven release reasoning  
++Normative status: non-normative; does not rewrite or approve any RFC
++
++## Purpose
++
++This note maps implementation evidence from the Open Stellar project into the Agentic Escrow Research questions around direct payment, bounded agent authority, verification envelopes, and agent-facing tool schemas.
++
++Open Stellar is a Stellar-focused agent infrastructure project. It combines an agent registry, x402-style paid service calls, a skills marketplace, receipts, a ZK Agent Passport concept, Soroban escrow experiments, and an admin console for operating cloud agents.
++
++This is not production Trustless Work evidence. It is useful as adjacent implementation evidence for identifying which parts of an agentic payment workflow are already expressible as direct Stellar payments, which parts need conditional settlement, and which metadata agents need before acting economically.
++
++## Repository Evidence
++
++Open Stellar currently includes these relevant primitives:
++
++| Area | Evidence | Research relevance |
++| --- | --- | --- |
++| Stellar x402 quotes and receipts | `lib/protocols/x402.ts`, `app/api/protocol/x402/*`, `app/api/explorer/receipts` | Direct per-request payment, quote expiry, receipt registry, chain choice, payer binding |
++| Skills marketplace | `docs/features/skills-marketplace.md`, `app/api/agents/[id]/skills/*` | Agent-to-agent service purchase flow where direct payment triggers execution |
++| Agent Passport / spend cap | `lib/passport/*`, `components/admin/passport-panel.tsx`, `app/api/protocol/passport/*` | Bounded authority and proof-like authorization before payment settlement |
++| Soroban escrow experiment | `contracts/stellar/escrow/src/lib.rs` | Minimal conditional settlement state machine on Stellar/Soroban |
++| Cloud agents and JEV evaluation | `lib/agent-runtime/*`, `lib/ai/jev.ts`, `app/api/ai/jev/evaluate` | Typed model evaluation for readiness, risk, and verification decisions |
++| CosmosPay integration draft | `lib/cosmospay/client.ts`, `app/api/cosmos/*` | SEP-7-style Stellar payment intents adjacent to x402 receipts |
++
++## Current Open Stellar Flow
++
++The direct service flow is roughly:
++
++```text
++consumer/agent discovers a skill
++-> requests a 402 quote for skill invocation
++-> pays on Stellar or another supported rail
++-> submits tx hash and payment reference
++-> Open Stellar validates the settlement shape
++-> receipt is recorded
++-> skill endpoint is invoked
++-> result is returned to the paying agent
++```
++
++This is a direct-payment pattern, not an escrow pattern. It fits small, immediate, API-like work where the service response is returned in the same flow and there is no meaningful post-payment delivery condition to protect.
++
++The current skills documentation is explicit that a failed endpoint call can still deduct payment. That is an important boundary condition for this research: for synchronous paid API calls, the payment rail may be enough; for promised outcomes, revisions, milestones, or subjective quality, direct payment creates weak recourse.
++
++## Mapping to Existing Research
++
++### RFC 0003: x402 and escrow composition
++
++Open Stellar reinforces the repo's existing distinction between direct payment and conditional settlement.
++
++Direct x402-style payment is a good fit when:
++
++- the service is low-value or metered;
++- the paid output is produced immediately;
++- a receipt plus retry/reconciliation semantics are sufficient;
++- the payer accepts that payment buys an attempt or response, not a milestone outcome.
++
++Escrow becomes useful when:
++
++- the result is delivered later;
++- the result is qualitative or reviewable;
++- multiple milestones or revisions are expected;
++- a third party or verifier decides whether the output satisfies the agreement;
++- the paying agent should not be able to release funds unilaterally.
++
++This suggests a composition boundary:
++
++```text
++x402 / MPP / CosmosPay intent = pay for access, attempt, usage, or immediate response
++Trustless Work escrow = commit funds for an outcome that still needs evidence, approval, dispute, or recovery
++```
++
++### RFC 0004: agent-facing tool schema
++
++Open Stellar's quote and settlement flow already exposes concepts an agent-facing schema should preserve:
++
++- `quoteId`
++- `paymentRef`
++- `serviceId`
++- `chain`
++- `payer`
++- `amountUnits`
++- `expiresAt`
++- `memo`
++- `txHash`
++- `receipt`
++- `accepted`
++
++For a Trustless Work agent-facing tool, similar fields should be extended with escrow-specific state rather than hidden behind generic success/failure responses.
++
++Candidate response envelope fields informed by Open Stellar and the existing RFC 0004 discussion:
++
++```text
++operationKind: direct_payment | escrow_commitment | escrow_release | dispute
++paymentRail: stellar_x402 | mpp | sep7_intent | trustless_work_escrow
++serviceId
++agreementId
++milestoneId
++payer
++receiver
++amount
++quoteExpiresAt
++paymentRef
++transactionState
++readModelState
++receipt
++verificationState
++passportOrPolicyState
++retrySafe
++nextValidActions
++```
++
++The important design point is that an agent should know whether it is buying access, committing funds, approving evidence, releasing funds, or disputing a result. Those operations have different authority and recovery semantics.
++
++### RFC 0002: authority levels
++
++The ZK Agent Passport concept in Open Stellar is adjacent to bounded authority. It models an agent as authorized only up to a spend cap and uses a passport/attestation gate before settlement.
++
++This supports two research principles already present in the Trustless Work repo:
++
++- spending ability should not imply release authority;
++- proof or policy checks should be visible before an economic action is attempted.
++
++Open Stellar's current passport evidence should be treated as experimental and adjacent, not as a production privacy or authorization claim. Its research value is the shape of the control: an agent-facing flow can require a machine-readable precondition before accepting or releasing payment.
++
++### Verification and evidence envelope
++
++The JEV integration draft is relevant because it treats model output as a typed evaluation rather than chat. That maps naturally to research questions such as:
++
++- is the task actionable?
++- is the release condition satisfied?
++- is the risk low enough for automated continuation?
++- does the submitted evidence match the milestone criteria?
++
++For Trustless Work research, a model evaluator should not be confused with a final economic signer. A safer architecture is:
++
++```text
++evidence submitted
++-> evaluator produces typed verdict + confidence + reasons
++-> policy decides whether human review is still required
++-> authorized approver/release role signs escrow state transition
++```
++
++This fits the current research direction: keep richer verification logic above the audit-bound contract layer until the evidence model is validated.
++
++## Stellar Agentic Ecosystem Context
++
++The Stellar developer docs now describe agentic payments as HTTP-native payment protocols for AI agents and APIs. They identify x402 on Stellar and MPP on Stellar as the primary documented paths for machine-readable per-request payments and direct settlement.
++
++The Stellar Skills directory also lists adjacent agentic and escrow-related projects, including:
++
++- Trustless Work Escrow skill;
++- Agent Payments (x402 + MPP) skill;
++- Eunomia bounded agent treasury;
++- Stellar Agent Search for ERC-8004-style agent discovery;
++- Cogladius for on-chain tasks and escrowed judge payouts;
++- Nirium Agentic Payments;
++- MPP Discover and ROZO Checkout for agent-paid services.
++
++That ecosystem context supports treating Trustless Work escrow as one layer in a larger Stellar agentic payment stack rather than as a replacement for direct payment rails.
++
++## Research Contribution From Open Stellar
++
++Open Stellar can contribute an end-to-end reference scenario:
++
++```text
++Agent A discovers Agent B's skill
++Agent A pays directly through Stellar x402 for a cheap immediate call
++Agent B returns a result and a receipt is recorded
++If the task is larger or milestone-based, Agent A prepares an escrow instead
++Evidence is collected per milestone
++A typed evaluator recommends approve/dispute
++A human or policy approver performs the release action
++```
++
++This scenario can test the boundary between:
++
++- paid API/service access;
++- paid attempt;
++- paid outcome;
++- milestone escrow;
++- evaluator-assisted approval;
++- final signer authority.
++
++## Failure Modes Observed or Implied
++
++- A skill endpoint may fail after direct payment. This is acceptable only if the product definition says payment buys an attempt or immediate API response.
++- Quote expiry and payment submission are separate states. Agents need to know whether retrying creates a duplicate economic action.
++- A tx hash format check is not the same as full settlement verification. Production flows need chain verification, read-model convergence, and reconciliation semantics.
++- Multi-chain payment options can confuse authority and settlement semantics unless the quote binds payer, chain, destination, amount, memo, and expiry clearly.
++- A model evaluator such as JEV can support release reasoning but should not silently become the economic signer.
++- User-supplied AI Gateway keys create a BYOK boundary that should be modeled separately from protocol authority.
++
++## Open Questions
++
++- Should an agent-facing Trustless Work tool expose a `paymentPurpose` field distinguishing access, attempt, usage, commitment, release, refund, and dispute?
++- Can the same discovery surface return both direct-payment services and escrow-required services, with machine-readable settlement requirements?
++- What minimum receipt fields are needed for a paid agent skill to become evidence in a later escrow dispute?
++- Should a verifier/evaluator output be hashable and attachable to escrow evidence without being stored on-chain?
++- How should Trustless Work tools express that an evaluator recommended release but the caller still lacks release authority?
++- Can Stellar x402/MPP receipts and Trustless Work escrow state share a common evidence envelope for agent-to-agent commerce?
++
++## Maintainer / Reviewer Flags
++
++- Treat this as adjacent implementation evidence, not a production recommendation.
++- Separate Open Stellar's current mocked or local-only flows from deployed, audited, or testnet-verified claims.
++- Do not infer that every skill invocation should use escrow. The strongest contribution is the boundary between direct paid calls and outcome-conditioned settlement.
++- Do not infer that JEV or any model evaluator should be a release signer. The safer pattern is evaluator-as-evidence or evaluator-as-policy-input.
++
++## References
++
++- Open Stellar repository: <https://github.com/Bitcoindefi/Open-Stellar>
++- Stellar Agentic Payments docs: <https://developers.stellar.org/docs/build/agentic-payments>
++- Stellar Skills directory: <https://skills.stellar.org/>
++- Trustless Work RFC 0003: `rfcs/0003-x402-escrow-composition.md`
++- Trustless Work RFC 0004: `rfcs/0004-agent-facing-tool-schema.md`
++- Trustless Work verification note: `research-notes/verification-and-evidence-envelope-2026-09-21.md`
+\ No newline at end of file
+diff --git a/use-cases/README.md b/use-cases/README.md
+index 335b339..e657eed 100644
+--- a/use-cases/README.md
++++ b/use-cases/README.md
+@@ -18,6 +18,7 @@ The library includes both **conceptual use cases** and **implementation evidence
+ | [Nirium: bounded-authority milestone payouts + x402](nirium-bounded-milestone-payouts.md) | Implementation evidence | How can a human define the economic commitment while automation is limited to approving and releasing already-authorized milestone payouts? |
+ | [Nirium: authority by missing parameter](nirium-treasury-missing-parameter.md) | Implementation evidence | Can automated capital management be made safer by designing the callable operation so an arbitrary beneficiary cannot be expressed? |
+ | [Nirium: direct x402 payment without escrow](nirium-direct-x402-payment.md) | Implementation evidence | When is direct payment sufficient, and what failure modes remain even when escrow would add no value? |
++| [Open Stellar skills marketplace](open-stellar-skills-marketplace.md) | Adjacent implementation evidence | When should an agent-paid skill use direct Stellar x402 payment, and when should it become escrow-backed outcome settlement? |
+ 
+ ## Implementation Evidence
+ 
+@@ -70,3 +71,13 @@ The contribution also separates two different questions:
+ A flow can correctly use direct payment while still needing health checks, retries, receipts, reconciliation, and machine-readable failure semantics.
+ 
+ Evidence note: `x402-foundation/x402#3148` should not be treated as corroboration of the specific rejected-then-settled incident described in the contribution. The issue discussion corrected the original framing. Its durable value for this research is the difficulty of exposing stable machine-readable rejection/recovery reasons to unattended clients.
++
++### Open Stellar: skills marketplace direct payment vs escrow boundary
++
++[Open Stellar's contribution](open-stellar-skills-marketplace.md) documents a Stellar-oriented agent skills marketplace where a direct x402-style payment can trigger an immediate skill invocation.
++
++Its main research value is the settlement boundary:
++
++> **Use direct payment for access, usage, attempts, and immediate responses; use escrow when the agent is buying an outcome that needs evidence, review, dispute, or recovery.**
++
++This complements the Nirium direct-payment evidence by adding a marketplace and agent-to-agent service-discovery shape.
+\ No newline at end of file
+diff --git a/use-cases/open-stellar-skills-marketplace.md b/use-cases/open-stellar-skills-marketplace.md
+new file mode 100644
+index 0000000..f53a232
+--- /dev/null
++++ b/use-cases/open-stellar-skills-marketplace.md
+@@ -0,0 +1,150 @@
++# Open Stellar Skills Marketplace With Direct Payment And Escrow Boundary
++
++## Summary
++
++Open Stellar models a marketplace where agents register paid skills and other agents or users invoke those skills after an x402-style payment. This use case is useful for Agentic Escrow Research because it shows a clear boundary between direct per-call payment and outcome-conditioned escrow.
++
++A direct payment is appropriate for cheap, immediate, API-like skill calls. Escrow is more appropriate when a skill promises a future outcome, a milestone, a revision cycle, or a result that must be independently verified.
++
++## Actors
++
++- Skill provider agent
++- Skill consumer agent
++- Principal human or organization behind the consumer agent
++- Open Stellar marketplace / registry
++- Payment rail or facilitator
++- Optional verifier or evaluator
++- Optional escrow approver / release signer
++- Optional dispute resolver
++
++## Flow
++
++### Direct paid skill call
++
++```text
++Provider agent registers a skill with price and endpoint
++Consumer agent discovers the skill
++Consumer requests a 402 payment challenge
++Consumer pays on Stellar or another supported rail
++Consumer submits payment proof and paymentRef
++Marketplace records a receipt
++Provider skill endpoint is invoked
++Consumer receives the response
++```
++
++### Escrow-backed skill outcome
++
++```text
++Provider agent lists a larger outcome-based service
++Consumer agent scopes objective and acceptance criteria
++Escrow is created and funded by the principal or policy wallet
++Provider performs the work
++Evidence is submitted to the marketplace or verifier
++Evaluator or reviewer recommends approve, revise, dispute, or refund
++Authorized approver/release signer acts on the escrow
++Receipt and evidence are retained for audit
++```
++
++## Why Direct Payment May Be Insufficient
++
++Direct payment is weak when payment is for an outcome rather than access. If the provider fails, returns low-quality work, or disputes the scope, the consumer has already paid.
++
++Open Stellar's skills documentation explicitly notes that failed endpoint calls may still deduct payment. That is acceptable for some API-like products, but it becomes problematic for bounty work, agent-to-agent tasks, research jobs, code changes, procurement, and deliverables that need review.
++
++## Escrow Value
++
++Escrow adds value when the marketplace needs:
++
++- credible funding commitment before work begins;
++- milestone or revision states;
++- evidence collection;
++- independent review;
++- dispute or refund paths;
++- role separation between requester, performer, verifier, and release signer;
++- machine-readable next actions for agents.
++
++## Authority Model
++
++The consumer agent should be allowed to discover skills, request quotes, compare settlement modes, prepare an escrow draft, and submit evidence.
++
++Early implementations should keep these authorities separate:
++
++| Action | Suggested authority |
++| --- | --- |
++| Discover skill | Agent |
++| Request direct-payment quote | Agent |
++| Pay for low-value immediate call | Human-approved wallet or bounded policy wallet |
++| Create outcome escrow | Agent prepares, human or policy wallet signs |
++| Submit evidence | Provider agent or marketplace |
++| Evaluate evidence | Human, verifier, oracle, test suite, or typed evaluator |
++| Release funds | Authorized approver/release signer |
++| Dispute/refund | Human or policy-controlled role |
++
++## Direct Payment vs Escrow Decision
++
++| Product shape | Suggested settlement |
++| --- | --- |
++| One API response | Direct x402 or MPP |
++| Metered usage | x402 `upto`, MPP session, or subscription rail |
++| Cheap deterministic skill | Direct payment with receipt |
++| Failed call still counts as billable attempt | Direct payment only if disclosed upfront |
++| Multi-step deliverable | Escrow |
++| Subjective quality or acceptance criteria | Escrow plus verification envelope |
++| Bounty or grant milestone | Escrow |
++| Agent hires agent for a task | Escrow when the task has deliverable risk |
++
++## Evidence Envelope
++
++A marketplace can turn direct-payment and escrow flows into a common evidence trail:
++
++```text
++SkillEvidence {
++  serviceId
++  providerAgentId
++  consumerAgentId
++  paymentRef
++  receiptId
++  txHash
++  chain
++  requestHash
++  responseHash
++  acceptanceCriteria
++  evaluator
++  verdict
++  timestamp
++}
++```
++
++For direct calls, this envelope supports receipts, retries, audits, and reputation.
++
++For escrow-backed work, the same envelope can support milestone approval, disputes, and release reasoning.
++
++## Failure Modes
++
++- Provider endpoint fails after payment.
++- Consumer pays the wrong quote or submits after expiry.
++- The marketplace accepts a tx hash shape without full settlement verification.
++- A provider returns a syntactically valid but low-quality answer.
++- Agents disagree about whether the task was completed.
++- Evaluator produces a weak or biased verdict.
++- A model evaluator is mistakenly treated as an authorized release signer.
++- A paid direct call should have been escrow-backed because the product promised an outcome.
++
++## Open Questions
++
++- Should provider listings declare `settlementMode: direct | escrow_required | hybrid`?
++- Should direct paid skill receipts be admissible as evidence in a later escrow dispute?
++- How should a marketplace represent that payment bought an attempt rather than successful completion?
++- Can a typed evaluator reduce review load without receiving release authority?
++- What minimum evidence should be attached to an agent-to-agent task before funds can release?
++- Should the marketplace expose a single discovery API for both paid calls and escrow-backed work?
++
++## Research Notes
++
++This use case complements:
++
++- `use-cases/agent-hires-agent.md`
++- `use-cases/grants-and-bounties.md`
++- `rfcs/0003-x402-escrow-composition.md`
++- `rfcs/0004-agent-facing-tool-schema.md`
++- `research-notes/open-stellar-agentic-payment-evidence-2026-09-21.md`
+\ No newline at end of file

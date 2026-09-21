@@ -11,6 +11,7 @@ const DEFAULT_VOLUME = 0.7
 
 interface AudioControlsProps {
   engine: CityAudioEngine
+  bottomOffset?: string | number
 }
 
 function readStoredVolume(): number {
@@ -25,7 +26,7 @@ function readStoredMuted(): boolean {
   return window.localStorage.getItem(MUTED_KEY) === "true"
 }
 
-export function AudioControls({ engine }: AudioControlsProps) {
+export function AudioControls({ engine, bottomOffset = 16 }: AudioControlsProps) {
   const [volume, setVolume] = useState(DEFAULT_VOLUME)
   const [muted, setMuted] = useState(false)
   const [hovered, setHovered] = useState(false)
@@ -89,7 +90,7 @@ export function AudioControls({ engine }: AudioControlsProps) {
       onBlur={() => setHovered(false)}
       style={{
         position: "absolute",
-        bottom: 16,
+        bottom: bottomOffset,
         right: 16,
         zIndex: 20,
         display: "flex",

@@ -4,6 +4,7 @@ import { recordAgentHeartbeat, HEARTBEAT_INTERVAL_MS } from "@/lib/agents/agent-
 import { getAgentHealthSummary, recordAgentExecutionError, recordAgentInvocation } from "@/lib/agents/agent-error-store"
 import { publishSystemEvent } from "@/lib/events/system-events"
 import { isAuthorized } from "@/lib/auth"
+import { isJevModel, summarizeTaskWithJev } from "@/lib/ai/jev"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -15,6 +16,10 @@ function getConfig(id: string, req: Request) {
 }
 
 async function reasonAboutTask(task: string, model: string): Promise<string> {
+  if (isJevModel(model)) {
+    return summarizeTaskWithJev(task)
+  }
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return `Edge agent accepted task: ${task.slice(0, 120)}`
   }

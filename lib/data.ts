@@ -16,7 +16,7 @@ const NAMES = [
   "Vertex-11", "Echo-12",
 ]
 
-const MODELS = ["claude-4-sonnet", "claude-4-opus", "claude-3.5-haiku", "gpt-5-mini"]
+const MODELS = ["claude-4-sonnet", "claude-4-opus", "claude-3.5-haiku", "typesafe-ai/jev", "gpt-5-mini"]
 
 export const SPRITE_COUNT = 7
 

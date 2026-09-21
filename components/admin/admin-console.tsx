@@ -23,6 +23,16 @@ type AdminConsoleProps = {
   districts: District[]
 }
 
+type JevAdminStatus = {
+  ok: boolean
+  model: string
+  byokRequired: boolean
+  serverGatewayEnabled: boolean
+  serverGatewayConfigured: boolean
+  userKeyHeader: string
+  authorizationFormat: string
+}
+
 const plans: Plan[] = [
   {
     name: "Starter",
@@ -693,15 +703,25 @@ function PrivateDeployTab() {
 
 function CloudAgentsTab() {
   const [name, setName] = useState("Edge Scout")
+  const [model, setModel] = useState("claude-4-sonnet")
   const [status, setStatus] = useState<string | null>(null)
   const [endpoint, setEndpoint] = useState<string | null>(null)
+
+  const [jevStatus, setJevStatus] = useState<JevAdminStatus | null>(null)
+
+  useEffect(() => {
+    void fetch("/api/admin/jev", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => setJevStatus(data))
+      .catch(() => setJevStatus(null))
+  }, [])
 
   const provision = async () => {
     setStatus("Provisioning Vercel Edge agent...")
     const res = await fetch("/api/admin/agents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, model: "claude-4-sonnet", district: "research", queueMode: "post" }),
+      body: JSON.stringify({ name, model, district: "research", queueMode: "post" }),
     })
     const data = await res.json()
     if (!res.ok) {
@@ -713,7 +733,7 @@ function CloudAgentsTab() {
   }
 
   return (
-    <section className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
+    <section className="grid gap-5 xl:grid-cols-[0.85fr_1fr_0.85fr]">
       <Panel title="Provision cloud agent" eyebrow="Vercel Edge runtime" bodyClassName="space-y-4">
         <p className="font-vt323 text-xl leading-7 text-slate-300">
           Create an agent config and expose it at <span className="font-mono text-cyan-300">/agents/:agentId</span>. The Edge route accepts task POSTs and streams 15s SSE heartbeats.
@@ -724,6 +744,17 @@ function CloudAgentsTab() {
           className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100 outline-none transition focus:border-cyan-400/60"
           placeholder="Agent name"
         />
+        <label className="block space-y-2">
+          <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Agent model</span>
+          <select
+            value={model}
+            onChange={(event) => setModel(event.target.value)}
+            className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100 outline-none transition focus:border-cyan-400/60"
+          >
+            <option value="claude-4-sonnet">claude-4-sonnet</option>
+            <option value="typesafe-ai/jev">typesafe-ai/jev</option>
+          </select>
+        </label>
         <button
           type="button"
           onClick={provision}
@@ -736,10 +767,41 @@ function CloudAgentsTab() {
         {endpoint ? <p className="break-all font-mono text-xs text-slate-300">{endpoint}</p> : null}
       </Panel>
       <Panel title="Execution contract" eyebrow="Issue #21 acceptance" bodyClassName="grid gap-3 md:grid-cols-2">
-        <FeatureBlock title="POST tasks" text="The orchestrator sends JSON tasks to /agents/:agentId; the Edge Function calls Claude when ANTHROPIC_API_KEY is configured." />
+        <FeatureBlock title="POST tasks" text="The orchestrator sends JSON tasks to /agents/:agentId; the Edge Function routes Claude-style models to Anthropic and JEV models to AI Gateway evaluation." />
         <FeatureBlock title="SSE heartbeat" text="GET /agents/:agentId keeps the connection open and emits heartbeat events every 15 seconds." />
         <FeatureBlock title="Canvas badge" text="Provisioned cloud agents are merged into the city and rendered with a CLOUD badge above the sprite." />
         <FeatureBlock title="Realtime status" text="Task start/completion and heartbeat updates flow through the existing health store and system event stream." />
+      </Panel>
+      <Panel title="JEV Gateway" eyebrow="AI evaluation rail" bodyClassName="space-y-3">
+        <TelemetryRow
+          icon={<Code2 className="h-4 w-4" />}
+          label="Model"
+          value={jevStatus?.model ?? "typesafe-ai/jev"}
+          tone="text-cyan-300"
+        />
+        <TelemetryRow
+          icon={<Shield className="h-4 w-4" />}
+          label="Key mode"
+          value={jevStatus ? (jevStatus.byokRequired ? "BYOK" : "Server key") : "loading"}
+          tone={jevStatus?.byokRequired ? "text-amber-300" : "text-emerald-300"}
+        />
+        <TelemetryRow
+          icon={<KeyRound className="h-4 w-4" />}
+          label="Server key"
+          value={jevStatus?.serverGatewayConfigured ? "configured" : "not exposed"}
+          tone={jevStatus?.serverGatewayConfigured ? "text-emerald-300" : "text-slate-400"}
+        />
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">User configuration</p>
+          <p className="mt-3 font-vt323 text-lg leading-6 text-slate-300">
+            Open Stellar keeps JEV in bring-your-own-key mode by default. Users send their own Vercel AI Gateway key as <span className="font-mono text-cyan-300">x-ai-gateway-key</span> or <span className="font-mono text-cyan-300">Authorization: Bearer</span> when evaluating with JEV.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-800 bg-[#09101a] p-4">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Deploy env</p>
+          <pre className="mt-2 whitespace-pre-wrap font-mono text-[11px] leading-5 text-slate-300">{`OPEN_STELLAR_JEV_MODEL=typesafe-ai/jev
+OPEN_STELLAR_DEFAULT_AGENT_MODEL=typesafe-ai/jev`}</pre>
+        </div>
       </Panel>
     </section>
   )

@@ -1,6 +1,7 @@
 import { buildAgentSystemPrompt } from "@/lib/agent-runtime/prompts"
 import { recordClaudeTaskCost, type ClaudeCostRecord } from "@/lib/agent-runtime/costs"
 import { getAgentTools } from "@/lib/agent-runtime/tools"
+import { isJevModel, summarizeTaskWithJev } from "@/lib/ai/jev"
 import type { MoltbotAgent } from "@/lib/types"
 
 export interface AgentTask {
@@ -71,6 +72,27 @@ function createFetchClaudeClient(apiKey: string): ClaudeMessagesClient {
 }
 
 export async function executeTask(agent: MoltbotAgent, task: AgentTask, options: { client?: ClaudeMessagesClient; apiKey?: string; maxTokens?: number } = {}): Promise<TaskResult> {
+  if (isJevModel(agent.model)) {
+    const summary = await summarizeTaskWithJev(formatTask(task))
+    const cost = recordClaudeTaskCost({
+      taskId: task.id,
+      agentId: agent.id,
+      model: "typesafe-ai/jev",
+      inputTokens: 0,
+      outputTokens: 0,
+    })
+
+    return {
+      taskId: task.id,
+      agentId: agent.id,
+      model: "typesafe-ai/jev",
+      summary,
+      rawContent: [{ type: "text", text: summary }],
+      stopReason: "jev_evaluated",
+      cost,
+    }
+  }
+
   const client = options.client ?? createFetchClaudeClient(options.apiKey ?? process.env.ANTHROPIC_API_KEY ?? "")
   if (!options.client && !(options.apiKey ?? process.env.ANTHROPIC_API_KEY)) throw new Error("ANTHROPIC_API_KEY is required to execute Claude-backed agent tasks")
 

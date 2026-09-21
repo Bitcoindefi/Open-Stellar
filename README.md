@@ -19,6 +19,8 @@ Plataforma de infraestructura de pagos para agentes de IA, construida sobre Stel
 | Stellar   | @stellar/stellar-sdk v16, @stellar/freighter-api, Soroban RPC |
 | ZK        | snarkjs 0.7.6, Groth16/BN254, circom (WASM artifacts)         |
 | EVM       | wagmi, viem, WalletConnect                                    |
+| CosmosPay | Stellar SEP-7 payment intents via `@cosmosapp/pay_sdk`        |
+| AI        | Vercel AI Gateway + TypeSafe AI JEV for typed evaluations     |
 | Deploy    | Vercel (Next.js, auto-detect)                                 |
 
 ---

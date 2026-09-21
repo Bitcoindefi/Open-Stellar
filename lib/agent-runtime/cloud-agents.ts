@@ -45,7 +45,7 @@ export function provisionCloudAgent(input: { name?: string; model?: string; dist
   const config: CloudAgentConfig = {
     id,
     name,
-    model: (input.model || "claude-4-sonnet").trim().slice(0, 80),
+    model: (input.model || process.env.OPEN_STELLAR_DEFAULT_AGENT_MODEL || "claude-4-sonnet").trim().slice(0, 80),
     district,
     endpointUrl: `${appUrl(req)}/agents/${encodeURIComponent(id)}`,
     queueMode: input.queueMode || "post",

@@ -112,9 +112,12 @@ function OnboardingModal({ onDone }: { onDone: () => void }) {
         background: "#111827",
         border: "1px solid #2a3a52",
         borderRadius: 16,
-        padding: 32,
+        boxSizing: "border-box",
+        padding: "clamp(20px, 7vw, 32px)",
         maxWidth: 380,
-        width: "90%",
+        width: "min(90vw, 380px)",
+        maxHeight: "calc(100dvh - 32px)",
+        overflowY: "auto",
         boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
       }}>
         {/* Step dots */}
@@ -1042,16 +1045,17 @@ export function OpenStellarHub() {
     <div style={{
       width: "100%",
       height: "100dvh",
+      boxSizing: "border-box",
       display: "flex",
       overflow: "hidden",
       background: "#030712",
       position: "relative",
-      paddingBottom: isMobile ? "calc(72px + env(safe-area-inset-bottom))" : 0,
+      paddingBottom: isMobile ? "calc(78px + env(safe-area-inset-bottom))" : 0,
     }}>
       {showOnboarding && <OnboardingModal onDone={handleDoneOnboarding} />}
 
       {/* Canvas area */}
-      <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
+      <div style={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
         <PixelCity
           agents={agents}
           districts={DISTRICTS}
@@ -1069,7 +1073,10 @@ export function OpenStellarHub() {
 
         <DistrictEventOverlay event={activeDistrictEvent} standings={districtStandings} />
 
-        <AudioControls engine={audioEngine} />
+        <AudioControls
+          engine={audioEngine}
+          bottomOffset={isMobile ? "calc(96px + env(safe-area-inset-bottom))" : 16}
+        />
 
         {isMobile === false && (
           <button
@@ -1098,36 +1105,38 @@ export function OpenStellarHub() {
           </button>
         )}
 
-        <footer style={{
-          position: "absolute",
-          left: 12,
-          bottom: 10,
-          zIndex: 4,
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "center",
-          padding: "7px 9px",
-          background: "rgba(3,7,18,0.78)",
-          border: "1px solid rgba(42,58,82,0.86)",
-          borderRadius: 6,
-          backdropFilter: "blur(6px)",
-        }}>
-          {LEGAL_LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              style={{
-                color: "#94a3b8",
-                fontFamily: "monospace",
-                fontSize: 10,
-                textDecoration: "none",
-              }}
-            >
-              {link.label}
-            </a>
-          ))}
-        </footer>
+        {isMobile === false && (
+          <footer style={{
+            position: "absolute",
+            left: 12,
+            bottom: 10,
+            zIndex: 4,
+            display: "flex",
+            gap: 12,
+            flexWrap: "wrap",
+            alignItems: "center",
+            padding: "7px 9px",
+            background: "rgba(3,7,18,0.78)",
+            border: "1px solid rgba(42,58,82,0.86)",
+            borderRadius: 6,
+            backdropFilter: "blur(6px)",
+          }}>
+            {LEGAL_LINKS.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                style={{
+                  color: "#94a3b8",
+                  fontFamily: "monospace",
+                  fontSize: 10,
+                  textDecoration: "none",
+                }}
+              >
+                {link.label}
+              </a>
+            ))}
+          </footer>
+        )}
       </div>
 
       {isMobile === false && sidebarOpen && (
@@ -1158,7 +1167,7 @@ export function OpenStellarHub() {
             style={{
               position: "fixed",
               right: 16,
-              bottom: "calc(86px + env(safe-area-inset-bottom))",
+              bottom: "calc(92px + env(safe-area-inset-bottom))",
               zIndex: 30,
               width: 48,
               height: 48,
@@ -1184,13 +1193,19 @@ export function OpenStellarHub() {
               right: 0,
               bottom: 0,
               zIndex: 25,
-              minHeight: "calc(72px + env(safe-area-inset-bottom))",
-              padding: "8px 8px calc(8px + env(safe-area-inset-bottom))",
+              boxSizing: "border-box",
+              minHeight: "calc(78px + env(safe-area-inset-bottom))",
+              padding: "8px 10px calc(10px + env(safe-area-inset-bottom))",
               background: "rgba(15,23,42,0.94)",
               borderTop: "1px solid #2a3a52",
               display: "grid",
-              gridTemplateColumns: "repeat(8, minmax(0, 1fr))",
-              gap: 4,
+              gridAutoFlow: "column",
+              gridAutoColumns: "minmax(62px, 1fr)",
+              gap: 6,
+              overflowX: "auto",
+              overflowY: "hidden",
+              WebkitOverflowScrolling: "touch",
+              scrollbarWidth: "none",
               backdropFilter: "blur(12px)",
             }}
           >
@@ -1213,7 +1228,8 @@ export function OpenStellarHub() {
                   style={{
                     position: "relative",
                     minWidth: 0,
-                    minHeight: 54,
+                    minHeight: 56,
+                    padding: "4px 3px",
                     border: active ? "1px solid #22d3ee66" : "1px solid transparent",
                     borderRadius: 8,
                     background: active ? "#111827" : "transparent",
@@ -1231,7 +1247,7 @@ export function OpenStellarHub() {
                   }}
                 >
                   <Icon size={18} aria-hidden="true" />
-                  <span style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.1 }}>
                     {tab.label}
                   </span>
                   {hasBadge && (
@@ -1256,6 +1272,7 @@ export function OpenStellarHub() {
               aria-label="Open admin console"
               style={{
                 minHeight: 54,
+                padding: "4px 3px",
                 border: "1px solid transparent",
                 borderRadius: 8,
                 color: "#22d3ee",
@@ -1271,7 +1288,7 @@ export function OpenStellarHub() {
               }}
             >
               <Bot size={18} aria-hidden="true" />
-              <span>Admin</span>
+              <span style={{ lineHeight: 1.1 }}>Admin</span>
             </a>
           </nav>
 
@@ -1279,7 +1296,9 @@ export function OpenStellarHub() {
             <DrawerContent
               aria-describedby={undefined}
               style={{
-                height: "min(78dvh, 680px)",
+                height: "min(84dvh, 720px)",
+                maxWidth: "100vw",
+                boxSizing: "border-box",
                 background: "#111827",
                 borderColor: "#2a3a52",
                 borderTopLeftRadius: 8,
