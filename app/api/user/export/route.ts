@@ -18,7 +18,7 @@ export async function GET() {
       notes: [
         "This export endpoint returns off-chain data known to this deployment.",
         "Self-hosted deployments should connect this route to their database before production launch.",
-        "Private keys, seed phrases, identity documents, and payment card data are not collected by Open Stellar.",
+        "Private keys, seed phrases, identity documents, and payment card data are not collected by Agent Arena.",
         "On-chain data is public on the underlying blockchain and cannot be deleted by this API.",
       ],
     },

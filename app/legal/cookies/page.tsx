@@ -1,7 +1,7 @@
 import { LegalPage } from "../legal-page"
 
 export const metadata = {
-  title: "Cookie Policy | Open Stellar",
+  title: "Cookie Policy | Agent Arena",
 }
 
 export default function CookiesPage() {
@@ -9,14 +9,14 @@ export default function CookiesPage() {
     <LegalPage
       title="Cookie Policy"
       updated="2026-06-24"
-      summary="Open Stellar is designed to run with local browser storage for app state. Cookies are not required except where optional analytics providers are enabled by a deployment operator."
+      summary="Agent Arena is designed to run with local browser storage for app state. Cookies are not required except where optional analytics providers are enabled by a deployment operator."
       sections={[
         {
           title: "Cookies",
           items: [
-            "The core Open Stellar app does not require first-party cookies for wallet, agent, or payment functionality.",
+            "The core Agent Arena app does not require first-party cookies for wallet, agent, or payment functionality.",
             "A deployment operator may enable optional analytics or hosting tools that set their own cookies.",
-            "Third-party wallet providers may use their own storage or cookies outside Open Stellar control.",
+            "Third-party wallet providers may use their own storage or cookies outside Agent Arena control.",
           ],
         },
         {

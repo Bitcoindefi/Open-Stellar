@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: AgentPageProps): Promise<Meta
 
   if (!agent) {
     return {
-      title: "Agent not found - Open Stellar",
+      title: "Agent not found - Agent Arena",
     }
   }
 
@@ -68,7 +68,7 @@ export async function generateMetadata({ params }: AgentPageProps): Promise<Meta
   const district = getAgentDistrict(agent)
   const profileUrl = absoluteUrl(getAgentProfilePath(agent))
   const ogImage = absoluteUrl(getAgentOgPath(agent))
-  const title = `${agent.name} - Open Stellar Agent`
+  const title = `${agent.name} - Agent Arena Agent`
   const description = `Level ${stats.level} ${stats.tier} agent in ${district.name} with ${agent.tasksCompleted.toLocaleString("en-US")} completed tasks.`
 
   return {
@@ -87,7 +87,7 @@ export async function generateMetadata({ params }: AgentPageProps): Promise<Meta
           url: ogImage,
           width: AGENT_OG_SIZE.width,
           height: AGENT_OG_SIZE.height,
-          alt: `${agent.name} Open Stellar agent card`,
+          alt: `${agent.name} Agent Arena agent card`,
         },
       ],
     },

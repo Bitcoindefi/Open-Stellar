@@ -831,7 +831,7 @@ export function PixelCity({
         ref={canvasRef}
         role="img"
         tabIndex={0}
-        aria-label={`Open Stellar pixel city with ${agents.length} agents deployed. Tab to focus individual agents.`}
+        aria-label={`Agent Arena pixel city with ${agents.length} agents deployed. Tab to focus individual agents.`}
         onClick={handleClick}
         onKeyDown={handleCanvasKeyDown}
         onMouseMove={handleMouseMove}

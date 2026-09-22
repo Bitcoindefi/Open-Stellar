@@ -1,7 +1,7 @@
 import { LegalPage } from "../legal-page"
 
 export const metadata = {
-  title: "Terms of Service | Open Stellar",
+  title: "Terms of Service | Agent Arena",
 }
 
 export default function TermsPage() {
@@ -9,14 +9,14 @@ export default function TermsPage() {
     <LegalPage
       title="Terms of Service"
       updated="2026-06-24"
-      summary="These terms describe how operators may use Open Stellar protocol infrastructure for AI agent payments, wallets, reputation, and escrow workflows."
+      summary="These terms describe how operators may use Agent Arena protocol infrastructure for AI agent payments, wallets, reputation, and escrow workflows."
       sections={[
         {
           title: "Protocol Infrastructure",
           items: [
-            "Open Stellar is a protocol infrastructure tool and developer interface, not a bank, broker, custodian, payment processor, or financial service.",
+            "Agent Arena is a protocol infrastructure tool and developer interface, not a bank, broker, custodian, payment processor, or financial service.",
             "Users are responsible for configuring their own wallets, agents, keys, spending limits, and deployment environments.",
-            "Open Stellar does not provide investment, legal, tax, or accounting advice.",
+            "Agent Arena does not provide investment, legal, tax, or accounting advice.",
           ],
         },
         {

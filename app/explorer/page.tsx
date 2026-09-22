@@ -13,7 +13,7 @@ export default function ExplorerPage() {
           </div>
           <h1 className="font-mono text-3xl font-bold uppercase text-cyan-100">Payment Explorer</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-            Public receipt history for x402 settlements recorded by this Open Stellar instance.
+            Public receipt history for x402 settlements recorded by this Agent Arena instance.
             Use the API at <code className="text-cyan-200">/api/explorer/receipts</code> for the same paginated data.
           </p>
         </div>

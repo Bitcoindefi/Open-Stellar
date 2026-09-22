@@ -26,13 +26,13 @@ export async function generateMetadata({ params }: CredentialPageProps): Promise
 
   if (!credential) {
     return {
-      title: 'Reputation credential not issued - Open Stellar',
+      title: 'Reputation credential not issued - Agent Arena',
       description: 'No public reputation credential has been issued for this agent yet.',
     }
   }
 
   return {
-    title: `${credential.agent.name} reputation credential - Open Stellar`,
+    title: `${credential.agent.name} reputation credential - Agent Arena`,
     description: `Public reputation credential for ${credential.agent.name}, level ${credential.agent.level}.`,
   }
 }

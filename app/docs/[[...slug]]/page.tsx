@@ -10,7 +10,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug } = await params
   const page = getDocPage(slug?.join("/") ?? "getting-started")
-  return { title: page ? `${page.title} | Open Stellar Docs` : "Open Stellar Docs", description: page?.description }
+  return { title: page ? `${page.title} | Agent Arena Docs` : "Agent Arena Docs", description: page?.description }
 }
 
 export default async function DocsPage({ params }: { params: Promise<{ slug?: string[] }> }) {

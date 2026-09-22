@@ -14,7 +14,7 @@
         ".item{padding:10px 12px;border-bottom:1px solid #111827}.item:last-child{border-bottom:0}",
         ".title{font-size:12px;font-weight:700;line-height:1.45}.meta{margin-top:4px;color:#94a3b8;font-size:11px;line-height:1.5}",
         "</style>",
-        "<div class='head'>Open Stellar Feed</div>",
+        "<div class='head'>Agent Arena Feed</div>",
         "<div id='items'>Loading...</div>",
       ].join("")
 
