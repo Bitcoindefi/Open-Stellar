@@ -1,7 +1,7 @@
 {
-  "name": "Open Stellar Agent City",
-  "short_name": "Open Stellar",
-  "description": "A mobile-ready AI agent city for Open Stellar.",
+  "name": "Agent Arena",
+  "short_name": "Agent Arena",
+  "description": "A mobile-ready arena for gamified AI agent orchestration.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -37,7 +37,7 @@
   ],
   "shortcuts": [
     {
-      "name": "Admin Console",
+      "name": "Agent Arena Admin",
       "short_name": "Admin",
       "url": "/admin",
       "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]

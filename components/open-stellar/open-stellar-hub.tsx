@@ -38,17 +38,17 @@ function secureRandom(): number {
 const ONBOARDING_STEPS = [
   {
     title: "Agent City",
-    body: "The canvas shows your AI agents roaming a pixel city. Click any bot on the map to inspect it.",
+    body: "The arena shows your API-connected AI agents roaming a pixel city. Click any bot on the map to inspect it.",
     hint: "← try clicking a bot",
   },
   {
     title: "Sidebar Controls",
-    body: "The sidebar has four tabs: Overview (stats + log), Chat (bot comms), Skills, and Wallet (Stellar payments).",
+    body: "The sidebar has tabs for overview, chat, offers, skills, quests, appearance, and multichain wallets.",
     hint: "→ explore the tabs",
   },
   {
     title: "Admin Console",
-    body: "Visit /admin to manage ZK passports, x402 payment rails, subscription plans, and API keys.",
+    body: "Visit /admin to connect orchestrator agents, manage AI providers, ZK passports, wallet rails, subscriptions, and API keys.",
     hint: "↗ click Admin in the sidebar",
   },
 ]
@@ -377,7 +377,7 @@ export function OpenStellarHub() {
   }, [agents])
 
   useEffect(() => {
-    pushLog("Open-Stellar v0 frontend initialized", "success")
+    pushLog("Agent Arena frontend initialized", "success")
   }, [pushLog])
 
   const animateAgentToDistrict = useCallback((agent: MoltbotAgent) => {
@@ -1058,7 +1058,7 @@ export function OpenStellarHub() {
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
         <a
           href="/admin"
-          aria-label="Open admin console"
+          aria-label="Open Agent Arena admin console"
           style={{
             position: "absolute",
             top: 14,
@@ -1082,7 +1082,7 @@ export function OpenStellarHub() {
           }}
         >
           <Bot size={14} aria-hidden="true" />
-          Admin / AI control
+          Arena Admin
         </a>
         <PixelCity
           agents={agents}
@@ -1297,7 +1297,7 @@ export function OpenStellarHub() {
             })}
             <a
               href="/admin"
-              aria-label="Open admin console"
+              aria-label="Open Agent Arena admin console"
               style={{
                 minHeight: 54,
                 padding: "4px 3px",

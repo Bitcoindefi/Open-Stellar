@@ -63,7 +63,7 @@ const plans: Plan[] = [
   },
 ]
 
-const nodeDisplayName = process.env.NEXT_PUBLIC_NODE_NAME || "Open Stellar"
+const nodeDisplayName = process.env.NEXT_PUBLIC_NODE_NAME || "Agent Arena"
 const monthlyLimit = 1000
 const monthlyUsed = 153
 
@@ -125,12 +125,12 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
                   {nodeDisplayName}
                 </div>
                 <h1 className="font-pixel text-2xl uppercase leading-tight text-cyan-100 sm:text-3xl">
-                  Agent Payments Infra for Orchestrated Teams
+                  Gamified API Orchestration for Agent Teams
                 </h1>
                 <p className="mt-4 max-w-2xl font-vt323 text-xl leading-7 text-slate-300">
-                  The admin view now matches the city control surface: same mock squads, same districts,
-                  and the same operating tone. Here you sell x402 payment rails, API access, and request-capped
-                  orchestration as a managed layer on top of the main simulation.
+                  Agent Arena turns API-connected orchestrators, workers, models, wallets, and payment rails
+                  into an operable arena. Connect a lead agent, add specialized squads, and sell x402,
+                  Stellar, Solana, CosmosPay, and JEV-powered workflows as managed services.
                 </p>
               </div>
 
@@ -250,8 +250,8 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
             <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
               <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Business frame</p>
               <p className="mt-3 font-vt323 text-lg leading-6 text-slate-300">
-                Monthly subscription buys access to orchestration control plus the x402 payment extension.
-                Request volume is the primary limiter, not seats.
+                Monthly subscription buys access to orchestration control, AI provider routing, and wallet rails.
+                Request volume is the primary limiter, and each agent can be metered as a player in the arena.
               </p>
             </div>
           </Panel>
@@ -551,7 +551,7 @@ const API_ENDPOINTS = [
 ] as const
 
 const ENV_VARS = [
-  { name: "NEXT_PUBLIC_NODE_NAME", example: "My Open Stellar Node", desc: "Display name in the admin console header" },
+  { name: "NEXT_PUBLIC_NODE_NAME", example: "My Agent Arena Node", desc: "Display name in the admin console header" },
   { name: "STELLAR_NETWORK", example: "testnet", desc: "Stellar network: testnet or mainnet" },
   { name: "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID", example: "abc123…", desc: "WalletConnect Cloud project ID" },
   { name: "ADMIN_API_KEY", example: "osk_…", desc: "Admin API key (auto-generated on first boot if unset)" },
@@ -562,7 +562,7 @@ function PrivateDeployTab() {
   const deployUrl = useMemo(() => {
     const adminApiKey = generateAdminApiKey()
     return buildVercelDeployUrl({
-      nodeName: process.env.NEXT_PUBLIC_NODE_NAME || "My Open Stellar Node",
+      nodeName: process.env.NEXT_PUBLIC_NODE_NAME || "My Agent Arena Node",
       network: "testnet",
       adminApiKey,
     })
@@ -577,10 +577,10 @@ function PrivateDeployTab() {
               Private deployment
             </div>
             <h2 className="font-pixel text-2xl uppercase leading-tight text-cyan-100">
-              Run your own Open Stellar node
+              Run your own Agent Arena node
             </h2>
             <p className="mt-4 max-w-2xl font-vt323 text-xl leading-7 text-slate-300">
-              Fork the repository, configure your Stellar and x402 credentials, and deploy to Vercel in under
+              Fork the repository, configure your Stellar, Solana, CosmosPay, and x402 credentials, and deploy to Vercel in under
               five minutes. Your instance runs the same payment rails, agent passport ZK layer, and reputation
               system as this one — fully isolated, fully yours.
             </p>
@@ -604,7 +604,7 @@ function PrivateDeployTab() {
           <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Setup guide</p>
           <h3 className="mt-3 font-pixel text-lg uppercase text-slate-100">Quick start</h3>
           <div className="mt-5 space-y-4">
-            <DeployStep n={1} title="Scaffold" text="Run npx create-open-stellar-app my-node or fork bitcoindefi/Open-Stellar on GitHub. The repo includes ZK artifacts and Soroban bindings." />
+            <DeployStep n={1} title="Scaffold" text="Run npx create-open-stellar-app my-node or fork bitcoindefi/Open-Stellar on GitHub. The repo now ships as Agent Arena with ZK artifacts, Soroban bindings, AI orchestration, and multichain wallet rails." />
             <DeployStep n={2} title="Configure" text="Set node name, network, and WalletConnect project ID. An admin API key is generated automatically on first boot." />
             <DeployStep n={3} title="Deploy" text="Push to main — Vercel picks it up automatically. The vercel.json enforces --webpack mode for snarkjs compatibility." />
           </div>
@@ -803,7 +803,7 @@ function CloudAgentsTab() {
         <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
           <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">User configuration</p>
           <p className="mt-3 font-vt323 text-lg leading-6 text-slate-300">
-            Open Stellar keeps JEV in bring-your-own-key mode by default. Users send their own Vercel AI Gateway key as <span className="font-mono text-cyan-300">x-ai-gateway-key</span> or <span className="font-mono text-cyan-300">Authorization: Bearer</span> when evaluating with JEV.
+            Agent Arena keeps JEV in bring-your-own-key mode by default. Users send their own Vercel AI Gateway key as <span className="font-mono text-cyan-300">x-ai-gateway-key</span> or <span className="font-mono text-cyan-300">Authorization: Bearer</span> when evaluating with JEV.
             Laya handles local typed decisions when its sidecar is configured; JEV remains the remote BYOK fallback.
           </p>
         </div>

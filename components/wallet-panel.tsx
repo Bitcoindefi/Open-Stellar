@@ -9,7 +9,7 @@ interface X402QuoteView {
   paymentRef: string
   amountUsd: number
   expiresAt: string
-  chain: "bnb" | "stellar"
+  chain: "bnb" | "stellar" | "solana"
 }
 
 interface WalletPanelProps {
@@ -23,6 +23,19 @@ interface WalletPanelProps {
 function truncAddr(addr: string) {
   if (addr.length <= 14) return addr
   return addr.slice(0, 6) + "..." + addr.slice(-6)
+}
+
+type SolanaProvider = {
+  isPhantom?: boolean
+  isSolflare?: boolean
+  publicKey?: { toString: () => string }
+  connect: () => Promise<{ publicKey: { toString: () => string } }>
+}
+
+declare global {
+  interface Window {
+    solana?: SolanaProvider
+  }
 }
 
 async function getFreighter() {
@@ -95,6 +108,7 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
   const [freighterAvailable, setFreighterAvailable] = useState<boolean | null>(null)
   const [cosmosStatus, setCosmosStatus] = useState<{ configured: boolean; network: string } | null>(null)
   const [cosmosWallet, setCosmosWallet] = useState<{ wallet: string; address: string; network?: string } | null>(null)
+  const [solanaWallet, setSolanaWallet] = useState<{ wallet: string; address: string } | null>(null)
   const [connectedKey, setConnectedKey] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -551,6 +565,19 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
   }
 
   const statusBanner = renderFreighterStatus()
+  const handleConnectSolana = async () => {
+    try {
+      const provider = window.solana
+      if (!provider) throw new Error("Install Phantom, Solflare, or another Solana browser wallet")
+      const result = await provider.connect()
+      const address = result.publicKey.toString()
+      const wallet = provider.isPhantom ? "Phantom" : provider.isSolflare ? "Solflare" : "Solana"
+      setSolanaWallet({ wallet, address })
+      toast.success("Solana wallet connected", { description: wallet })
+    } catch (error) {
+      toast.error("Solana wallet unavailable", { description: error instanceof Error ? error.message : "Could not connect Solana wallet" })
+    }
+  }
   const handleConnectCosmos = async () => {
     try {
       const client = new WebClient({ network: "testnet" })
@@ -571,7 +598,16 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
       <a href="/docs" style={{ display: "block", marginTop: 5, fontFamily: "monospace", fontSize: 9, color: "#c4b5fd", textDecoration: "underline" }}>Open Cosmos payment docs</a>
     </div>
   )
-  if (statusBanner) return <div>{statusBanner}{cosmosBanner}</div>
+  const solanaBanner = (
+    <div style={{ margin: "0 12px 12px", padding: 10, border: "1px solid #334155", borderRadius: 6, background: "#0f172a" }}>
+      <div style={{ fontFamily: "monospace", fontSize: 9, color: "#34d399", textTransform: "uppercase", letterSpacing: 1 }}>Solana wallet rail</div>
+      <div style={{ marginTop: 4, fontFamily: "monospace", fontSize: 10, color: solanaWallet ? "#34d399" : "#94a3b8" }}>
+        {solanaWallet ? `Connected · ${solanaWallet.wallet} · ${truncAddr(solanaWallet.address)}` : "Connect Phantom, Solflare, or another injected Solana wallet"}
+      </div>
+      {!solanaWallet && <button onClick={handleConnectSolana} style={{ marginTop: 7, width: "100%", padding: "6px 8px", border: "1px solid #22c55e66", borderRadius: 4, background: "#22c55e22", color: "#86efac", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>Connect Solana wallet</button>}
+    </div>
+  )
+  if (statusBanner) return <div>{statusBanner}{solanaBanner}{cosmosBanner}</div>
 
   // No agent selected — show overview
   if (!selectedAgent) {
@@ -594,11 +630,14 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
           </div>
         </div>
 
+        {solanaBanner}
+        {cosmosBanner}
+
         {/* Empty state */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 16, gap: 8, opacity: 0.6 }}>
           <div style={{ fontSize: 24, opacity: 0.4 }}>←</div>
           <span style={{ fontFamily: "monospace", fontSize: 11, color: "#64748b", textAlign: "center", lineHeight: 1.5 }}>
-            Click an agent on the map to assign and manage its Stellar wallet
+            Click an agent on the map to assign and manage its Stellar wallet, then connect Solana or CosmosPay rails for multichain orchestration
           </span>
         </div>
 
