@@ -96,7 +96,7 @@ const xpHistoryEventSchema = {
 const spec = {
   openapi: "3.1.0",
   info: { title: "Agent Arena API", version: "0.2.0", description: "Developer API for Agent Arena agents, x402 payments, ZK Passport, reputation, Stellar helpers, feeds, and admin workflows." },
-  servers: [{ url: "https://open-stellar.example", description: "Replace with your deployment URL" }],
+  servers: [{ url: "https://agentarena-app.vercel.app", description: "Public Agent Arena deployment" }],
   tags: [
     { name: "Agents" }, { name: "Protocol" }, { name: "Stellar" }, { name: "Events" }, { name: "Webhooks" }, { name: "Admin" }, { name: "User" }, { name: "Explorer" }, { name: "Prices" }, { name: "Notifications" }, { name: "Quests" }, { name: "Leaderboard" },
   ],

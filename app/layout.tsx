@@ -20,7 +20,7 @@ const vt323 = VT323({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://openstellar.vercel.app"),
+  metadataBase: new URL("https://agentarena-app.vercel.app"),
   title: {
     default: "Agent Arena | Gamified AI Agent Orchestration",
     template: "%s | Agent Arena",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
-    url: "https://openstellar.vercel.app/",
+    url: "https://agentarena-app.vercel.app/",
     siteName: "Agent Arena",
     title: "Agent Arena | Gamified AI Agent Orchestration",
     description:

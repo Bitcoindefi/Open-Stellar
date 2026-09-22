@@ -2,7 +2,7 @@
 
 ## Current Findings
 
-- The deployed public app responds at `https://open-stellar.vercel.app`.
+- The deployed public app responds at `https://agentarena-app.vercel.app`.
 - The deployed page is a bounties landing (`Find Bounties, Reap Rewards`) with GitHub sign-in and wallet connect. It does not match the current local Agent City/admin-console experience in this repo.
 - `https://open-stellar.xyz` is referenced in the project, but DNS did not resolve during this pass.
 - Open Stellar already has Stellar wallet flows, x402 receipts, EVM rails, ZK Passport, agent runtimes, and a mobile drawer/navigation shell.
@@ -30,7 +30,7 @@ Set these in Vercel:
 COSMOS_PAY_API_KEY=dv_...          # testnet, or prod_... for mainnet
 COSMOS_PAY_WEBHOOK_SECRET=whsec_... # when webhooks are registered
 OPEN_STELLAR_JEV_MODEL=typesafe-ai/jev
-NEXT_PUBLIC_APP_URL=https://open-stellar.vercel.app
+NEXT_PUBLIC_APP_URL=https://agentarena-app.vercel.app
 ```
 
 Do not set `AI_GATEWAY_API_KEY` on a public/shared Open Stellar deployment. For JEV, each user should provide their own key as:

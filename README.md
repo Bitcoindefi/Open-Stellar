@@ -1,6 +1,6 @@
 # Agent Arena
 
-Live deployment: [openstellar.vercel.app](https://openstellar.vercel.app/)
+Live deployment: [agentarena-app.vercel.app](https://agentarena-app.vercel.app/)
 
 [![CI](https://github.com/Bitcoindefi/Open-Stellar/actions/workflows/ci.yml/badge.svg)](https://github.com/Bitcoindefi/Open-Stellar/actions/workflows/ci.yml)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Bitcoindefi_Open-Stellar&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Bitcoindefi_Open-Stellar)
@@ -240,7 +240,7 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=abc123...
 ADMIN_API_KEY=osk_...
 
 # URL pública del deployment (opcional, usado en metadata)
-NEXT_PUBLIC_APP_URL=https://openstellar.vercel.app
+NEXT_PUBLIC_APP_URL=https://agentarena-app.vercel.app
 
 # Local mock mode (opcional): evita llamadas reales a Stellar, x402 y Passport
 NEXT_PUBLIC_MOCK_MODE=false
