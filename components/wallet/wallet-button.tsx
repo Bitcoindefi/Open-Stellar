@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAccount, useChainId, useConnect, useDisconnect, useSwitchChain } from 'wagmi'
 import { bscTestnet } from 'wagmi/chains'
@@ -427,9 +428,9 @@ export function WalletButton() {
               <p className="text-[11px] leading-4" style={{ fontFamily: 'var(--font-vt323)', color: '#666' }}>
                 {cosmosStatus?.configured ? 'CosmosPay checkout is available for payments.' : 'CosmosPay is not configured on this deployment.'}
               </p>
-              <a href="/docs" className="mt-2 block text-center text-[11px] underline" style={{ fontFamily: 'var(--font-vt323)', color: '#7c3f20' }}>
+              <Link href="/docs" className="mt-2 block text-center text-[11px] underline" style={{ fontFamily: 'var(--font-vt323)', color: '#7c3f20' }}>
                 View Cosmos payment docs
-              </a>
+              </Link>
             </div>
           </motion.div>
         )}

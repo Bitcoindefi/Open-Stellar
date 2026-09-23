@@ -709,6 +709,9 @@ function CloudAgentsTab() {
   const [model, setModel] = useState("claude-4-sonnet")
   const [status, setStatus] = useState<string | null>(null)
   const [endpoint, setEndpoint] = useState<string | null>(null)
+  const [arenaGoal, setArenaGoal] = useState("Launch a wallet-aware research mission for Solana + Stellar agents")
+  const [arenaStatus, setArenaStatus] = useState<string | null>(null)
+  const [arenaRunId, setArenaRunId] = useState<string | null>(null)
 
   const [jevStatus, setJevStatus] = useState<JevAdminStatus | null>(null)
 
@@ -733,6 +736,23 @@ function CloudAgentsTab() {
     }
     setEndpoint(data.config.endpointUrl)
     setStatus("Cloud agent provisioned. It will appear on the city canvas with a cloud badge.")
+  }
+
+  const launchArenaRun = async () => {
+    setArenaStatus("Launching supervised arena run...")
+    setArenaRunId(null)
+    const res = await fetch("/api/admin/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ goal: arenaGoal }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setArenaStatus(data.error || "Failed to launch arena run")
+      return
+    }
+    setArenaRunId(data.run.id)
+    setArenaStatus("Arena run created with supervisor, workers, tool registry, and wallet/deploy approval gates.")
   }
 
   return (
@@ -774,6 +794,35 @@ function CloudAgentsTab() {
         <FeatureBlock title="SSE heartbeat" text="GET /agents/:agentId keeps the connection open and emits heartbeat events every 15 seconds." />
         <FeatureBlock title="Canvas badge" text="Provisioned cloud agents are merged into the city and rendered with a CLOUD badge above the sprite." />
         <FeatureBlock title="Realtime status" text="Task start/completion and heartbeat updates flow through the existing health store and system event stream." />
+        <div className="md:col-span-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-300">Agent Arena supervisor</p>
+          <p className="mt-3 font-vt323 text-lg leading-6 text-slate-200">
+            Minimal chat input, Orca-style supervisor, specialized workers, and explicit approval gates for wallets, deploys, repo patches, and external actions.
+          </p>
+          <textarea
+            value={arenaGoal}
+            onChange={(event) => setArenaGoal(event.target.value)}
+            className="mt-4 min-h-24 w-full rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100 outline-none transition focus:border-emerald-400/60"
+            placeholder="Describe the mission for the orchestrator"
+          />
+          <button
+            type="button"
+            onClick={launchArenaRun}
+            className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-5 py-3 text-xs uppercase tracking-[0.2em] text-emerald-200 transition hover:bg-emerald-400/20"
+          >
+            <ListChecks className="h-3.5 w-3.5" />
+            Launch Arena Run
+          </button>
+          {arenaStatus ? <p className="mt-3 font-vt323 text-lg text-emerald-200">{arenaStatus}</p> : null}
+          {arenaRunId ? (
+            <a href={`/admin/runs?run=${encodeURIComponent(arenaRunId)}`} className="mt-2 inline-flex items-center gap-2 font-mono text-xs text-cyan-300">
+              Open run {arenaRunId}
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          ) : null}
+        </div>
+        <FeatureBlock title="AI tool registry" text="JEV scores typed risk/evidence, Laya handles local decisions, and provider keys stay user-supplied through headers or admin configuration." />
+        <FeatureBlock title="Web3 rails" text="Freighter, Phantom, Solflare, CosmosPay, x402, and future Solana payments are presented as user-owned, approval-gated rails." />
       </Panel>
       <Panel title="JEV Gateway" eyebrow="AI evaluation rail" bodyClassName="space-y-3">
         <TelemetryRow

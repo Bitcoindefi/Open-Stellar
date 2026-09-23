@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { WebClient } from "@cosmosapp/pay_sdk/web"
 import type { MoltbotAgent, WalletTransaction } from "@/lib/types"
@@ -29,13 +30,27 @@ type SolanaProvider = {
   isPhantom?: boolean
   isSolflare?: boolean
   publicKey?: { toString: () => string }
+  isConnected?: boolean
   connect: () => Promise<{ publicKey: { toString: () => string } }>
+  disconnect?: () => Promise<void>
+  signMessage?: (message: Uint8Array, display?: "utf8" | "hex") => Promise<{ signature: Uint8Array }>
 }
 
 declare global {
   interface Window {
     solana?: SolanaProvider
+    solflare?: SolanaProvider
+    phantom?: {
+      solana?: SolanaProvider
+    }
   }
+}
+
+type SolanaWalletOption = {
+  id: "phantom" | "solflare" | "injected"
+  name: string
+  provider?: SolanaProvider
+  installUrl: string
 }
 
 async function getFreighter() {
@@ -108,7 +123,8 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
   const [freighterAvailable, setFreighterAvailable] = useState<boolean | null>(null)
   const [cosmosStatus, setCosmosStatus] = useState<{ configured: boolean; network: string } | null>(null)
   const [cosmosWallet, setCosmosWallet] = useState<{ wallet: string; address: string; network?: string } | null>(null)
-  const [solanaWallet, setSolanaWallet] = useState<{ wallet: string; address: string } | null>(null)
+  const [solanaWallet, setSolanaWallet] = useState<{ wallet: string; address: string; verifiedAt?: string; signature?: string } | null>(null)
+  const [solanaOptions, setSolanaOptions] = useState<SolanaWalletOption[]>([])
   const [connectedKey, setConnectedKey] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -160,6 +176,24 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
       })
       .catch(() => { if (!cancelled) setCosmosStatus({ configured: false, network: "unknown" }) })
     return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    const discoverSolanaWallets = () => {
+      const phantom = window.phantom?.solana || (window.solana?.isPhantom ? window.solana : undefined)
+      const solflare = window.solflare || (window.solana?.isSolflare ? window.solana : undefined)
+      const injected = window.solana && !window.solana.isPhantom && !window.solana.isSolflare ? window.solana : undefined
+
+      setSolanaOptions([
+        { id: "phantom", name: "Phantom", provider: phantom, installUrl: "https://phantom.app/" },
+        { id: "solflare", name: "Solflare", provider: solflare, installUrl: "https://solflare.com/" },
+        { id: "injected", name: "Injected Solana", provider: injected, installUrl: "https://solana.com/ecosystem/wallets" },
+      ])
+    }
+
+    discoverSolanaWallets()
+    const id = setInterval(discoverSolanaWallets, 2500)
+    return () => clearInterval(id)
   }, [])
 
   // Poll every 3s until Freighter is detected
@@ -565,18 +599,42 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
   }
 
   const statusBanner = renderFreighterStatus()
-  const handleConnectSolana = async () => {
+  const handleConnectSolana = async (option?: SolanaWalletOption) => {
     try {
-      const provider = window.solana
+      const provider = option?.provider || solanaOptions.find((wallet) => wallet.provider)?.provider
       if (!provider) throw new Error("Install Phantom, Solflare, or another Solana browser wallet")
       const result = await provider.connect()
       const address = result.publicKey.toString()
-      const wallet = provider.isPhantom ? "Phantom" : provider.isSolflare ? "Solflare" : "Solana"
+      const wallet = option?.name || (provider.isPhantom ? "Phantom" : provider.isSolflare ? "Solflare" : "Solana")
       setSolanaWallet({ wallet, address })
       toast.success("Solana wallet connected", { description: wallet })
     } catch (error) {
       toast.error("Solana wallet unavailable", { description: error instanceof Error ? error.message : "Could not connect Solana wallet" })
     }
+  }
+  const handleVerifySolana = async () => {
+    try {
+      const option = solanaOptions.find((wallet) => wallet.name === solanaWallet?.wallet) ?? solanaOptions.find((wallet) => wallet.provider)
+      const provider = option?.provider
+      if (!provider?.signMessage || !solanaWallet) throw new Error("This wallet does not expose signMessage")
+      const message = `Agent Arena wallet proof\nAddress: ${solanaWallet.address}\nIssued: ${new Date().toISOString()}`
+      const encoded = new TextEncoder().encode(message)
+      const signed = await provider.signMessage(encoded, "utf8")
+      const signature = Array.from(signed.signature).map((byte) => byte.toString(16).padStart(2, "0")).join("")
+      setSolanaWallet({ ...solanaWallet, verifiedAt: new Date().toISOString(), signature })
+      toast.success("Solana ownership verified", { description: `${signature.slice(0, 12)}…` })
+    } catch (error) {
+      toast.error("Solana signature unavailable", { description: error instanceof Error ? error.message : "Could not sign ownership proof" })
+    }
+  }
+  const handleDisconnectSolana = async () => {
+    try {
+      const option = solanaOptions.find((wallet) => wallet.name === solanaWallet?.wallet)
+      await option?.provider?.disconnect?.()
+    } catch {
+      // Some providers do not expose disconnect; clearing the UI state is enough for this app.
+    }
+    setSolanaWallet(null)
   }
   const handleConnectCosmos = async () => {
     try {
@@ -595,7 +653,7 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
         {cosmosWallet ? `Connected · ${cosmosWallet.wallet} · ${truncAddr(cosmosWallet.address)}` : "Connect a browser wallet to sign Cosmos Pay payments"}
       </div>
       {!cosmosWallet && <button onClick={handleConnectCosmos} style={{ marginTop: 7, width: "100%", padding: "6px 8px", border: "1px solid #8b5cf666", borderRadius: 4, background: "#8b5cf622", color: "#c4b5fd", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>Connect Cosmos wallet</button>}
-      <a href="/docs" style={{ display: "block", marginTop: 5, fontFamily: "monospace", fontSize: 9, color: "#c4b5fd", textDecoration: "underline" }}>Open Cosmos payment docs</a>
+      <Link href="/docs" style={{ display: "block", marginTop: 5, fontFamily: "monospace", fontSize: 9, color: "#c4b5fd", textDecoration: "underline" }}>Open Cosmos payment docs</Link>
     </div>
   )
   const solanaBanner = (
@@ -604,7 +662,33 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
       <div style={{ marginTop: 4, fontFamily: "monospace", fontSize: 10, color: solanaWallet ? "#34d399" : "#94a3b8" }}>
         {solanaWallet ? `Connected · ${solanaWallet.wallet} · ${truncAddr(solanaWallet.address)}` : "Connect Phantom, Solflare, or another injected Solana wallet"}
       </div>
-      {!solanaWallet && <button onClick={handleConnectSolana} style={{ marginTop: 7, width: "100%", padding: "6px 8px", border: "1px solid #22c55e66", borderRadius: 4, background: "#22c55e22", color: "#86efac", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>Connect Solana wallet</button>}
+      {!solanaWallet ? (
+        <div style={{ display: "grid", gap: 6, marginTop: 7 }}>
+          {solanaOptions.map((option) => (
+            <button
+              key={option.id}
+              onClick={() => option.provider ? handleConnectSolana(option) : window.open(option.installUrl, "_blank", "noopener,noreferrer")}
+              style={{ width: "100%", padding: "6px 8px", border: "1px solid #22c55e66", borderRadius: 4, background: option.provider ? "#22c55e22" : "#0f172a", color: option.provider ? "#86efac" : "#64748b", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}
+            >
+              {option.provider ? `Connect ${option.name}` : `Install ${option.name}`}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 7 }}>
+          <button onClick={handleVerifySolana} style={{ padding: "6px 8px", border: "1px solid #22c55e66", borderRadius: 4, background: "#22c55e22", color: "#86efac", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>
+            {solanaWallet.verifiedAt ? "Verified" : "Sign proof"}
+          </button>
+          <button onClick={handleDisconnectSolana} style={{ padding: "6px 8px", border: "1px solid #334155", borderRadius: 4, background: "#0f172a", color: "#94a3b8", fontFamily: "monospace", fontSize: 10, cursor: "pointer" }}>
+            Disconnect
+          </button>
+        </div>
+      )}
+      {solanaWallet?.signature ? (
+        <div style={{ marginTop: 6, fontFamily: "monospace", fontSize: 9, color: "#64748b", wordBreak: "break-all" }}>
+          proof {solanaWallet.signature.slice(0, 24)}…
+        </div>
+      ) : null}
     </div>
   )
   if (statusBanner) return <div>{statusBanner}{solanaBanner}{cosmosBanner}</div>

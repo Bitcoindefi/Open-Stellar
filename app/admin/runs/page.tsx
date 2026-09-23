@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   description: "Review completed and failed multi-agent orchestration runs with step detail, receipts, and re-run estimates.",
 }
 
-export default function AdminRunsPage() {
-  return <RunsHistory initialData={listOrchestrationRuns()} />
+export default async function AdminRunsPage({ searchParams }: { searchParams?: Promise<{ run?: string }> }) {
+  const params = await searchParams
+  return <RunsHistory initialData={listOrchestrationRuns()} initialRunId={params?.run} />
 }

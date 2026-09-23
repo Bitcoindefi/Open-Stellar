@@ -25,6 +25,25 @@ export interface OrchestrationRun {
   startedAt: string
   endedAt?: string
   steps: RunStep[]
+  mode?: "rerun" | "arena"
+  supervisor?: {
+    agentId: string
+    agentName: string
+    policy: string
+  }
+  requiredApprovals?: {
+    id: string
+    action: string
+    reason: string
+    status: "pending" | "approved" | "rejected"
+    chain?: "stellar" | "solana" | "cosmos" | "evm"
+  }[]
+  tools?: {
+    id: string
+    label: string
+    rail: "ai" | "wallet" | "repo" | "deploy" | "payments"
+    approvalRequired: boolean
+  }[]
 }
 
 export interface RunListItem {
@@ -285,6 +304,105 @@ export function createRerun(sourceRunId: string) {
 
   runsStore().unshift(rerun)
   return { run: rerun, estimate, sourceRun: source }
+}
+
+export function createArenaRun(goal: string) {
+  const sequence = globalState.__openStellarOrchestrationRunSeq__ ?? 4
+  globalState.__openStellarOrchestrationRunSeq__ = sequence + 1
+  const runId = `run_${String(sequence).padStart(3, "0")}`
+  const now = new Date().toISOString()
+  const normalizedGoal = goal.trim() || "Coordinate a multichain agent mission"
+
+  const run: OrchestrationRun = {
+    id: runId,
+    goal: normalizedGoal,
+    status: "running",
+    totalCostXlm: "0.04",
+    startedAt: now,
+    mode: "arena",
+    supervisor: {
+      agentId: "arena-orca",
+      agentName: "Agent Arena Orchestrator",
+      policy: "Supervisor decomposes the request, routes workers, pauses on wallet/deploy/repo approvals, and asks JEV/Laya for evaluation evidence.",
+    },
+    requiredApprovals: [
+      {
+        id: `${runId}_approval_solana`,
+        action: "Connect Solana wallet",
+        reason: "A user-owned Phantom or Solflare wallet must approve signing before any Solana rail can be assigned to an agent.",
+        status: "pending",
+        chain: "solana",
+      },
+      {
+        id: `${runId}_approval_deploy`,
+        action: "Deploy or external publish",
+        reason: "Public deployment, repo mutation, and external messages stay gated behind explicit operator approval.",
+        status: "pending",
+      },
+    ],
+    tools: [
+      { id: "tool_jev", label: "JEV typed evaluator", rail: "ai", approvalRequired: false },
+      { id: "tool_laya", label: "Laya local decision sidecar", rail: "ai", approvalRequired: false },
+      { id: "tool_solana_wallet", label: "Phantom / Solflare wallet", rail: "wallet", approvalRequired: true },
+      { id: "tool_stellar_wallet", label: "Freighter Stellar wallet", rail: "wallet", approvalRequired: true },
+      { id: "tool_cosmos_pay", label: "CosmosPay checkout", rail: "payments", approvalRequired: true },
+      { id: "tool_repo_patch", label: "Repository patch writer", rail: "repo", approvalRequired: true },
+      { id: "tool_vercel", label: "Vercel production deploy", rail: "deploy", approvalRequired: true },
+    ],
+    steps: [
+      {
+        id: `${runId}_step_01_supervise`,
+        runId,
+        agentId: "arena-orca",
+        agentName: "Agent Arena Orchestrator",
+        task: "plan worker graph",
+        status: "completed",
+        input: { goal: normalizedGoal, style: "minimal-grok-bot + orca-supervisor" },
+        result: { workers: ["research", "builder", "wallet", "evaluator"], approvalGates: 2 },
+        logs: ["received operator goal", "split mission into supervised worker lanes", "attached wallet/deploy approval gates"],
+        costXlm: "0.01",
+        durationMs: 3200,
+        receiptId: `${runId}_receipt_supervise`,
+      },
+      {
+        id: `${runId}_step_02_research`,
+        runId,
+        agentId: "arena-research",
+        agentName: "Research Scout",
+        task: "collect context and examples",
+        status: "running",
+        input: { sources: ["project state", "agentic patterns", "wallet rails"] },
+        logs: ["checking local project capabilities", "waiting for live research connector if enabled"],
+        costXlm: "0.01",
+        dependsOn: `${runId}_step_01_supervise`,
+      },
+      {
+        id: `${runId}_step_03_wallets`,
+        runId,
+        agentId: "arena-wallet",
+        agentName: "Wallet Marshal",
+        task: "bind user wallets to agent rails",
+        status: "queued",
+        input: { rails: ["stellar:freighter", "solana:phantom|solflare", "cosmos:cosmospay"] },
+        logs: ["waiting for Solana wallet approval signature"],
+        dependsOn: `${runId}_step_02_research`,
+      },
+      {
+        id: `${runId}_step_04_evaluate`,
+        runId,
+        agentId: "arena-jev",
+        agentName: "JEV Referee",
+        task: "score readiness and risk",
+        status: "queued",
+        input: { evaluator: "typesafe-ai/jev", sidecar: "laya optional" },
+        logs: ["waiting for worker evidence"],
+        dependsOn: `${runId}_step_03_wallets`,
+      },
+    ],
+  }
+
+  runsStore().unshift(run)
+  return { run }
 }
 
 export function formatDuration(ms?: number) {

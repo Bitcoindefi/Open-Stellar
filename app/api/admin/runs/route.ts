@@ -1,5 +1,5 @@
 import { createApiRouteLogger } from "@/lib/api-logging"
-import { createRerun, listOrchestrationRuns } from "@/lib/orchestration/runs"
+import { createArenaRun, createRerun, listOrchestrationRuns } from "@/lib/orchestration/runs"
 
 export async function GET(req: Request) {
   const api = createApiRouteLogger(req, "/api/admin/runs")
@@ -13,6 +13,17 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
+    const goal = typeof body.goal === "string" ? body.goal.trim() : ""
+
+    if (goal) {
+      const result = createArenaRun(goal)
+
+      return api.json({ ok: true, ...result }, undefined, {
+        event: "orchestration.arena.created",
+        runId: result.run.id,
+      })
+    }
+
     const sourceRunId = String(body.runId || "")
     const result = createRerun(sourceRunId)
 

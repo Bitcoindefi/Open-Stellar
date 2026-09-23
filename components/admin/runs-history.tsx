@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Copy, ExternalLink, Play, RefreshCw } from "lucide-react"
 import type { OrchestrationRun, RunListItem } from "@/lib/orchestration/runs"
@@ -41,7 +41,7 @@ function statusClasses(status: string) {
   return "border-slate-700 bg-slate-900 text-slate-400"
 }
 
-export function RunsHistory({ initialData }: { initialData: RunsPayload }) {
+export function RunsHistory({ initialData, initialRunId }: { initialData: RunsPayload; initialRunId?: string }) {
   const [runs, setRuns] = useState(initialData.runs)
   const [selected, setSelected] = useState<RunDetailPayload | null>(null)
   const [loadingRunId, setLoadingRunId] = useState<string | null>(null)
@@ -64,6 +64,10 @@ export function RunsHistory({ initialData }: { initialData: RunsPayload }) {
       setLoadingRunId(null)
     }
   }
+
+  useEffect(() => {
+    if (initialRunId) void openRun(initialRunId)
+  }, [initialRunId])
 
   async function rerun(runId: string) {
     setLoadingRunId(runId)
@@ -202,6 +206,41 @@ export function RunsHistory({ initialData }: { initialData: RunsPayload }) {
               <Stat label="Re-run estimate" value={`${selected.rerunEstimate.estimatedCostXlm} XLM`} />
               <Stat label="Delta" value={`${selected.rerunEstimate.deltaXlm} XLM`} />
             </div>
+
+            {(selected.run.supervisor || selected.run.requiredApprovals?.length || selected.run.tools?.length) && (
+              <div className="mt-4 grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
+                {selected.run.supervisor ? (
+                  <div className="rounded-[22px] border border-emerald-400/20 bg-emerald-400/10 p-4">
+                    <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-300">Supervisor</p>
+                    <h3 className="mt-2 font-pixel text-sm uppercase text-emerald-100">{selected.run.supervisor.agentName}</h3>
+                    <p className="mt-2 font-mono text-xs text-emerald-200">{selected.run.supervisor.agentId}</p>
+                    <p className="mt-3 font-vt323 text-lg leading-6 text-slate-200">{selected.run.supervisor.policy}</p>
+                  </div>
+                ) : null}
+
+                <div className="rounded-[22px] border border-slate-800 bg-[#09101a] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Approval gates</p>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    {(selected.run.requiredApprovals ?? []).map((approval) => (
+                      <div key={approval.id} className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-mono text-xs text-amber-100">{approval.action}</p>
+                          <span className="rounded-full border border-amber-400/30 px-2 py-0.5 text-[9px] uppercase tracking-[0.16em] text-amber-200">{approval.status}</span>
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-slate-300">{approval.reason}</p>
+                        {approval.chain ? <p className="mt-2 font-mono text-[10px] uppercase text-slate-500">{approval.chain}</p> : null}
+                      </div>
+                    ))}
+                    {(selected.run.tools ?? []).map((tool) => (
+                      <div key={tool.id} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+                        <p className="font-mono text-xs text-slate-200">{tool.label}</p>
+                        <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-slate-500">{tool.rail} · {tool.approvalRequired ? "approval required" : "auto"}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="mt-5 grid gap-3">
               {selected.run.steps.map((step, index) => (
