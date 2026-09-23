@@ -105,6 +105,20 @@ Flujo en el browser:
 
 Archivos: [lib/passport/passport.ts](lib/passport/passport.ts), [lib/passport/validator-client.ts](lib/passport/validator-client.ts), [public/zk/](public/zk/), [components/admin/passport-panel.tsx](components/admin/passport-panel.tsx)
 
+### Escrow Milestone Payments — Trustless Multi-Step Release (#60)
+
+Permite bloquear fondos de forma anticipada para tareas de orquestación de agentes de múltiples pasos, liberando pagos por cada hito completado de manera verificable.
+
+1. **Creación**: `POST /api/escrow` bloquea el 100% de los fondos en el contrato Soroban/estado y define los hitos.
+2. **Liberación Parcial**: `POST /api/escrow/:id/release-milestone` libera únicamente el monto del hito correspondiente (idempotente: doble llamada paga una sola vez).
+3. **Disputa**: `POST /api/escrow/:id/dispute` congela los fondos remanentes impidiendo liberaciones o devoluciones adicionales hasta su arbitraje.
+4. **Cancelación Temprana**: `POST /api/escrow/:id/cancel` devuelve el 100% al cliente si se cancela antes del primer hito.
+5. **Invariante Contable Garantizado**: `liberado + bloqueado + devuelto === depositado` en unidades enteras mínimas (stroops).
+6. **UI Tracker**: Vista interactiva en `/escrow/:id` con barras de progreso y verificación formal de invariantes en tiempo real.
+
+Archivos: [lib/escrow/milestones.ts](lib/escrow/milestones.ts), [lib/protocols/escrow.ts](lib/protocols/escrow.ts), [app/api/escrow/](app/api/escrow/), [components/escrow/milestone-tracker.tsx](components/escrow/milestone-tracker.tsx), [app/escrow/[id]/page.tsx](app/escrow/[id]/page.tsx)
+
+
 Rutas API: [app/api/protocol/passport/](app/api/protocol/passport/)
 
 ### Track 8004 + Reputación
