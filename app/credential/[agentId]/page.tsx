@@ -26,13 +26,13 @@ export async function generateMetadata({ params }: CredentialPageProps): Promise
 
   if (!credential) {
     return {
-      title: 'Reputation credential not issued - Agent Arena',
+      title: 'Reputation credential not issued - Agent City',
       description: 'No public reputation credential has been issued for this agent yet.',
     }
   }
 
   return {
-    title: `${credential.agent.name} reputation credential - Agent Arena`,
+    title: `${credential.agent.name} reputation credential - Agent City`,
     description: `Public reputation credential for ${credential.agent.name}, level ${credential.agent.level}.`,
   }
 }

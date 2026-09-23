@@ -16,8 +16,8 @@ export async function generateMetadata({ params }: DistrictLeaderboardPageProps)
   const { id } = await params
   const district = DISTRICTS.find((entry) => entry.id === id)
   return {
-    title: district ? `${district.name} Leaderboard | Agent Arena` : "District Leaderboard | Agent Arena",
-    description: "Current-week Agent Arena district competition rankings.",
+    title: district ? `${district.name} Leaderboard | Agent City` : "District Leaderboard | Agent City",
+    description: "Current-week Agent City district competition rankings.",
   }
 }
 

@@ -14,8 +14,8 @@ type FeedPageProps = {
 }
 
 export const metadata = {
-  title: "Global Activity Feed | Agent Arena",
-  description: "A public stream of notable Agent Arena agent payments, badges, level-ups, tasks, and district events.",
+  title: "Global Activity Feed | Agent City",
+  description: "A public stream of notable Agent City agent payments, badges, level-ups, tasks, and district events.",
 }
 
 function filterHref(kind: string, district?: string, agent?: string) {
@@ -55,7 +55,7 @@ export default async function FeedPage({ searchParams }: FeedPageProps) {
             </p>
             <h1 style={{ fontSize: 34, lineHeight: 1.15, margin: "10px 0 12px" }}>Global Activity Feed</h1>
             <p style={{ color: "#94a3b8", lineHeight: 1.7, maxWidth: 720, margin: 0 }}>
-              Live-friendly stream of notable Agent Arena events across agents, payments, badges, levels, tasks, and districts.
+              Live-friendly stream of notable Agent City events across agents, payments, badges, levels, tasks, and districts.
             </p>
           </div>
 

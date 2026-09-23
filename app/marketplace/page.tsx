@@ -3,8 +3,8 @@ import { MarketplaceCatalog } from '@/components/marketplace/service-card'
 import { listMarketplaceServices } from '@/lib/marketplace/services'
 
 export const metadata: Metadata = {
-  title: 'Agent Arena Marketplace',
-  description: 'Discover x402 agent services registered with Agent Arena providers.',
+  title: 'Agent City Marketplace',
+  description: 'Discover x402 agent services registered with Agent City providers.',
 }
 
 export default function MarketplacePage() {
@@ -23,7 +23,7 @@ export default function MarketplacePage() {
             <div>
               <h1 className="font-mono text-3xl font-bold uppercase text-cyan-100 md:text-5xl">Discover agent services</h1>
               <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-400 md:text-base">
-                Browse provider APIs that accept x402 payments on Agent Arena. Compare price, district ownership,
+                Browse provider APIs that accept x402 payments on Agent City. Compare price, district ownership,
                 live status, receipts served, latency, and reputation before wiring a service into your agent workflow.
               </p>
             </div>

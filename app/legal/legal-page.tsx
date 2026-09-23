@@ -24,7 +24,7 @@ export function LegalPage({ title, updated, summary, sections }: LegalPageProps)
     }}>
       <div style={{ maxWidth: 920, margin: "0 auto" }}>
         <Link href="/" style={{ color: "#22d3ee", fontSize: 12, textDecoration: "none" }}>
-          {"<- Back to Agent Arena"}
+          {"<- Back to Agent City"}
         </Link>
 
         <div style={{

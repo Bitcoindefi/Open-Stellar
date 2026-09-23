@@ -377,7 +377,7 @@ export function OpenStellarHub() {
   }, [agents])
 
   useEffect(() => {
-    pushLog("Agent Arena frontend initialized", "success")
+    pushLog("Agent City frontend initialized", "success")
   }, [pushLog])
 
   const animateAgentToDistrict = useCallback((agent: MoltbotAgent) => {
@@ -1058,7 +1058,7 @@ export function OpenStellarHub() {
       <div style={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
         <a
           href="/admin"
-          aria-label="Open Agent Arena admin console"
+          aria-label="Open Agent City admin console"
           style={{
             position: "absolute",
             top: 14,
@@ -1297,7 +1297,7 @@ export function OpenStellarHub() {
             })}
             <a
               href="/admin"
-              aria-label="Open Agent Arena admin console"
+              aria-label="Open Agent City admin console"
               style={{
                 minHeight: 54,
                 padding: "4px 3px",

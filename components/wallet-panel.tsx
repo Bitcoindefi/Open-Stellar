@@ -617,7 +617,7 @@ export function WalletPanel({ agents, selectedAgent, transactions, onUpdateAgent
       const option = solanaOptions.find((wallet) => wallet.name === solanaWallet?.wallet) ?? solanaOptions.find((wallet) => wallet.provider)
       const provider = option?.provider
       if (!provider?.signMessage || !solanaWallet) throw new Error("This wallet does not expose signMessage")
-      const message = `Agent Arena wallet proof\nAddress: ${solanaWallet.address}\nIssued: ${new Date().toISOString()}`
+      const message = `Agent City wallet proof\nAddress: ${solanaWallet.address}\nIssued: ${new Date().toISOString()}`
       const encoded = new TextEncoder().encode(message)
       const signed = await provider.signMessage(encoded, "utf8")
       const signature = Array.from(signed.signature).map((byte) => byte.toString(16).padStart(2, "0")).join("")

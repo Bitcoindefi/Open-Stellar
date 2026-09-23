@@ -1,14 +1,14 @@
-# Agent Arena
+# Agent City
 
-Live deployment: [agentarena-app.vercel.app](https://agentarena-app.vercel.app/)
+Live deployment: [agentcity-app.vercel.app](https://agentcity-app.vercel.app/)
 
 [![CI](https://github.com/Bitcoindefi/Open-Stellar/actions/workflows/ci.yml/badge.svg)](https://github.com/Bitcoindefi/Open-Stellar/actions/workflows/ci.yml)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Bitcoindefi_Open-Stellar&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Bitcoindefi_Open-Stellar)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Bitcoindefi_Open-Stellar&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Bitcoindefi_Open-Stellar)
 
-Agent Arena es una consola gamificada para conectar un agente orquestador por API, sumar workers especializados, y operar wallets, pagos, skills, reputación y modelos de IA como una arena de agentes. Nació como Open Stellar y conserva Stellar como rail principal, ahora con Solana, CosmosPay, x402, JEV y compatibilidad EVM dentro de una visión multichain.
+Agent City es una consola gamificada para conectar un agente orquestador por API, sumar workers especializados, y operar wallets, pagos, skills, reputación y modelos de IA como una arena de agentes. Nació como Open Stellar y conserva Stellar como rail principal, ahora con Solana, CosmosPay, x402, JEV y compatibilidad EVM dentro de una visión multichain.
 
-[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbitcoindefi%2FOpen-Stellar&project-name=agent-arena&repository-name=agent-arena&env=NEXT_PUBLIC_NODE_NAME%2CSTELLAR_NETWORK%2CNEXT_PUBLIC_WALLETCONNECT_PROJECT_ID%2CADMIN_API_KEY&envDescription=Agent+Arena+node+configuration&envLink=https%3A%2F%2Fgithub.com%2Fbitcoindefi%2FOpen-Stellar%23variables-de-entorno&envDefaults=%7B%22NEXT_PUBLIC_NODE_NAME%22%3A%22My+Agent+Arena+Node%22%2C%22STELLAR_NETWORK%22%3A%22testnet%22%2C%22NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID%22%3A%22your-walletconnect-project-id%22%2C%22ADMIN_API_KEY%22%3A%22osk_auto_generated_on_first_boot%22%7D)
+[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbitcoindefi%2FOpen-Stellar&project-name=agent-city&repository-name=agent-city&env=NEXT_PUBLIC_NODE_NAME%2CSTELLAR_NETWORK%2CNEXT_PUBLIC_WALLETCONNECT_PROJECT_ID%2CADMIN_API_KEY&envDescription=Agent+City+node+configuration&envLink=https%3A%2F%2Fgithub.com%2Fbitcoindefi%2FOpen-Stellar%23variables-de-entorno&envDefaults=%7B%22NEXT_PUBLIC_NODE_NAME%22%3A%22My+Agent+City+Node%22%2C%22STELLAR_NETWORK%22%3A%22testnet%22%2C%22NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID%22%3A%22your-walletconnect-project-id%22%2C%22ADMIN_API_KEY%22%3A%22osk_auto_generated_on_first_boot%22%7D)
 
 ---
 
@@ -129,7 +129,7 @@ Archivos: [lib/agents/agent-health-store.ts](lib/agents/agent-health-store.ts), 
 
 ### Autenticación y Gestión de API Keys (Zero-Trust)
 
-Agent Arena implementa un modelo de autenticación y autorización máquina a máquina cerrado por defecto (_closed-by-default_).
+Agent City implementa un modelo de autenticación y autorización máquina a máquina cerrado por defecto (_closed-by-default_).
 
 #### Niveles de Claves
 
@@ -202,7 +202,7 @@ Muestra contratos desplegados en testnet con links a stellar.expert.
 
 ### Private Deploy
 
-Para desarrolladores que quieren su propio nodo Agent Arena:
+Para desarrolladores que quieren su propio nodo Agent City:
 
 - Guía de 3 pasos (Fork → Configure → Deploy)
 - Botón "Deploy to Vercel" de un click
@@ -228,7 +228,7 @@ Prompts for node name, network (`testnet` / `mainnet`), and deploy target (`Verc
 
 ```env
 # Display name in admin console header
-NEXT_PUBLIC_NODE_NAME=My Agent Arena Node
+NEXT_PUBLIC_NODE_NAME=My Agent City Node
 
 # Stellar network
 STELLAR_NETWORK=testnet
@@ -240,7 +240,7 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=abc123...
 ADMIN_API_KEY=osk_...
 
 # URL pública del deployment (opcional, usado en metadata)
-NEXT_PUBLIC_APP_URL=https://agentarena-app.vercel.app
+NEXT_PUBLIC_APP_URL=https://agentcity-app.vercel.app
 
 # Local mock mode (opcional): evita llamadas reales a Stellar, x402 y Passport
 NEXT_PUBLIC_MOCK_MODE=false
@@ -410,7 +410,7 @@ components/
   admin/
     admin-console.tsx    console multi-tab
     passport-panel.tsx   ZK passport UI
-  agent-arena/           hub principal
+  agent-city/           hub principal
   wallet/                botones y panel de transacción
 
 lib/

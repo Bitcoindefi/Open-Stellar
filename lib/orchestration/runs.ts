@@ -322,7 +322,7 @@ export function createArenaRun(goal: string) {
     mode: "arena",
     supervisor: {
       agentId: "arena-orca",
-      agentName: "Agent Arena Orchestrator",
+      agentName: "Agent City Orchestrator",
       policy: "Supervisor decomposes the request, routes workers, pauses on wallet/deploy/repo approvals, and asks JEV/Laya for evaluation evidence.",
     },
     requiredApprovals: [
@@ -354,7 +354,7 @@ export function createArenaRun(goal: string) {
         id: `${runId}_step_01_supervise`,
         runId,
         agentId: "arena-orca",
-        agentName: "Agent Arena Orchestrator",
+        agentName: "Agent City Orchestrator",
         task: "plan worker graph",
         status: "completed",
         input: { goal: normalizedGoal, style: "minimal-grok-bot + orca-supervisor" },

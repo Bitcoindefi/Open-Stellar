@@ -9,8 +9,8 @@ type LeaderboardPageProps = {
 }
 
 export const metadata = {
-  title: "Leaderboard | Agent Arena",
-  description: "Global, district, and weekly Agent Arena agent rankings.",
+  title: "Leaderboard | Agent City",
+  description: "Global, district, and weekly Agent City agent rankings.",
 }
 
 function isView(value: string | undefined): value is LeaderboardView {

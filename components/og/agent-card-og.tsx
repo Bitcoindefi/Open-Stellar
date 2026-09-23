@@ -169,7 +169,7 @@ export function AgentCardOG({
           paddingLeft: 52,
         }}>
           <div style={{ display: "flex", color: "#22d3ee", fontSize: 20, letterSpacing: 6, textTransform: "uppercase" }}>
-            Agent Arena Agent Card
+            Agent City Agent Card
           </div>
 
           <div style={{
@@ -229,7 +229,7 @@ export function AgentCardOG({
             fontSize: 20,
           }}>
             <span>{profileUrl}</span>
-            <span style={{ color: "#22d3ee", fontWeight: 800 }}>agent-arena</span>
+            <span style={{ color: "#22d3ee", fontWeight: 800 }}>agent-city</span>
           </div>
         </div>
       </div>
@@ -288,7 +288,7 @@ export function DistrictCardOG({ district, agents, backgroundUrl }: DistrictCard
         padding: "58px 72px",
       }}>
         <div style={{ display: "flex", color: district.color, fontSize: 22, letterSpacing: 6, textTransform: "uppercase" }}>
-          Agent Arena District
+          Agent City District
         </div>
         <div style={{ display: "flex", marginTop: 20, color: "#f8fafc", fontSize: 86, fontWeight: 900, lineHeight: 1 }}>
           {district.name}

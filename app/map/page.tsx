@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import AgentsMap from '@/components/map/AgentsMap'
 
-export const metadata = { title: 'Agent Map | Agent Arena' }
+export const metadata = { title: 'Agent Map | Agent City' }
 
 export default function MapPage() {
   return (
