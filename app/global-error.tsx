@@ -89,7 +89,7 @@ export default function GlobalError({
               color: "#cbd5e1",
             }}
           >
-            Agent City hit an unexpected problem. You can try again, reload
+            Agentic City hit an unexpected problem. You can try again, reload
             the page, or report the issue if it keeps happening.
           </p>
 

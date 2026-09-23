@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   unsubscribeEmail(email)
 
   return new NextResponse(
-    `<!doctype html><html><body style="font-family: Arial, sans-serif"><h1>Unsubscribed</h1><p>${email} will no longer receive Agent City email notifications.</p></body></html>`,
+    `<!doctype html><html><body style="font-family: Arial, sans-serif"><h1>Unsubscribed</h1><p>${email} will no longer receive Agentic City email notifications.</p></body></html>`,
     { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
   )
 }

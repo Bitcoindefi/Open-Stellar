@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: AgentPageProps): Promise<Meta
 
   if (!agent) {
     return {
-      title: "Agent not found - Agent City",
+      title: "Agent not found - Agentic City",
     }
   }
 
@@ -68,7 +68,7 @@ export async function generateMetadata({ params }: AgentPageProps): Promise<Meta
   const district = getAgentDistrict(agent)
   const profileUrl = absoluteUrl(getAgentProfilePath(agent))
   const ogImage = absoluteUrl(getAgentOgPath(agent))
-  const title = `${agent.name} - Agent City Agent`
+  const title = `${agent.name} - Agentic City Agent`
   const description = `Level ${stats.level} ${stats.tier} agent in ${district.name} with ${agent.tasksCompleted.toLocaleString("en-US")} completed tasks.`
 
   return {
@@ -87,7 +87,7 @@ export async function generateMetadata({ params }: AgentPageProps): Promise<Meta
           url: ogImage,
           width: AGENT_OG_SIZE.width,
           height: AGENT_OG_SIZE.height,
-          alt: `${agent.name} Agent City agent card`,
+          alt: `${agent.name} Agentic City agent card`,
         },
       ],
     },

@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = "https://agentcity-app.vercel.app";
+  const base = "https://agentic-city.vercel.app";
   const routes = ["/", "/map", "/explorer", "/marketplace", "/registry", "/docs", "/docs/getting-started"];
   return routes.map((route) => ({
     url: `${base}${route}`,

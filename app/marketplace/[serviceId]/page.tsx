@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: ServiceDetailPageProps): Prom
   const { serviceId } = await params
   const service = getMarketplaceService(serviceId)
   return {
-    title: service ? `${service.name} | Agent City Marketplace` : 'Service not found',
+    title: service ? `${service.name} | Agentic City Marketplace` : 'Service not found',
     description: service?.description,
   }
 }

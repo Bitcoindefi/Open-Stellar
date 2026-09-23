@@ -10,7 +10,7 @@ type AgentLeaderboardPageProps = {
 export async function generateMetadata({ params }: AgentLeaderboardPageProps) {
   const { agentId } = await params
   const agent = getLeaderboardAgent(agentId)
-  return { title: agent ? `${agent.name} Leaderboard Stats | Agent City` : "Agent not found | Agent City" }
+  return { title: agent ? `${agent.name} Leaderboard Stats | Agentic City` : "Agent not found | Agentic City" }
 }
 
 export default async function AgentLeaderboardPage({ params }: AgentLeaderboardPageProps) {

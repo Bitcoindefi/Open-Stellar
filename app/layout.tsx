@@ -20,45 +20,45 @@ const vt323 = VT323({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://agentcity-app.vercel.app"),
+  metadataBase: new URL("https://agentic-city.vercel.app"),
   title: {
-    default: "Agent City | Gamified AI Agent Orchestration",
-    template: "%s | Agent City",
+    default: "Agentic City | Gamified AI Agent Orchestration",
+    template: "%s | Agentic City",
   },
   description:
     "Connect orchestrator agents by API, add specialized workers, and run gamified AI operations across Stellar, Solana, CosmosPay, x402, wallets, skills, and reputation rails.",
   keywords: [
-    "Agent City", "AI agents", "agent orchestration", "gamified agents",
+    "Agentic City", "AI agents", "agent orchestration", "gamified agents",
     "Stellar blockchain", "Solana agents", "CosmosPay", "x402 payments",
     "Web3 agents", "AI agent marketplace", "JEV",
   ],
-  authors: [{ name: "Agent City" }],
-  creator: "Agent City",
-  publisher: "Agent City",
-  applicationName: "Agent City",
+  authors: [{ name: "Agentic City" }],
+  creator: "Agentic City",
+  publisher: "Agentic City",
+  applicationName: "Agentic City",
   category: "technology",
   alternates: { canonical: "/" },
   openGraph: {
     type: "website",
-    url: "https://agentcity-app.vercel.app/",
-    siteName: "Agent City",
-    title: "Agent City | Gamified AI Agent Orchestration",
+    url: "https://agentic-city.vercel.app/",
+    siteName: "Agentic City",
+    title: "Agentic City | Gamified AI Agent Orchestration",
     description:
       "A gamified control plane for API-connected AI agents, wallets, payments, skills, reputation, and multichain orchestration.",
     locale: "en_US",
   },
   twitter: {
     card: "summary",
-    title: "Agent City | Gamified AI Agent Orchestration",
+    title: "Agentic City | Gamified AI Agent Orchestration",
     description:
       "Connect and orchestrate autonomous AI agents with wallets, payments, services, and reputation.",
   },
   robots: { index: true, follow: true },
-  generator: "Agent City",
+  generator: "Agentic City",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Agent City",
+    title: "Agentic City",
     statusBarStyle: "black-translucent",
   },
   icons: {

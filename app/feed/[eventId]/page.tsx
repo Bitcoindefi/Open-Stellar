@@ -19,13 +19,13 @@ export async function generateMetadata({ params }: EventPageProps): Promise<Meta
   const event = getFeedEventById(eventId)
 
   if (!event) {
-    return { title: "Feed event not found - Agent City" }
+    return { title: "Feed event not found - Agentic City" }
   }
 
   const url = new URL(feedEventUrl(event), getBaseUrl()).toString()
 
   return {
-    title: `${event.title} | Agent City Feed`,
+    title: `${event.title} | Agentic City Feed`,
     description: event.detail,
     alternates: { canonical: url },
     openGraph: {

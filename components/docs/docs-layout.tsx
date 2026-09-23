@@ -13,7 +13,7 @@ export function DocsLayout({ children, activeSlug }: { children: React.ReactNode
     <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(34,211,238,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,.08)_1px,transparent_1px)] bg-[size:24px_24px]" />
     <div className="relative mx-auto grid max-w-7xl gap-8 px-4 py-8 md:grid-cols-[260px_1fr]">
       <aside className="md:sticky md:top-8 md:h-[calc(100vh-4rem)]">
-        <Link href="/" className="mb-6 block font-mono text-xs uppercase tracking-[0.35em] text-cyan-300">← Agent City</Link>
+        <Link href="/" className="mb-6 block font-mono text-xs uppercase tracking-[0.35em] text-cyan-300">← Agentic City</Link>
         <nav className="rounded-2xl border border-cyan-400/20 bg-slate-950/80 p-4 shadow-[0_0_40px_rgba(34,211,238,.08)]">
           <p className="mb-4 font-mono text-sm text-fuchsia-200">/docs</p>
           {docNav.map((item) => isNavGroup(item) ? <div key={item.title} className="mb-4"><p className="mb-2 font-mono text-[10px] uppercase tracking-[0.25em] text-slate-500">{item.title}</p>{item.items.map((child) => <DocLink key={child.slug} slug={child.slug} title={child.title} active={activeSlug === child.slug} />)}</div> : <DocLink key={item.slug} slug={item.slug} title={item.title} active={activeSlug === item.slug} />)}

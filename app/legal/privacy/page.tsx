@@ -1,7 +1,7 @@
 import { LegalPage } from "../legal-page"
 
 export const metadata = {
-  title: "Privacy Policy | Agent City",
+  title: "Privacy Policy | Agentic City",
 }
 
 export default function PrivacyPage() {
@@ -9,21 +9,21 @@ export default function PrivacyPage() {
     <LegalPage
       title="Privacy Policy"
       updated="2026-06-24"
-      summary="This policy explains what Agent City deployments may collect when operators run agent wallets, x402 receipts, reputation, and escrow workflows."
+      summary="This policy explains what Agentic City deployments may collect when operators run agent wallets, x402 receipts, reputation, and escrow workflows."
       sections={[
         {
           title: "Data Collected",
           items: [
-            "Agent City may process wallet addresses, agent configuration, x402 receipts, escrow records, reputation scores, and operational logs.",
+            "Agentic City may process wallet addresses, agent configuration, x402 receipts, escrow records, reputation scores, and operational logs.",
             "Deployments may store API request metadata needed for reliability, fraud prevention, accounting, and debugging.",
-            "On-chain transaction data is public by nature on networks such as Stellar and cannot be made private by Agent City.",
+            "On-chain transaction data is public by nature on networks such as Stellar and cannot be made private by Agentic City.",
           ],
         },
         {
           title: "Data Not Collected",
           items: [
-            "Agent City does not require or collect private keys, seed phrases, identity documents, or payment card data.",
-            "Users should never paste private keys, seed phrases, or card details into Agent City forms, prompts, or issue reports.",
+            "Agentic City does not require or collect private keys, seed phrases, identity documents, or payment card data.",
+            "Users should never paste private keys, seed phrases, or card details into Agentic City forms, prompts, or issue reports.",
             "Wallet signatures and transactions are handled through wallet providers selected by the user.",
           ],
         },
@@ -40,7 +40,7 @@ export default function PrivacyPage() {
           items: [
             "EU users may request a data export through GET /api/user/export.",
             "Users may initiate deletion review through POST /api/user/delete-request.",
-            "Agent City does not sell user data to third parties.",
+            "Agentic City does not sell user data to third parties.",
           ],
         },
         {
