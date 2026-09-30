@@ -23,3 +23,8 @@ test-results/
 playwright-report/
 
 .env.local
+
+# local tooling
+dist/
+.wrangler/
+.kilo/

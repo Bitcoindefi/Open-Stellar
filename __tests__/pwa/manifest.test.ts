@@ -13,8 +13,8 @@ describe("PWA manifest", () => {
   const manifest = JSON.parse(readFileSync(join(process.cwd(), "public", "manifest.webmanifest"), "utf8"))
 
   it("declares an installable standalone app shell", () => {
-    expect(manifest.name).toBe("Open Stellar Agent City")
-    expect(manifest.short_name).toBe("Open Stellar")
+    expect(manifest.name).toBe("Agentic City")
+    expect(manifest.short_name).toBe("Agentic City")
     expect(manifest.start_url).toBe("/")
     expect(manifest.scope).toBe("/")
     expect(manifest.display).toBe("standalone")

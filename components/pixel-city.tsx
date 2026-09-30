@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useCallback, useState, useMemo } from "react"
 import NextImage from "next/image"
+import { LocateFixed, Map as MapIcon, Minus, Plus } from "lucide-react"
 import type { MoltbotAgent, District } from "@/lib/types"
 import { drawGrid, drawRoads, drawDistrict, drawBot } from "@/lib/renderer"
 import type { DistrictStanding } from "@/lib/gamification/events"
@@ -546,18 +547,6 @@ export function PixelCity({
 
     ctx.restore()
 
-    ctx.font = "bold 14px monospace"
-    ctx.fillStyle = "#22d3ee"
-    ctx.textAlign = "left"
-    ctx.fillText("MOLTBOT CITY", 40, 30)
-    ctx.font = "10px monospace"
-    ctx.fillStyle = "#64748b"
-    ctx.fillText(
-      `TICK ${tick}  |  ${agents.length} AGENTS DEPLOYED${districtStandings.length > 0 ? "  |  DISTRICTS RANKED" : ""}`,
-      40,
-      44,
-    )
-
     if (showMinimap) {
       drawMinimap(ctx, w, h, districts, agents, zoom, panOffset, cityBounds, minimapScale, colorBlindMode)
     }
@@ -589,7 +578,7 @@ export function PixelCity({
       for (const agent of agents) {
         const dx = worldX - (agent.pixelX + 8)
         const dy = worldY - (agent.pixelY + 10)
-        if (Math.sqrt(dx * dx + dy * dy) < 16) return agent
+        if (Math.sqrt(dx * dx + dy * dy) < 20) return agent
       }
       return null
     },
@@ -802,7 +791,7 @@ export function PixelCity({
   )
 
   const statusColors: Record<string, string> = {
-    active: "#34d399", working: "#fbbf24", idle: "#64748b", error: "#f87171", offline: "#f87171",
+    active: "#34d399", running: "#38bdf8", working: "#fbbf24", idle: "#94a3b8", error: "#f87171", offline: "#f87171", degraded: "#fb923c", stopped: "#64748b",
   }
 
   return (
@@ -850,6 +839,25 @@ export function PixelCity({
           touchAction: "none",
         }}
       />
+      <div role="status" aria-label="City map status" style={{ position: "absolute", top: 60, right: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", border: "1px solid rgba(148,163,184,0.25)", borderRadius: 10, background: "rgba(2,6,23,0.9)", boxShadow: "0 8px 24px rgba(0,0,0,0.28)", backdropFilter: "blur(10px)", pointerEvents: "none" }}>
+        <span style={{ display: "grid", placeItems: "center", width: 24, height: 24, borderRadius: 7, background: "rgba(34,211,238,0.12)", color: "#67e8f9", fontSize: 13 }}>✦</span>
+        <span style={{ display: "grid", gap: 2 }}>
+          <strong style={{ color: "#f8fafc", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.1 }}>AGENTIC CITY</strong>
+          <span style={{ color: "#94a3b8", fontFamily: "monospace", fontSize: 9 }}>{agents.length} robots · {agents.filter((agent) => agent.status === "working" || agent.status === "running").length} en actividad</span>
+        </span>
+      </div>
+      <div role="group" aria-label="City map controls" style={{ position: "absolute", top: 112, right: 14, zIndex: 5, display: "flex", gap: 5, padding: 5, border: "1px solid rgba(148,163,184,0.22)", borderRadius: 10, background: "rgba(2,6,23,0.9)", backdropFilter: "blur(10px)" }}>
+        {[
+          { label: "Zoom out", icon: Minus, action: () => setZoom((value) => Math.max(value / 1.2, MIN_ZOOM)) },
+          { label: "Zoom in", icon: Plus, action: () => setZoom((value) => Math.min(value * 1.2, MAX_ZOOM)) },
+          { label: "Center map", icon: LocateFixed, action: fitViewToContainer },
+          { label: showMinimap ? "Hide minimap" : "Show minimap", icon: MapIcon, action: () => setShowMinimap((value) => !value), active: showMinimap },
+        ].map(({ label, icon: Icon, action, active }) => (
+          <button key={label} type="button" aria-label={label} title={label} onClick={action} style={{ width: 34, height: 34, display: "grid", placeItems: "center", border: active ? "1px solid #22d3ee88" : "1px solid transparent", borderRadius: 7, background: active ? "rgba(8,47,73,0.8)" : "transparent", color: active ? "#67e8f9" : "#cbd5e1", cursor: "pointer" }}>
+            <Icon size={16} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
       <canvas
         ref={particleCanvasRef}
         aria-hidden="true"
@@ -886,13 +894,13 @@ export function PixelCity({
               }}
               style={{
                 position: "absolute",
-                left: (agent.pixelX - 4) * zoom + panOffset.x,
-                top: (agent.pixelY - 4) * zoom + panOffset.y,
+                left: (agent.pixelX + 8) * zoom + panOffset.x - Math.max(22, 22 * zoom),
+                top: (agent.pixelY + 10) * zoom + panOffset.y - Math.max(22, 22 * zoom),
                 zIndex: 4,
-                width: 32 * zoom,
-                height: 32 * zoom,
+                width: Math.max(44, 44 * zoom),
+                height: Math.max(44, 44 * zoom),
                 border: isFocused || isSelected ? `${Math.max(1, 2 * zoom)}px solid #fbbf24` : "1px solid transparent",
-                borderRadius: 8 * zoom,
+                borderRadius: "50%",
                 background: colorBlindMode ? "rgba(15,23,42,0.55)" : "transparent",
                 color: "#f8fafc",
                 cursor: "pointer",

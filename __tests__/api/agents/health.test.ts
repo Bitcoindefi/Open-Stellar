@@ -84,12 +84,14 @@ describe("agent heartbeat and health routes", () => {
     expect(health?.status).toBe("healthy")
   })
 
-  it("returns 404 when an agent has not sent a heartbeat yet", async () => {
+  it("reports an unavailable health record when an agent has not sent a heartbeat yet", async () => {
     const res = await getHealth(new Request("http://localhost/api/agents/missing/health"), context("missing"))
     const data = await res.json()
 
-    expect(res.status).toBe(404)
-    expect(data.ok).toBe(false)
+    expect(res.status).toBe(200)
+    expect(data.ok).toBe(true)
+    expect(data.available).toBe(false)
+    expect(data.health).toBeNull()
     expect(data.agentId).toBe("missing")
   })
 

@@ -1,5 +1,7 @@
 "use client"
 
+import { useState } from "react"
+import { ChevronDown, ChevronUp, Trophy } from "lucide-react"
 import Link from "next/link"
 import type { ActiveDistrictEvent, DistrictStanding } from "@/lib/gamification/events"
 
@@ -17,6 +19,7 @@ function formatCountdown(seconds: number): string {
 }
 
 export function DistrictEventOverlay({ event, standings }: DistrictEventOverlayProps) {
+  const [expanded, setExpanded] = useState(false)
   if (!event) return null
 
   const leader = standings[0]
@@ -31,10 +34,10 @@ export function DistrictEventOverlay({ event, standings }: DistrictEventOverlayP
         right: 12,
         zIndex: 6,
         width: "min(280px, calc(100vw - 24px))",
-        maxHeight: "min(42dvh, 320px)",
+        maxHeight: expanded ? "min(42dvh, 320px)" : undefined,
         overflow: "auto",
         boxSizing: "border-box",
-        padding: 12,
+        padding: expanded ? 12 : "8px 10px",
         borderRadius: 12,
         border: "1px solid rgba(34,211,238,0.35)",
         background: "rgba(3,7,18,0.84)",
@@ -43,13 +46,17 @@ export function DistrictEventOverlay({ event, standings }: DistrictEventOverlayP
         fontFamily: "monospace",
       }}
     >
-      <div style={{ fontSize: 9, color: "#22d3ee", textTransform: "uppercase", letterSpacing: 1.6, marginBottom: 4 }}>
-        Weekly District Event
-      </div>
-      <div style={{ fontSize: 14, color: "#e2e8f0", fontWeight: 800, marginBottom: 4 }}>
-        {event.challenge.name}
-      </div>
-      <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.5, marginBottom: 10 }}>
+      <button type="button" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: 0, border: 0, background: "transparent", color: "inherit", textAlign: "left", cursor: "pointer" }}>
+        <span style={{ display: "grid", placeItems: "center", width: 28, height: 28, flex: "0 0 auto", borderRadius: 8, background: "rgba(34,211,238,0.12)", color: "#67e8f9" }}><Trophy size={14} aria-hidden="true" /></span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 8, color: "#22d3ee", textTransform: "uppercase", letterSpacing: 1.3 }}>District challenge · {formatCountdown(event.secondsRemaining)}</span>
+          <span style={{ display: "block", marginTop: 3, fontSize: 11, color: "#f8fafc", fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{event.challenge.name}</span>
+          {!expanded && <span style={{ display: "block", marginTop: 2, fontSize: 9, color: "#94a3b8" }}>{leader ? `${leader.districtName} leads` : event.challenge.metric}</span>}
+        </span>
+        {expanded ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
+      </button>
+      {expanded && <>
+      <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.5, margin: "10px 0" }}>
         {event.challenge.metric} · ends in {formatCountdown(event.secondsRemaining)}
       </div>
       <div style={{ display: "grid", gap: 6 }}>
@@ -76,6 +83,7 @@ export function DistrictEventOverlay({ event, standings }: DistrictEventOverlayP
           </Link>
         ))}
       </div>
+      </>}
     </section>
   )
 }

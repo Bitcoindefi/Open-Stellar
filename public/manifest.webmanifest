@@ -1,7 +1,7 @@
 {
-  "name": "Agent Arena",
-  "short_name": "Agent Arena",
-  "description": "A mobile-ready arena for gamified AI agent orchestration.",
+  "name": "Agentic City",
+  "short_name": "Agentic City",
+  "description": "A mobile-ready city for gamified AI agent orchestration.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -37,7 +37,7 @@
   ],
   "shortcuts": [
     {
-      "name": "Agent Arena Admin",
+      "name": "Admin Console",
       "short_name": "Admin",
       "url": "/admin",
       "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]

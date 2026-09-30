@@ -464,7 +464,7 @@ function drawAuraParticles(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, t
 }
 
 function drawSelectionRing(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick: number, cx: number, cy: number, c: string) {
-  const ringPulse = Math.sin(tick * 0.08) * 2 + 22
+  const ringPulse = Math.sin(tick * 0.08) * 2 + 28
   ctx.strokeStyle = "#ffffff"
   ctx.lineWidth = 1.5
   ctx.beginPath()
@@ -482,7 +482,7 @@ function drawOfflinePulse(ctx: CanvasRenderingContext2D, tick: number, cx: numbe
   ctx.strokeStyle = `rgba(248,113,113,${pulse})`
   ctx.lineWidth = 2
   ctx.beginPath()
-  ctx.arc(cx, cy + 4, 18 + pulse * 4, 0, Math.PI * 2)
+  ctx.arc(cx, cy + 4, 27 + pulse * 4, 0, Math.PI * 2)
   ctx.stroke()
 }
 
@@ -559,9 +559,12 @@ function drawStatusDot(
   const statusColors: Record<string, string> = {
     active: "#34d399",
     working: "#fbbf24",
+    running: "#38bdf8",
     idle: "#64748b",
     error: "#f87171",
     offline: "#1e293b",
+    degraded: "#fb923c",
+    stopped: "#475569",
   }
 
   const sx = drawX + spriteSize - 6
@@ -573,7 +576,7 @@ function drawStatusDot(
 
   if (colorBlindMode) {
     ctx.beginPath()
-    if (status === "active") { // Circle
+    if (status === "active" || status === "running") { // Circle
       ctx.arc(sx + sw/2, sy + sh/2, sw/2, 0, Math.PI * 2)
     } else if (status === "working") { // Diamond
       ctx.moveTo(sx + sw/2, sy)
@@ -603,13 +606,28 @@ function drawStatusDot(
   ctx.strokeRect(sx, sy, sw, sh)
 }
 
-function drawNameLabel(ctx: CanvasRenderingContext2D, name: string, cx: number, y: number, spriteSize: number, c: string) {
-  ctx.font = "bold 8px monospace"
+function drawNameLabel(ctx: CanvasRenderingContext2D, name: string, cx: number, y: number, spriteSize: number, c: string, status: string) {
+  ctx.font = "bold 10px monospace"
   ctx.textAlign = "center"
-  ctx.fillStyle = "#000000"
-  ctx.fillText(name, cx + 1, y + spriteSize + 5)
-  ctx.fillStyle = c
-  ctx.fillText(name, cx, y + spriteSize + 4)
+  const label = name.length > 15 ? `${name.slice(0, 14)}…` : name
+  const width = Math.min(112, Math.max(38, ctx.measureText(label).width + 16))
+  const left = cx - width / 2
+  const top = y + spriteSize + 1
+  const statusColor = status === "error" || status === "offline" ? "#fb7185" : status === "working" ? "#fbbf24" : status === "active" ? "#34d399" : status === "running" ? "#38bdf8" : status === "degraded" ? "#fb923c" : status === "stopped" ? "#64748b" : "#94a3b8"
+  ctx.fillStyle = "rgba(2, 6, 23, 0.92)"
+  ctx.strokeStyle = `${statusColor}99`
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  if (typeof ctx.roundRect === "function") ctx.roundRect(left, top, width, 13, 4)
+  else ctx.rect(left, top, width, 13)
+  ctx.fill()
+  ctx.stroke()
+  ctx.fillStyle = statusColor
+  ctx.beginPath()
+  ctx.arc(left + 7, top + 6.5, 2, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = "#f8fafc"
+  ctx.fillText(label, cx + 3, top + 9.5, width - 15)
   ctx.textAlign = "left"
 }
 
@@ -642,8 +660,9 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
   const x = Math.round(agent.pixelX)
   const y = Math.round(agent.pixelY)
   const c = agent.color
-  const bobY = agent.status === "working" ? Math.sin(tick * 0.15) * 2 : 0
-  const spriteSize = 36
+  const isMoving = Math.hypot(agent.targetX - agent.pixelX, agent.targetY - agent.pixelY) > 1.5
+  const bobY = isMoving ? Math.abs(Math.sin(tick * 0.48)) * 3 : agent.status === "working" ? Math.sin(tick * 0.15) * 2 : 0
+  const spriteSize = 48
   const cx = x + 8
   const cy = y + 10
 
@@ -658,7 +677,7 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
     ctx.strokeStyle = `${c}${Math.round(pulse * 120).toString(16).padStart(2, "0")}`
     ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.arc(cx, cy + 4, 20 + pulse * 3, 0, Math.PI * 2)
+    ctx.arc(cx, cy + 4, 30 + pulse * 3, 0, Math.PI * 2)
     ctx.stroke()
   }
 
@@ -669,11 +688,39 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
   // Shadow
   ctx.fillStyle = "rgba(0,0,0,0.4)"
   ctx.beginPath()
-  ctx.ellipse(cx, y + spriteSize - 2, 10, 4, 0, 0, Math.PI * 2)
+  ctx.ellipse(cx, y + spriteSize - 2, 13, 5, 0, 0, Math.PI * 2)
   ctx.fill()
 
   const drawY = y + bobY - 4
   const drawX = x - spriteSize / 2 + 8
+
+  if (isMoving) {
+    ctx.save()
+    ctx.globalAlpha = 0.35 + Math.sin(tick * 0.42) * 0.12
+    ctx.strokeStyle = c
+    ctx.lineWidth = 2
+    const trailDirection = agent.direction === "left" ? 1 : -1
+    for (let i = 0; i < 3; i++) {
+      const trailY = drawY + 22 + i * 4
+      const trailLength = 5 + ((tick + i * 2) % 4)
+      ctx.beginPath()
+      ctx.moveTo(cx + trailDirection * (10 + i * 2), trailY)
+      ctx.lineTo(cx + trailDirection * (10 + i * 2 + trailLength), trailY)
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+
+  // A restrained status glow keeps the pixel sprites readable over bright districts.
+  const statusGlow = agent.status === "error" || agent.status === "offline"
+    ? "rgba(248,113,113,0.7)"
+    : agent.status === "working" ? "rgba(251,191,36,0.65)" : agent.status === "running" ? "rgba(56,189,248,0.65)" : agent.status === "active" ? `${c}88` : "transparent"
+  ctx.save()
+  ctx.shadowColor = statusGlow
+  ctx.shadowBlur = statusGlow === "transparent" ? 0 : 14
+  ctx.fillStyle = "rgba(2,6,23,0.01)"
+  ctx.fillRect(drawX + 5, drawY + 5, spriteSize - 10, spriteSize - 7)
+  ctx.restore()
 
   if (sprite) {
     drawBotSprite(ctx, agent, tick, sprite, cropRegion, { drawX, drawY, spriteSize, c, cx })
@@ -703,7 +750,7 @@ export function drawBot(ctx: CanvasRenderingContext2D, agent: MoltbotAgent, tick
   }
 
   drawStatusDot(ctx, agent.status, drawX, drawY, spriteSize, colorBlindMode)
-  drawNameLabel(ctx, agent.name, cx, y, spriteSize, c)
+  drawNameLabel(ctx, agent.name, cx, y, spriteSize, c, agent.status)
 
   if (agent.deployment === "cloud") {
     drawCloudBadge(ctx, drawX, drawY)

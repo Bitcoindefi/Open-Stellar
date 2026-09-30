@@ -11,8 +11,8 @@ export async function GET(_req: Request, context: RouteContext) {
 
   if (!health) {
     return NextResponse.json(
-      { ok: false, error: "No heartbeat recorded for agent", agentId: decodeURIComponent(id) },
-      { status: 404, headers: { "Cache-Control": "no-store" } },
+      { ok: true, available: false, message: "No live heartbeat has been recorded for this agent", health: null, agentId: decodeURIComponent(id) },
+      { headers: { "Cache-Control": "no-store" } },
     )
   }
 

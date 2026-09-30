@@ -15,6 +15,14 @@ const DAY_NIGHT_CHECK_MS = 30_000
 const NIGHT_START_HOUR = 19
 const NIGHT_END_HOUR = 6
 
+const DISTRICT_PAN: Partial<Record<DistrictId, number>> = {
+  "data-center": -0.5,
+  "comm-hub": -0.18,
+  processing: 0.48,
+  defense: -0.42,
+  research: 0.24,
+}
+
 const DISTRICT_TRACKS: Record<DistrictId, { day: string; night: string }> = {
   "data-center": { day: "/audio/districts/data-center-day.wav", night: "/audio/districts/data-center-night.wav" },
   "comm-hub": { day: "/audio/districts/comm-hub-day.wav", night: "/audio/districts/comm-hub-night.wav" },
@@ -34,6 +42,7 @@ const EVENT_FILES: Record<AudioEvent, string> = {
 
 interface DistrictNodes {
   focusGain: GainNode
+  panner: StereoPannerNode | null
   dayGain: GainNode
   nightGain: GainNode
   daySource: AudioBufferSourceNode | null
@@ -53,10 +62,14 @@ function isNightNow(): boolean {
 export class CityAudioEngine {
   private ctx: AudioContext | null = null
   private masterGain: GainNode | null = null
+  private ambienceBus: GainNode | null = null
+  private effectsBus: GainNode | null = null
   private districts = new Map<DistrictId, DistrictNodes>()
   private bufferCache = new Map<string, Promise<AudioBuffer>>()
   private muted = false
   private volume = 1
+  private ambienceVolume = 0.42
+  private effectsVolume = 0.72
   private night = isNightNow()
   private dayNightTimer: ReturnType<typeof setInterval> | null = null
   private initPromise: Promise<void> | null = null
@@ -82,6 +95,13 @@ export class CityAudioEngine {
     this.masterGain = this.ctx.createGain()
     this.masterGain.gain.value = this.muted ? 0 : this.volume
     this.masterGain.connect(this.ctx.destination)
+
+    this.ambienceBus = this.ctx.createGain()
+    this.ambienceBus.gain.value = this.ambienceVolume
+    this.ambienceBus.connect(this.masterGain)
+    this.effectsBus = this.ctx.createGain()
+    this.effectsBus.gain.value = this.effectsVolume
+    this.effectsBus.connect(this.masterGain)
 
     const ids = Object.keys(DISTRICT_TRACKS) as DistrictId[]
     await Promise.all(ids.map((id) => this.setupDistrict(id)))
@@ -110,7 +130,14 @@ export class CityAudioEngine {
 
     const focusGain = ctx.createGain()
     focusGain.gain.value = 0
-    focusGain.connect(master)
+    const panner = typeof ctx.createStereoPanner === "function" ? ctx.createStereoPanner() : null
+    if (panner) {
+      panner.pan.value = DISTRICT_PAN[id] ?? 0
+      focusGain.connect(panner)
+      panner.connect(this.ambienceBus ?? master)
+    } else {
+      focusGain.connect(this.ambienceBus ?? master)
+    }
 
     const dayGain = ctx.createGain()
     dayGain.gain.value = 0
@@ -120,7 +147,7 @@ export class CityAudioEngine {
     nightGain.gain.value = 0
     nightGain.connect(focusGain)
 
-    const node: DistrictNodes = { focusGain, dayGain, nightGain, daySource: null, nightSource: null }
+    const node: DistrictNodes = { focusGain, panner, dayGain, nightGain, daySource: null, nightSource: null }
     this.districts.set(id, node)
 
     try {
@@ -180,14 +207,14 @@ export class CityAudioEngine {
   /** Plays a one-shot event sting layered over the ambient mix. */
   playEvent(type: AudioEvent): void {
     const ctx = this.ctx
-    const master = this.masterGain
-    if (!ctx || !master) return
+    const effects = this.effectsBus
+    if (!ctx || !effects) return
     this.loadBuffer(EVENT_FILES[type])
       .then((buffer) => {
-        if (!this.ctx || !this.masterGain) return
+        if (!this.ctx || !this.effectsBus) return
         const source = this.ctx.createBufferSource()
         source.buffer = buffer
-        source.connect(this.masterGain)
+        source.connect(this.effectsBus)
         source.start()
       })
       .catch(() => {})
@@ -202,6 +229,23 @@ export class CityAudioEngine {
   setVolume(v: number): void {
     this.volume = Math.max(0, Math.min(1, v))
     this.applyMasterGain()
+  }
+
+  setAmbienceVolume(v: number): void {
+    this.ambienceVolume = Math.max(0, Math.min(1, v))
+    this.setBusVolume(this.ambienceBus, this.ambienceVolume)
+  }
+
+  setEffectsVolume(v: number): void {
+    this.effectsVolume = Math.max(0, Math.min(1, v))
+    this.setBusVolume(this.effectsBus, this.effectsVolume)
+  }
+
+  private setBusVolume(bus: GainNode | null, value: number): void {
+    if (!this.ctx || !bus) return
+    const now = this.ctx.currentTime
+    bus.gain.cancelScheduledValues(now)
+    bus.gain.linearRampToValueAtTime(value, now + MASTER_RAMP_SEC)
   }
 
   private applyMasterGain(): void {
@@ -225,6 +269,8 @@ export class CityAudioEngine {
     this.ctx?.close().catch(() => {})
     this.ctx = null
     this.masterGain = null
+    this.ambienceBus = null
+    this.effectsBus = null
     this.initPromise = null
   }
 }
