@@ -6,6 +6,7 @@ import {
   type ApiKeyTier,
   type VerificationResult,
 } from "./api-keys";
+import { getAdminSessionTokenFromRequest, getSessionAdminApiKey, isAdminSessionToken } from "./admin-session";
 
 export interface AuthEvaluationResult {
   allowed: boolean;
@@ -217,7 +218,11 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
       pathname === "/api/protocol/x402/settle" ||
       pathname === "/api/protocol/passport/authorize" ||
       pathname === "/api/quests" ||
-      pathname.startsWith("/api/quests/")
+      pathname.startsWith("/api/quests/") ||
+      // Bring-your-own-key relays: stateless, the caller supplies the provider key.
+      pathname === "/api/connections/test" ||
+      pathname === "/api/connections/chat" ||
+      pathname === "/api/connections/run"
     ) {
       return true;
     }
@@ -454,7 +459,13 @@ export async function evaluateAuth(
   const pathname = url.pathname;
   const method = req.method.toUpperCase();
 
-  const apiKey = extractApiKey(req);
+  const isAdminLogin = pathname === "/admin/login";
+  const isAdminSessionEndpoint = pathname === "/api/admin/session";
+  const sessionToken = getAdminSessionTokenFromRequest(req);
+  const sessionKey = sessionToken && isAdminSessionToken(sessionToken)
+    ? getSessionAdminApiKey()
+    : null;
+  const apiKey = extractApiKey(req) ?? sessionKey;
   const authResult = apiKey
     ? await verifyApiKey(apiKey)
     : {
@@ -465,9 +476,8 @@ export async function evaluateAuth(
       };
 
   const clientIp = getClientIp(req);
-  // DEV_MODE is an explicit deployment setting for the public demo/admin shell.
-  // Keep it opt-in via environment variable; normal production deployments remain protected.
-  const isDevBypass = process.env.DEV_MODE?.trim().toLowerCase() === "true";
+  // Never let a public production deployment bypass admin authentication.
+  const isDevBypass = process.env.NODE_ENV !== "production" && process.env.DEV_MODE?.trim().toLowerCase() === "true";
 
   // Rate Limiting Evaluation
   const rateLimitEval = evaluateRateLimit(authResult, clientIp);
@@ -476,6 +486,19 @@ export async function evaluateAuth(
       allowed: false,
       status: rateLimitEval.status,
       error: rateLimitEval.error,
+      tier: authResult.tier,
+      scopes: authResult.scopes,
+      isAdmin: authResult.isAdmin,
+      headers: rateLimitEval.headers,
+    };
+  }
+
+  // The login page and session endpoint are intentionally public. Session creation
+  // verifies an admin key server-side; all other admin routes stay protected.
+  if (isAdminLogin || isAdminSessionEndpoint) {
+    return {
+      allowed: true,
+      status: 200,
       tier: authResult.tier,
       scopes: authResult.scopes,
       isAdmin: authResult.isAdmin,
@@ -558,6 +581,11 @@ export async function authMiddleware(req: NextRequest): Promise<NextResponse> {
   const result = await evaluateAuth(req);
 
   if (!result.allowed) {
+    if ((pathname === "/admin" || pathname.startsWith("/admin/")) && pathname !== "/admin/login") {
+      const loginUrl = new URL("/admin/login", req.url);
+      loginUrl.searchParams.set("next", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
     return NextResponse.json(
       { ok: false, error: result.error || "Unauthorized" },
       {

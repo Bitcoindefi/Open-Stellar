@@ -40,11 +40,17 @@ function ensureDb(): void {
 }
 
 function readReceipts(): X402ExplorerReceipt[] {
-  ensureDb()
-  const raw = readFileSync(DB_PATH, 'utf8').trim()
-  if (!raw) return []
-  const parsed = JSON.parse(raw) as X402ExplorerReceipt[]
-  return Array.isArray(parsed) ? parsed : []
+  // Serverless production filesystems are read-only/ephemeral. Reads must not
+  // create a database file as a side effect; an uninitialized store is empty.
+  if (!existsSync(DB_PATH)) return []
+  try {
+    const raw = readFileSync(DB_PATH, 'utf8').trim()
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as X402ExplorerReceipt[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
 }
 
 function writeReceipts(receipts: X402ExplorerReceipt[]): void {

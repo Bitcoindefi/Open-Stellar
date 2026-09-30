@@ -27,12 +27,6 @@ export function getAdminApiKey(
       "",
     );
     globalState.__openStellarAdminApiKey__ = `osk_${hex}`;
-    if (process.env.NODE_ENV !== "production") {
-      console.log(
-        "[Open Stellar] Generated admin API key on first boot:",
-        globalState.__openStellarAdminApiKey__,
-      );
-    }
   }
 
   return globalState.__openStellarAdminApiKey__;

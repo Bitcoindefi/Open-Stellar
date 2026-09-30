@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
-import { Bell, CheckCheck, Copy, Download, Share2 } from "lucide-react"
+import { Bell, BrainCircuit, CheckCheck, Copy, Download, PlugZap, Share2 } from "lucide-react"
 import { toast } from "sonner"
 import type { AgentAppearance, MoltbotAgent, LogEntry, ChatMessage, WalletTransaction } from "@/lib/types"
 import { DISTRICTS } from "@/lib/data"
@@ -12,8 +12,9 @@ import { WalletPanel } from "./wallet-panel"
 import { AppearancePanel } from "./appearance-panel"
 import { QuestsPanel } from "./quests-panel"
 import { MOCK_OFFERS, TaskBoard, getTaskOfferCounts } from "./task-board"
+import { ConnectionsPanel } from "./admin/connections-panel"
 
-export type SidebarTabId = "overview" | "chat" | "offers" | "skills" | "quests" | "wallet" | "appearance"
+export type SidebarTabId = "overview" | "models" | "connectors" | "chat" | "offers" | "skills" | "quests" | "wallet" | "appearance"
 
 interface NotificationItem {
   id: string
@@ -29,6 +30,8 @@ interface NotificationItem {
 
 export const SIDEBAR_TABS: { id: SidebarTabId; label: string }[] = [
   { id: "overview", label: "Overview" },
+  { id: "models", label: "Modelos IA" },
+  { id: "connectors", label: "Complementos" },
   { id: "chat", label: "Chat" },
   { id: "offers", label: "Offers" },
   { id: "skills", label: "Skills" },
@@ -430,11 +433,16 @@ function AgentRow({
   }
   return (
     <button
+      type="button"
       onClick={onClick}
       role="option"
       aria-selected={isSelected}
       aria-label={`${agent.name}, ${agent.status}, CPU ${agent.cpu} percent, ${agent.currentTask || "no active task"}`}
       style={{
+        position: "relative",
+        zIndex: isSelected ? 2 : 1,
+        pointerEvents: "auto",
+        touchAction: "manipulation",
         display: "flex",
         alignItems: "center",
         gap: 8,
@@ -782,6 +790,10 @@ export function SidebarPanel({
   const errorCount = agents.filter(a => a.status === "error").length
   const walletAlert = agents.some(a => !a.wallet || (a.wallet.funded && parseFloat(a.wallet.balance) < 10))
   const openOfferCount = MOCK_OFFERS.filter(offer => offer.status === "open").length
+  const tabIconMap: Partial<Record<SidebarTabId, ReactNode>> = {
+    models: <BrainCircuit size={14} aria-hidden="true" />,
+    connectors: <PlugZap size={14} aria-hidden="true" />,
+  }
 
   return (
     <div style={{
@@ -800,6 +812,8 @@ export function SidebarPanel({
           borderBottom: "1px solid #2a3a52",
           background: "#0f172a",
           flexShrink: 0,
+          overflowX: "auto",
+          scrollbarWidth: "thin",
         }}>
           {SIDEBAR_TABS.map(tab => (
             <button
@@ -810,9 +824,9 @@ export function SidebarPanel({
               aria-label={`${tab.label} tab`}
               suppressHydrationWarning
               style={{
-                flex: 1,
+                flex: "0 0 auto",
                 minHeight: variant === "mobile" ? 46 : undefined,
-                padding: variant === "mobile" ? "12px 4px" : "10px 4px",
+                padding: variant === "mobile" ? "12px 9px" : "10px 9px",
                 background: activeTab === tab.id ? "#111827" : "transparent",
                 border: "none",
                 borderBottom: activeTab === tab.id ? "2px solid #22d3ee" : "2px solid transparent",
@@ -827,7 +841,10 @@ export function SidebarPanel({
                 letterSpacing: 0.5,
               }}
             >
-              {tab.label}
+              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                {tabIconMap[tab.id]}
+                <span>{tab.label}</span>
+              </span>
               {tab.id === "chat" && chatCount > 0 && (
                 <span style={{
                   position: "absolute",
@@ -935,6 +952,16 @@ export function SidebarPanel({
         )}
         {activeTab === "chat" && (
           <ChatPanel messages={chatMessages} />
+        )}
+        {activeTab === "models" && (
+          <div style={{ height: "100%", overflow: "auto" }}>
+            <ConnectionsPanel compact initialSection="models" />
+          </div>
+        )}
+        {activeTab === "connectors" && (
+          <div style={{ height: "100%", overflow: "auto" }}>
+            <ConnectionsPanel compact initialSection="connectors" />
+          </div>
         )}
         {activeTab === "offers" && (
           <TaskBoard agents={agents} selectedAgent={selectedAgent} />

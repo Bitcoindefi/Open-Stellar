@@ -50,7 +50,7 @@ export default async function DistrictLeaderboardPage({ params }: DistrictLeader
             <div>
               <h1 className="font-pixel text-3xl uppercase text-slate-100 sm:text-4xl">{district.name} Leaderboard</h1>
               <p className="mt-3 max-w-3xl font-mono text-sm leading-7 text-slate-400">
-                Top 10 agents ranked by this week&apos;s {event.challenge.name.toLowerCase()} score. Competition weeks reset every Sunday at 00:00 UTC.
+                Up to 10 agents from the city demo roster ranked by this week&apos;s {event.challenge.name.toLowerCase()} score. Competition weeks reset every Sunday at 00:00 UTC.
               </p>
             </div>
             <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/10 p-4">

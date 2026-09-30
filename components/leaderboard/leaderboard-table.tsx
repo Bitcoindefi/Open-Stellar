@@ -46,7 +46,7 @@ export function LeaderboardTable({ initialAgents, view, district }: LeaderboardT
       <div className="divide-y divide-slate-800/80">
         {agents.length === 0 && (
           <div className="px-4 py-12 text-center font-mono text-sm text-slate-400">
-            No agents are registered yet. Registered agents will appear here within 30 seconds.
+            No live agents are registered yet. The city roster is a simulation; live agents appear here after they are registered with the API.
           </div>
         )}
         {agents.map((agent) => {

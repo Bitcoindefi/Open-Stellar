@@ -1,9 +1,12 @@
+import { getAdminSessionTokenFromRequest, isAdminSessionToken } from "@/lib/auth/admin-session";
+
 /**
  * Authentication utility for Open Stellar API routes.
  * Uses the MOLTBOT_GATEWAY_TOKEN for bearer authentication.
  */
 
 export function isAuthorized(req: Request): boolean {
+  if (isAdminSessionToken(getAdminSessionTokenFromRequest(req) ?? "")) return true;
   const token = process.env.MOLTBOT_GATEWAY_TOKEN
   if (!token) {
     // If no token is configured, we allow it in development but this should be set in prod.

@@ -48,7 +48,7 @@ function QuestCard({
   const hasReputationGate = minReputation !== undefined
   const isEligible = minReputation !== undefined && currentReputation !== null && currentReputation >= minReputation
   const isReputationTooLow = minReputation !== undefined && currentReputation !== null && currentReputation < minReputation
-  const canClaim = isComplete && !isReputationTooLow
+  const canClaim = false
 
   return (
     <div
@@ -199,7 +199,7 @@ function QuestCard({
             textTransform: "uppercase",
           }}
         >
-          Claim
+          {isComplete && !isReputationTooLow ? "Unavailable" : "Claim"}
         </button>
       </div>
     </div>
@@ -352,7 +352,10 @@ export function QuestsPanel({ selectedAgentId }: { selectedAgentId?: string | nu
       <div style={{ padding: 12, borderBottom: "1px solid #2a3a52" }}>
         <div style={{ color: "#e2e8f0", fontSize: 14, fontFamily: "monospace", fontWeight: 800 }}>Quest Board</div>
         <div suppressHydrationWarning style={{ color: "#64748b", fontSize: 11, marginTop: 4 }}>
-          {completedCount} ready to claim · resets update every minute · {new Date(now).toUTCString().slice(17, 22)} UTC
+          {completedCount} objectives complete · resets update every minute · {new Date(now).toUTCString().slice(17, 22)} UTC
+        </div>
+        <div role="note" style={{ color: "#94a3b8", fontSize: 10, marginTop: 6 }}>
+          Reward claims are disabled until a durable rewards service and wallet authorization are connected.
         </div>
       </div>
 

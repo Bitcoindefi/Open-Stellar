@@ -75,6 +75,5 @@ export function readDistrictLeaderboardSnapshots(): DistrictLeaderboardSnapshot[
 export function getPreviousDistrictLeaderboardSnapshot(districtId: DistrictId, now: Date = new Date()): DistrictLeaderboardSnapshot | null {
   const previousWeekIndex = Math.max(0, getWeekBounds(now).weekIndex - 1)
   return readDistrictLeaderboardSnapshots()
-    .filter((snapshot) => snapshot.districtId === districtId && snapshot.weekIndex <= previousWeekIndex)
-    .sort((a, b) => b.weekIndex - a.weekIndex)[0] ?? null
+    .find((snapshot) => snapshot.districtId === districtId && snapshot.weekIndex === previousWeekIndex) ?? null
 }

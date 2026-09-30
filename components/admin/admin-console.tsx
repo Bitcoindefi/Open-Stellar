@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Activity, AlertTriangle, Check, Cloud, Code2, Copy, Cpu, Download, ExternalLink, Fingerprint, ReceiptText, History, KeyRound, Layers3, ListChecks, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
+import { Activity, AlertTriangle, Check, Cloud, Code2, Cpu, Download, ExternalLink, Fingerprint, ReceiptText, History, KeyRound, Layers3, ListChecks, PlugZap, RadioTower, Rocket, Server, Shield, Terminal, Wallet } from "lucide-react"
 import type { District, MoltbotAgent } from "@/lib/types"
 import { PassportPanel } from "@/components/admin/passport-panel"
+import { ConnectionsPanel } from "@/components/admin/connections-panel"
 import { buildVercelDeployUrl } from "@/lib/vercel-deploy-url"
-import { generateAdminApiKey } from "@/lib/admin-api-key.client"
 
-type AdminTab = "overview" | "queue" | "passport" | "private-deploy" | "receipts" | "cloud-agents"
+type AdminTab = "connections" | "overview" | "queue" | "passport" | "private-deploy" | "receipts" | "cloud-agents"
 
 type Plan = {
   name: string
@@ -35,6 +35,8 @@ type JevAdminStatus = {
   layaEngine?: string
   decisionPolicy?: string
 }
+
+type AdminModelConnection = { id: string; provider: string; name: string; model: string; apiKey: string }
 
 const plans: Plan[] = [
   {
@@ -74,10 +76,8 @@ const subscriptions = [
 ] as const
 
 export function AdminConsole({ agents, districts }: AdminConsoleProps) {
-  const [copied, setCopied] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<Plan>(plans[1])
-  const [tab, setTab] = useState<AdminTab>("overview")
-  const [demoKey] = useState(() => generateAdminApiKey())
+  const [tab, setTab] = useState<AdminTab>("connections")
 
   const activeAgents = agents.filter((agent) => agent.status === "active" || agent.status === "working")
   const totalTasks = agents.reduce((sum, agent) => sum + agent.tasksCompleted, 0)
@@ -99,16 +99,6 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
       avgLoad,
     }
   })
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(demoKey)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      setCopied(false)
-    }
-  }
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#04070d] text-slate-100">
@@ -143,19 +133,9 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
           </section>
 
           <section className="rounded-[28px] border border-slate-800 bg-slate-950/80 p-5 shadow-[0_24px_80px_rgba(2,8,23,0.5)] backdrop-blur">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.32em] text-slate-500">Issued key</p>
-                <p className="mt-3 font-mono text-sm text-cyan-200 sm:text-base">{demoKey}</p>
-              </div>
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 transition hover:border-cyan-400/50 hover:text-cyan-200"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                {copied ? "Copied" : "Copy"}
-              </button>
+            <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3">
+              <p className="text-[10px] uppercase tracking-[0.25em] text-emerald-300">Admin session active</p>
+              <p className="mt-2 font-mono text-xs leading-5 text-slate-400">The admin API key stays on the server. This page never displays or embeds it in deployment links.</p>
             </div>
 
             <div className="mt-5 space-y-3">
@@ -183,6 +163,9 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
         </header>
 
         <nav className="flex flex-wrap gap-2">
+          <TabButton active={tab === "connections"} onClick={() => setTab("connections")} icon={<PlugZap className="h-3.5 w-3.5" />}>
+            AI &amp; Connectors
+          </TabButton>
           <TabButton active={tab === "overview"} onClick={() => setTab("overview")} icon={<RadioTower className="h-3.5 w-3.5" />}>
             Orchestration overview
           </TabButton>
@@ -210,7 +193,9 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
           </TabButton>
         </nav>
 
-        {tab === "queue" ? (
+        {tab === "connections" ? (
+          <ConnectionsPanel />
+        ) : tab === "queue" ? (
           <TaskQueueTab />
         ): tab === "receipts" ? (
           <ReceiptsTab />
@@ -238,6 +223,9 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
           <CloudAgentsTab />
         ) : (
         <>
+        <p role="note" className="rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3 font-mono text-xs leading-5 text-amber-100/80">
+          Sample dashboard values below are illustrative only; they are not live billing, wallet, or runtime telemetry.
+        </p>
         <section className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr_0.8fr]">
           <Panel
             title="Infra posture"
@@ -437,6 +425,7 @@ type AdminReceipt = {
 function ReceiptsTab() {
   const [receipts, setReceipts] = useState<AdminReceipt[]>([])
   const [status, setStatus] = useState('Loading receipts…')
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     let mounted = true
@@ -454,7 +443,7 @@ function ReceiptsTab() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [retryCount])
 
   const csv = useMemo(() => {
     const rows = [['id', 'agentId', 'service', 'amount', 'settledAt', 'txHash', 'passportVerified']]
@@ -488,13 +477,15 @@ function ReceiptsTab() {
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.32em] text-cyan-200">
             <ReceiptText className="h-3.5 w-3.5" />
-            Persistent x402 ledger
+            x402 receipt ledger
           </div>
           <h2 className="font-pixel text-xl uppercase leading-tight text-cyan-100">Receipts</h2>
           <p className="mt-3 font-vt323 text-xl leading-7 text-slate-300">
-            Last 50 settled x402 receipts from the receipt database, including agent, service, amount, and timestamp.
+            Last 50 settled x402 receipts, when storage is available, including agent, service, amount, and timestamp.
           </p>
         </div>
+        <div className="flex gap-2">
+        {status && status !== 'Loading receipts…' && <button type="button" onClick={() => { setStatus('Loading receipts…'); setRetryCount((count) => count + 1) }} className="rounded-full border border-slate-700 px-4 py-2 font-mono text-xs uppercase text-slate-200">Retry</button>}
         <button
           type="button"
           onClick={exportCsv}
@@ -504,6 +495,7 @@ function ReceiptsTab() {
           <Download className="h-3.5 w-3.5" />
           Export CSV
         </button>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-[22px] border border-slate-800 bg-slate-950/80">
@@ -515,9 +507,9 @@ function ReceiptsTab() {
           <span className="hidden md:block">Tx hash</span>
         </div>
         {status ? (
-          <p className="px-4 py-6 font-vt323 text-xl text-slate-400">{status}</p>
+          <p role={status === 'Loading receipts…' ? 'status' : 'alert'} className="px-4 py-6 font-vt323 text-xl text-slate-400">{status}</p>
         ) : receipts.length === 0 ? (
-          <p className="px-4 py-6 font-vt323 text-xl text-slate-400">No x402 receipts have been recorded yet.</p>
+          <p className="px-4 py-6 font-vt323 text-xl text-slate-400">No x402 receipts have been saved. Configure durable receipt storage before using this ledger in production.</p>
         ) : (
           receipts.map((receipt) => (
             <div key={receipt.id} className="grid grid-cols-[1fr_1fr_0.8fr_0.9fr] gap-3 border-b border-slate-900 px-4 py-3 font-mono text-xs text-slate-300 last:border-b-0 md:grid-cols-[1fr_1fr_0.7fr_0.9fr_1.2fr]">
@@ -554,17 +546,15 @@ const ENV_VARS = [
   { name: "NEXT_PUBLIC_NODE_NAME", example: "My Agentic City Node", desc: "Display name in the admin console header" },
   { name: "STELLAR_NETWORK", example: "testnet", desc: "Stellar network: testnet or mainnet" },
   { name: "NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID", example: "abc123…", desc: "WalletConnect Cloud project ID" },
-  { name: "ADMIN_API_KEY", example: "osk_…", desc: "Admin API key (auto-generated on first boot if unset)" },
+  { name: "ADMIN_API_KEY", example: "osk_…", desc: "Required server-side admin secret. Never place it in a URL or NEXT_PUBLIC variable." },
   { name: "NEXT_PUBLIC_APP_URL", example: "https://your-instance.vercel.app", desc: "Public URL of your deployment" },
 ] as const
 
 function PrivateDeployTab() {
   const deployUrl = useMemo(() => {
-    const adminApiKey = generateAdminApiKey()
     return buildVercelDeployUrl({
       nodeName: process.env.NEXT_PUBLIC_NODE_NAME || "My Agentic City Node",
       network: "testnet",
-      adminApiKey,
     })
   }, [])
   return (
@@ -605,7 +595,7 @@ function PrivateDeployTab() {
           <h3 className="mt-3 font-pixel text-lg uppercase text-slate-100">Quick start</h3>
           <div className="mt-5 space-y-4">
             <DeployStep n={1} title="Scaffold" text="Run npx create-open-stellar-app my-node or fork bitcoindefi/Open-Stellar on GitHub. The repo now ships as Agentic City with ZK artifacts, Soroban bindings, AI orchestration, and multichain wallet rails." />
-            <DeployStep n={2} title="Configure" text="Set node name, network, and WalletConnect project ID. An admin API key is generated automatically on first boot." />
+            <DeployStep n={2} title="Configure" text="Set the node name, network, WalletConnect project ID, and a unique ADMIN_API_KEY in Vercel project secrets." />
             <DeployStep n={3} title="Deploy" text="Push to main — Vercel picks it up automatically. The vercel.json enforces --webpack mode for snarkjs compatibility." />
           </div>
 
@@ -707,6 +697,8 @@ function PrivateDeployTab() {
 function CloudAgentsTab() {
   const [name, setName] = useState("Edge Scout")
   const [model, setModel] = useState("claude-4-sonnet")
+  const [modelConnections, setModelConnections] = useState<AdminModelConnection[]>([])
+  const [selectedConnectionId, setSelectedConnectionId] = useState("")
   const [status, setStatus] = useState<string | null>(null)
   const [endpoint, setEndpoint] = useState<string | null>(null)
   const [arenaGoal, setArenaGoal] = useState("Launch a wallet-aware research mission for Solana + Stellar agents")
@@ -722,12 +714,29 @@ function CloudAgentsTab() {
       .catch(() => setJevStatus(null))
   }, [])
 
+  useEffect(() => {
+    const loadConnections = () => {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem("agentic-city:connections:v1") || "{}") as { providers?: AdminModelConnection[] }
+        const models = Array.isArray(saved.providers) ? saved.providers : []
+        setModelConnections(models)
+        setSelectedConnectionId((current) => current || models[0]?.id || "")
+      } catch {
+        setModelConnections([])
+      }
+    }
+    loadConnections()
+    window.addEventListener("agentic-city:connections-updated", loadConnections)
+    return () => window.removeEventListener("agentic-city:connections-updated", loadConnections)
+  }, [])
+
   const provision = async () => {
     setStatus("Provisioning Vercel Edge agent...")
+    const selected = modelConnections.find((item) => item.id === selectedConnectionId)
     const res = await fetch("/api/admin/agents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, model, district: "research", queueMode: "post" }),
+      body: JSON.stringify({ name, model: selected?.model ?? model, provider: selected?.provider ?? (model.includes("/jev") ? "vercel-ai-gateway" : "anthropic"), district: "research", queueMode: "post" }),
     })
     const data = await res.json()
     if (!res.ok) {
@@ -768,15 +777,26 @@ function CloudAgentsTab() {
           placeholder="Agent name"
         />
         <label className="block space-y-2">
-          <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Agent model</span>
+          <span className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Agent model connection</span>
           <select
-            value={model}
-            onChange={(event) => setModel(event.target.value)}
+            value={selectedConnectionId || model}
+            onChange={(event) => {
+              const connection = modelConnections.find((item) => item.id === event.target.value)
+              if (connection) {
+                setSelectedConnectionId(connection.id)
+                setModel(connection.model)
+              } else {
+                setSelectedConnectionId("")
+                setModel(event.target.value)
+              }
+            }}
             className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100 outline-none transition focus:border-cyan-400/60"
           >
-            <option value="claude-4-sonnet">claude-4-sonnet</option>
-            <option value="typesafe-ai/jev">typesafe-ai/jev</option>
+            {modelConnections.map((connection) => <option key={connection.id} value={connection.id}>{connection.name} · {connection.model}</option>)}
+            <option value="claude-4-sonnet">Anthropic · claude-4-sonnet (server key)</option>
+            <option value="typesafe-ai/jev">Vercel AI Gateway · typesafe-ai/jev</option>
           </select>
+          {modelConnections.length === 0 ? <span className="block text-xs text-amber-200/70">Conectá una key en la pestaña “AI &amp; Connectors” para elegir tus propios modelos.</span> : null}
         </label>
         <button
           type="button"
@@ -787,10 +807,19 @@ function CloudAgentsTab() {
           Provision Agent
         </button>
         {status ? <p className="font-vt323 text-lg text-emerald-300">{status}</p> : null}
-        {endpoint ? <p className="break-all font-mono text-xs text-slate-300">{endpoint}</p> : null}
+        {endpoint ? <>
+          <p className="break-all font-mono text-xs text-slate-300">{endpoint}</p>
+          <div className="rounded-xl border border-slate-800 bg-[#050a12] p-3"><p className="text-[9px] uppercase tracking-[.22em] text-slate-500">BYOK task request</p><pre className="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-[10px] leading-5 text-slate-300">{`curl -X POST '${endpoint}' \\
+  -H 'Authorization: Bearer $AGENTIC_CITY_API_KEY' \\
+  -H 'x-ai-provider: ${modelConnections.find((item) => item.id === selectedConnectionId)?.provider ?? (model.includes("/jev") ? "vercel-ai-gateway" : "anthropic")}' \\
+  -H 'x-ai-model: ${modelConnections.find((item) => item.id === selectedConnectionId)?.model ?? model}' \\
+  -H 'x-ai-api-key: $YOUR_PROVIDER_API_KEY' \\
+  -H 'Content-Type: application/json' \\
+  -d '{"task":"Review this mission and report findings"}'`}</pre><p className="mt-2 text-[10px] leading-4 text-slate-500">El API key del modelo se manda por solicitud y no queda en el runtime de Agentic City. Nunca pongas la key en el código de la web.</p></div>
+        </> : null}
       </Panel>
       <Panel title="Execution contract" eyebrow="Issue #21 acceptance" bodyClassName="grid gap-3 md:grid-cols-2">
-        <FeatureBlock title="POST tasks" text="The orchestrator sends JSON tasks to /agents/:agentId; the Edge Function routes Claude-style models to Anthropic and JEV models to AI Gateway evaluation." />
+        <FeatureBlock title="POST tasks" text="Send each task with x-ai-provider, x-ai-model, and your own x-ai-api-key. Supported providers: Vercel AI Gateway, OpenAI, Anthropic, Groq, and OpenRouter." />
         <FeatureBlock title="SSE heartbeat" text="GET /agents/:agentId keeps the connection open and emits heartbeat events every 15 seconds." />
         <FeatureBlock title="Canvas badge" text="Provisioned cloud agents are merged into the city and rendered with a CLOUD badge above the sprite." />
         <FeatureBlock title="Realtime status" text="Task start/completion and heartbeat updates flow through the existing health store and system event stream." />

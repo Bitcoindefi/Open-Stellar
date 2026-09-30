@@ -1,6 +1,5 @@
-const CACHE_VERSION = "open-stellar-pwa-v1"
+const CACHE_VERSION = "agentic-city-pwa-v2"
 const APP_SHELL = [
-  "/",
   "/offline",
   "/manifest.webmanifest",
   "/icon.svg",
@@ -41,6 +40,21 @@ self.addEventListener("fetch", (event) => {
     return
   }
 
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone()
+            caches.open(CACHE_VERSION).then((cache) => cache.put(request, clone))
+          }
+          return response
+        })
+        .catch(() => caches.match(request).then((cached) => cached || caches.match("/offline"))),
+    )
+    return
+  }
+
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached
@@ -48,7 +62,7 @@ self.addEventListener("fetch", (event) => {
       return fetch(request)
         .then((response) => {
           const contentType = response.headers.get("content-type") || ""
-          const shouldCache = response.ok && (contentType.startsWith("image/") || url.pathname === "/" || url.pathname.endsWith(".webmanifest"))
+          const shouldCache = response.ok && (contentType.startsWith("image/") || url.pathname.endsWith(".webmanifest"))
 
           if (shouldCache) {
             const clone = response.clone()

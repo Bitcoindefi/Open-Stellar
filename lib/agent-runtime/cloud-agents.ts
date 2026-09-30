@@ -7,6 +7,7 @@ import { getAgentHealthSummary, recordAgentExecutionSuccess } from "@/lib/agents
 export type CloudAgentConfig = {
   id: string
   name: string
+  provider: string
   model: string
   district: DistrictId
   endpointUrl: string
@@ -34,7 +35,7 @@ function appUrl(req?: Request): string {
   return "http://localhost:3000"
 }
 
-export function provisionCloudAgent(input: { name?: string; model?: string; district?: DistrictId; queueMode?: "post" | "sse" }, req?: Request): CloudAgentConfig {
+export function provisionCloudAgent(input: { name?: string; provider?: string; model?: string; district?: DistrictId; queueMode?: "post" | "sse" }, req?: Request): CloudAgentConfig {
   const district = DISTRICTS.some((d) => d.id === input.district) ? input.district! : "research"
   const name = (input.name || `Cloud-${configs.size + 1}`).trim().slice(0, 40)
   const idBase = slugify(name) || "cloud-agent"
@@ -45,6 +46,7 @@ export function provisionCloudAgent(input: { name?: string; model?: string; dist
   const config: CloudAgentConfig = {
     id,
     name,
+    provider: input.provider || (input.model?.includes("/jev") ? "vercel-ai-gateway" : "anthropic"),
     model: (input.model || process.env.OPEN_STELLAR_DEFAULT_AGENT_MODEL || "claude-4-sonnet").trim().slice(0, 80),
     district,
     endpointUrl: `${appUrl(req)}/agents/${encodeURIComponent(id)}`,

@@ -11,25 +11,24 @@ test.describe('onboarding modal', () => {
     await page.goto('/');
 
     await expect(page.getByText('Step 1 of 3')).toBeVisible();
-    await expect(page.getByText('Agent City')).toBeVisible();
-    await expect(page.getByText('The canvas shows your AI agents roaming a pixel city.')).toBeVisible();
+    await expect(page.getByText('The city starts with a simulated roster.', { exact: false })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeVisible();
   });
 
   test('steps through all onboarding panels', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.locator('text=Agent City')).toBeVisible();
+    await expect(page.getByText('Step 1 of 3')).toBeVisible();
 
     const nextButton = page.getByRole('button', { name: 'Next', exact: true });
     await nextButton.click();
 
     await expect(page.locator('text=Sidebar Controls')).toBeVisible();
-    await expect(page.getByText('The sidebar has four tabs')).toBeVisible();
+    await expect(page.getByText('The sidebar has tabs for AI models', { exact: false })).toBeVisible();
     await nextButton.click();
 
-    await expect(page.locator('text=Admin Console')).toBeVisible();
-    await expect(page.getByText('Visit /admin to manage ZK passports')).toBeVisible();
+    await expect(page.locator('text=Bring Your Own AI')).toBeVisible();
+    await expect(page.getByText('Open Modelos IA or Complementos', { exact: false })).toBeVisible();
     await expect(page.getByRole('button', { name: /get started/i })).toBeVisible();
   });
 
@@ -42,7 +41,7 @@ test.describe('onboarding modal', () => {
 
     await page.getByRole('button', { name: /get started/i }).click();
 
-    await expect(page.locator('text=Agent City')).not.toBeVisible();
+    await expect(page.getByText('Step 1 of 3')).not.toBeVisible();
     await expect(page.evaluate(() => localStorage.getItem('onboarding-seen'))).resolves.toBe('1');
 
     await page.reload();

@@ -41,20 +41,6 @@ function addSine(buf, freq, ampFn, opts = {}) {
   }
 }
 
-function addSquare(buf, freq, ampFn, opts = {}) {
-  const startSample = Math.round((opts.startSec ?? 0) * SAMPLE_RATE)
-  const lenSamples = Math.round((opts.durSec ?? buf.length / SAMPLE_RATE) * SAMPLE_RATE)
-  for (let i = 0; i < lenSamples; i++) {
-    const idx = startSample + i
-    if (idx < 0 || idx >= buf.length) continue
-    const t = i / SAMPLE_RATE
-    const localDur = lenSamples / SAMPLE_RATE
-    const amp = typeof ampFn === "function" ? ampFn(t, localDur) : ampFn
-    const s = Math.sin(2 * Math.PI * freq * t) >= 0 ? 1 : -1
-    buf[idx] += amp * s
-  }
-}
-
 function lowpassInPlace(arr, cutoffHz) {
   const rc = 1 / (2 * Math.PI * cutoffHz)
   const dt = 1 / SAMPLE_RATE
@@ -225,56 +211,58 @@ function writeTrack(relativePath, buf) {
 
 // ==================== District ambient loops ====================
 
-const LOOP_DURATION = 4
-const CROSSFADE = 0.3
+const LOOP_DURATION = 6
+const CROSSFADE = 0.45
 
 function dataCenterDay(rng) {
-  return buildLoopable(LOOP_DURATION, CROSSFADE, (buf) => {
-    addSine(buf, 90, 0.16) // server hum fundamental
-    addSine(buf, 180, 0.05) // harmonic
-    addSine(buf, 45, 0.08) // sub hum
-    // keystroke rhythms: irregular short ticks
+  return buildLoopable(LOOP_DURATION, CROSSFADE, (buf, total) => {
+    addSine(buf, 58, (t) => 0.075 + Math.sin((2 * Math.PI * t) / total) * 0.012)
+    addSine(buf, 116, 0.026)
+    addSine(buf, 174, 0.009)
+    addNoiseBand(buf, rng, 0.012, { lowpassHz: 850, highpassHz: 180 })
+    // Soft, uneven terminal ticks sit behind the low server-room bed.
     let t = 0
     while (t < buf.length / SAMPLE_RATE) {
-      t += 0.1 + rng() * 0.18
-      addTransient(buf, t, 0.03, 0.14, { noiseAmt: 1, rng, lowpassHz: 2600, highpassHz: 900, decayFactor: 0.25 })
+      t += 0.32 + rng() * 0.46
+      addTransient(buf, t, 0.045, 0.045, { noiseAmt: 0.8, rng, freq: 1450 + rng() * 450, lowpassHz: 2600, highpassHz: 900, decayFactor: 0.42 })
     }
   })
 }
 
 function dataCenterNight(rng) {
   return buildLoopable(LOOP_DURATION, CROSSFADE, (buf, total) => {
-    addSine(buf, 42, (t) => 0.28 + 0.06 * Math.sin((2 * Math.PI * t) / total)) // deep bass drone w/ slow swell
-    addSine(buf, 84, 0.04)
+    addSine(buf, 41.2, (t) => 0.08 + 0.012 * Math.sin((2 * Math.PI * t) / total))
+    addSine(buf, 82.4, 0.022)
+    addSine(buf, 123.5, 0.008)
     let t = 0
     while (t < total) {
-      t += 0.4 + rng() * 0.9
-      addTransient(buf, t, 0.02, 0.15, { noiseAmt: 1, rng, highpassHz: 2200, decayFactor: 0.2 })
+      t += 0.75 + rng() * 1.2
+      addTransient(buf, t, 0.12, 0.035, { freq: 980 + rng() * 260, noiseAmt: 0.12, rng, highpassHz: 1600, decayFactor: 0.5 })
     }
   })
 }
 
 function commHubDay(rng) {
   return buildLoopable(LOOP_DURATION, CROSSFADE, (buf, total) => {
-    addNoiseBand(buf, rng, 0.07, { lowpassHz: 6000, highpassHz: 1400 }) // radio static
-    addPulseTrain(buf, 1.0, total, 0.16, (n) => ({
-      durSec: 0.08,
-      freq: n % 2 === 0 ? 1200 : 950,
-      decayFactor: 0.18,
-    }))
+    addNoiseBand(buf, rng, 0.012, { lowpassHz: 3200, highpassHz: 420 })
+    addSine(buf, 110, 0.018)
+    for (let n = 0, at = 0.25; at < total; n++, at += 1.28 + (n % 2) * 0.12) {
+      const freq = n % 3 === 0 ? 659.25 : n % 3 === 1 ? 987.77 : 783.99
+      addTransient(buf, at, 0.22, 0.085, { freq, freqEnd: freq * 1.015, decayFactor: 0.72 })
+      if (n % 2 === 0) addTransient(buf, at + 0.16, 0.16, 0.035, { freq: freq * 1.5, decayFactor: 0.8 })
+    }
   })
 }
 
 function commHubNight(_rng) {
   return buildLoopable(LOOP_DURATION, CROSSFADE, (buf, total) => {
-    addSine(buf, 110, 0.05) // soft pad drone
-    const notes = [220, 261.63, 329.63, 440]
-    const noteDur = total / notes.length / 2
-    let t = 0
-    for (let cycle = 0; cycle < 2; cycle++) {
-      for (const freq of notes) {
-        addSine(buf, freq, (lt, ld) => 0.18 * Math.exp(-lt / (ld * 0.6)), { startSec: t, durSec: noteDur })
-        t += noteDur
+    addSine(buf, 55, 0.035)
+    const chords = [[146.83, 174.61, 220], [130.81, 164.81, 196]]
+    for (let chordIndex = 0; chordIndex < chords.length; chordIndex++) {
+      const start = chordIndex * (total / 2)
+      for (const freq of chords[chordIndex]) {
+        addSine(buf, freq, (t, d) => 0.038 * Math.min(1, t / 0.5) * (0.88 + 0.12 * Math.sin(2 * Math.PI * t / d)), { startSec: start, durSec: total / 2 })
+        addSine(buf, freq * 2, (t) => 0.008 * Math.min(1, t / 0.7), { startSec: start, durSec: total / 2 })
       }
     }
   })
@@ -282,145 +270,154 @@ function commHubNight(_rng) {
 
 function processingDay(rng) {
   return buildLoopable(LOOP_DURATION, CROSSFADE, (buf, total) => {
-    const pitches = [220, 330, 440, 330]
+    const pitches = [261.63, 329.63, 392, 523.25, 392, 329.63]
     let t = 0
     let i = 0
     while (t < total) {
-      addSquare(buf, pitches[i % pitches.length], (lt, ld) => 0.1 * Math.exp(-lt / (ld * 0.5)), {
+      const freq = pitches[i % pitches.length]
+      addSine(buf, freq, (lt, ld) => 0.075 * Math.sin(Math.PI * Math.min(1, lt / Math.min(0.035, ld * 0.2))) * Math.exp(-lt / (ld * 0.58)), {
         startSec: t,
-        durSec: 0.18,
+        durSec: 0.26,
       })
-      t += 0.25
+      addSine(buf, freq * 2.01, (lt, ld) => 0.014 * Math.exp(-lt / (ld * 0.24)), { startSec: t, durSec: 0.12 })
+      t += 0.34
       i++
     }
-    addPulseTrain(buf, 0.25, total, 0.07, { durSec: 0.02, noiseAmt: 0.3, freq: 600, rng, decayFactor: 0.2 })
+    addPulseTrain(buf, 0.68, total, 0.022, { durSec: 0.035, noiseAmt: 0.45, freq: 1200, rng, decayFactor: 0.3, highpassHz: 1200 })
   })
 }
 
 function processingNight(rng) {
   return buildLoopable(LOOP_DURATION, CROSSFADE, (buf, total) => {
-    // 120bpm techno: beat = 0.5s
-    addPulseTrain(buf, 0.5, total, 0.32, { durSec: 0.15, freq: 110, freqEnd: 45, decayFactor: 0.18 })
-    addPulseTrain(buf, 1.0, total, 0.18, { durSec: 0.3, freq: 55, decayFactor: 0.4 })
-    addPulseTrain(buf, 0.25, total, 0.06, { durSec: 0.03, noiseAmt: 1, rng, highpassHz: 5000, decayFactor: 0.15 })
+    addSine(buf, 49, 0.04)
+    addPulseTrain(buf, 0.75, total, 0.085, { durSec: 0.18, freq: 88, freqEnd: 48, decayFactor: 0.34 })
+    addPulseTrain(buf, 1.5, total, 0.035, { durSec: 0.22, freq: 55, decayFactor: 0.48 })
+    addPulseTrain(buf, 0.375, total, 0.018, { durSec: 0.045, noiseAmt: 0.8, rng, highpassHz: 4300, decayFactor: 0.28 })
   })
 }
 
-function defenseDay(rng) {
+function defenseDay(_rng) {
   return buildLoopable(LOOP_DURATION, CROSSFADE, (buf, total) => {
-    addPulseTrain(buf, 1.0, total, 0.26, { durSec: 0.1, freq: 95, decayFactor: 0.25 }) // marching kick
-    addPulseTrain(buf, 1.0, total, 0.28, { durSec: 0.12, noiseAmt: 1, rng, lowpassHz: 4000, highpassHz: 250, decayFactor: 0.22 }) // snare
+    addSine(buf, 55, 0.032)
+    addPulseTrain(buf, 1.5, total, 0.075, { durSec: 0.16, freq: 74, freqEnd: 42, decayFactor: 0.4 })
+    for (const at of [0.35, 2.1, 3.65, 5.1]) {
+      addTransient(buf, at, 0.28, 0.06, { freq: 740, freqEnd: 510, decayFactor: 0.75 })
+      addTransient(buf, at + 0.2, 0.18, 0.025, { freq: 1110, decayFactor: 0.7 })
+    }
   })
 }
 
 function defenseNight(_rng) {
   return buildLoopable(LOOP_DURATION, CROSSFADE, (buf, _total) => {
-    addSine(buf, 73, 0.14) // tension drone (dissonant pair)
-    addSine(buf, 78, 0.1)
-    // radar pings with a couple of decaying echoes, twice per loop
-    for (const at of [0.6, 2.6]) {
-      addTransient(buf, at, 0.06, 0.22, { freq: 1800, decayFactor: 0.2 })
-      addTransient(buf, at + 0.12, 0.05, 0.11, { freq: 1800, decayFactor: 0.2 })
-      addTransient(buf, at + 0.24, 0.05, 0.05, { freq: 1800, decayFactor: 0.2 })
+    addSine(buf, 55, 0.045)
+    addSine(buf, 82.41, 0.018)
+    for (const at of [0.45, 2.4, 4.35]) {
+      addTransient(buf, at, 0.2, 0.06, { freq: 980, freqEnd: 720, decayFactor: 0.62 })
+      addTransient(buf, at + 0.22, 0.16, 0.025, { freq: 740, decayFactor: 0.72 })
     }
   })
 }
 
 function researchDay(_rng) {
   return buildLoopable(LOOP_DURATION, CROSSFADE, (buf, _total) => {
-    for (const freq of [220, 277.18, 329.63]) addSine(buf, freq, 0.05)
-    for (const at of [0.4, 2.3]) {
-      addTransient(buf, at, 0.7, 0.16, { freq: at === 0.4 ? 660 : 880, decayFactor: 0.35 })
-      addTransient(buf, at, 0.7, 0.06, { freq: (at === 0.4 ? 660 : 880) * 2, decayFactor: 0.3 })
+    for (const freq of [220, 277.18, 329.63]) addSine(buf, freq, 0.025)
+    for (const [index, at] of [0.35, 1.4, 2.45, 3.5, 4.55, 5.55].entries()) {
+      const freq = [659.25, 783.99, 987.77, 783.99, 659.25, 523.25][index]
+      addTransient(buf, at, 0.46, 0.07, { freq, freqEnd: freq * 0.997, decayFactor: 0.86 })
+      addTransient(buf, at + 0.09, 0.35, 0.018, { freq: freq * 2, decayFactor: 0.9 })
     }
   })
 }
 
 function researchNight(rng) {
   return buildLoopable(LOOP_DURATION, CROSSFADE, (buf, total) => {
-    for (const freq of [440, 554.37, 659.25]) {
-      addSine(buf, freq, (t) => 0.045 + 0.015 * Math.sin(2 * Math.PI * 0.5 * t + freq), { freqEnd: freq * 1.004 })
+    for (const freq of [261.63, 329.63, 392, 493.88]) {
+      addSine(buf, freq, (t) => 0.025 + 0.008 * Math.sin(2 * Math.PI * 0.25 * t + freq), { freqEnd: freq * 1.002 })
     }
-    addNoiseBand(buf, rng, (t) => 0.03 * (0.5 + 0.5 * Math.sin((2 * Math.PI * t) / total)), {
-      lowpassHz: 3500,
-      highpassHz: 1200,
+    addNoiseBand(buf, rng, (t) => 0.009 * (0.5 + 0.5 * Math.sin((2 * Math.PI * t) / total)), {
+      lowpassHz: 2400,
+      highpassHz: 500,
     })
+    for (const at of [0.8, 3.8]) addTransient(buf, at, 0.6, 0.045, { freq: at < 2 ? 880 : 1046.5, freqEnd: at < 2 ? 880 : 1046.5, decayFactor: 0.9 })
   })
 }
 
 // ==================== Event stings ====================
 
 function taskComplete() {
-  return buildOneShot(0.05, (buf) => {
-    addSine(buf, 880, (t, d) => 0.55 * Math.exp(-t / (d * 0.35)), { freqEnd: 1320 })
+  return buildOneShot(0.42, (buf) => {
+    addTransient(buf, 0, 0.34, 0.24, { freq: 784, freqEnd: 1046.5, decayFactor: 0.85 })
+    addTransient(buf, 0.09, 0.28, 0.12, { freq: 1174.66, decayFactor: 0.8 })
+    addTransient(buf, 0.18, 0.2, 0.055, { freq: 1568, decayFactor: 0.72 })
   })
 }
 
 function paymentReceived() {
-  return buildOneShot(0.3, (buf) => {
-    const notes = [1318.5, 1568, 1975.5, 2349.3]
+  return buildOneShot(0.58, (buf) => {
+    const notes = [659.25, 830.61, 987.77, 1318.5]
     let t = 0
     for (const freq of notes) {
-      addSine(buf, freq, (lt, ld) => 0.32 * Math.exp(-lt / (ld * 0.5)), { startSec: t, durSec: 0.13 })
-      t += 0.05
+      addTransient(buf, t, 0.32, 0.18, { freq, freqEnd: freq * 1.006, decayFactor: 0.82 })
+      t += 0.085
     }
-    addNoiseBand(buf, makeRng(7), (t) => 0.05 * Math.exp(-t / 0.1), { highpassHz: 7000, durSec: 0.3 })
+    addNoiseBand(buf, makeRng(7), (t) => 0.012 * Math.exp(-t / 0.16), { highpassHz: 5200, durSec: 0.4 })
   })
 }
 
 function levelUp() {
-  return buildOneShot(0.8, (buf) => {
-    const notes = [523.25, 659.25, 783.99, 1046.5]
+  return buildOneShot(1.05, (buf) => {
+    const notes = [392, 493.88, 587.33, 783.99, 1046.5]
     let t = 0
     for (const freq of notes) {
-      addSine(buf, freq, (lt, ld) => 0.45 * Math.exp(-lt / (ld * 0.7)), { startSec: t, durSec: 0.22 })
-      addSine(buf, freq * 2, (lt, ld) => 0.08 * Math.exp(-lt / (ld * 0.5)), { startSec: t, durSec: 0.22 })
-      t += 0.19
+      addTransient(buf, t, 0.48, 0.19, { freq, freqEnd: freq * 1.004, decayFactor: 0.9 })
+      addTransient(buf, t, 0.36, 0.035, { freq: freq * 2, decayFactor: 0.8 })
+      t += 0.15
     }
   })
 }
 
 function badgeUnlock() {
-  return buildOneShot(1.2, (buf) => {
-    const chord = [523.25, 659.25, 783.99]
+  return buildOneShot(1.45, (buf) => {
+    const chord = [392, 493.88, 587.33]
     for (const freq of chord) {
-      addSine(buf, freq, (t, d) => 0.22 * Math.exp(-t / (d * 0.9)), { durSec: 0.9 })
-      addSine(buf, freq * 1.003, (t, d) => 0.14 * Math.exp(-t / (d * 0.9)), { durSec: 0.9 }) // light chorus detune
+      addSine(buf, freq, (t, d) => 0.12 * Math.sin(Math.PI * Math.min(1, t / 0.06)) * Math.exp(-t / (d * 1.2)), { durSec: 1.12 })
+      addSine(buf, freq * 1.003, (t, d) => 0.035 * Math.sin(Math.PI * Math.min(1, t / 0.07)) * Math.exp(-t / (d * 1.15)), { durSec: 1.12 })
     }
     const flourish = [1046.5, 1318.5, 1568]
-    let t = 0.85
+    let t = 0.65
     for (const freq of flourish) {
-      addSine(buf, freq, (lt, ld) => 0.3 * Math.exp(-lt / (ld * 0.6)), { startSec: t, durSec: 0.16 })
+      addTransient(buf, t, 0.36, 0.13, { freq, decayFactor: 0.9 })
       t += 0.1
     }
   })
 }
 
 function districtWin() {
-  return buildOneShot(2.0, (buf) => {
-    const pad = [220, 277.18, 329.63]
-    for (const freq of pad) addSine(buf, freq, (t, d) => 0.08 * Math.exp(-t / (d * 0.8)), { durSec: 2.0 })
+  return buildOneShot(2.1, (buf) => {
+    const pad = [196, 246.94, 293.66, 392]
+    for (const freq of pad) addSine(buf, freq, (t, d) => 0.045 * Math.sin(Math.PI * Math.min(1, t / 0.12)) * Math.exp(-t / (d * 1.3)), { durSec: 2.1 })
 
     const melody = [
-      { freq: 523.25, at: 0.0, dur: 0.2 },
-      { freq: 659.25, at: 0.2, dur: 0.2 },
-      { freq: 783.99, at: 0.4, dur: 0.2 },
-      { freq: 1046.5, at: 0.6, dur: 0.35 },
-      { freq: 783.99, at: 1.0, dur: 0.2 },
-      { freq: 1046.5, at: 1.2, dur: 0.2 },
-      { freq: 1318.5, at: 1.4, dur: 0.55 },
+      { freq: 392, at: 0.0, dur: 0.24 },
+      { freq: 493.88, at: 0.22, dur: 0.24 },
+      { freq: 587.33, at: 0.44, dur: 0.24 },
+      { freq: 783.99, at: 0.66, dur: 0.34 },
+      { freq: 587.33, at: 1.02, dur: 0.24 },
+      { freq: 783.99, at: 1.24, dur: 0.24 },
+      { freq: 1046.5, at: 1.46, dur: 0.55 },
     ]
     for (const note of melody) {
-      addSine(buf, note.freq, (lt, ld) => 0.38 * Math.exp(-lt / (ld * 0.6)), { startSec: note.at, durSec: note.dur })
-      addSine(buf, note.freq * 2, (lt, ld) => 0.07 * Math.exp(-lt / (ld * 0.5)), { startSec: note.at, durSec: note.dur })
+      addTransient(buf, note.at, note.dur, 0.18, { freq: note.freq, freqEnd: note.freq * 1.002, decayFactor: 1.0 })
+      addTransient(buf, note.at, note.dur * 0.8, 0.028, { freq: note.freq * 2, decayFactor: 0.9 })
     }
   })
 }
 
 function agentError() {
-  return buildOneShot(0.2, (buf) => {
-    addSquare(buf, 320, (t, d) => 0.32 * Math.exp(-t / (d * 0.5)), { durSec: 0.09, freqEnd: 320 })
-    addSquare(buf, 220, (t, d) => 0.32 * Math.exp(-t / (d * 0.5)), { startSec: 0.1, durSec: 0.09 })
+  return buildOneShot(0.48, (buf) => {
+    addTransient(buf, 0.02, 0.28, 0.18, { freq: 392, freqEnd: 310, decayFactor: 0.9 })
+    addTransient(buf, 0.2, 0.24, 0.14, { freq: 293.66, freqEnd: 246.94, decayFactor: 0.95 })
+    addNoiseBand(buf, makeRng(19), (t) => 0.012 * Math.exp(-t / 0.14), { startSec: 0.02, durSec: 0.4, lowpassHz: 1300, highpassHz: 280 })
   })
 }
 
