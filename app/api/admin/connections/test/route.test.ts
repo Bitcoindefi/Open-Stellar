@@ -42,7 +42,7 @@ describe("POST /api/admin/connections/test", () => {
   it("requires a successful Slack auth.test response, not only HTTP 200", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: false, error: "invalid_auth" }), { status: 200 })))
 
-    const res = await POST(request({ kind: "connector", connector: "slack", apiKey: "xoxb-test-token" }))
+    const res = await POST(request({ kind: "connector", connector: "slack", apiKey: "slack-fixture-not-a-token" }))
 
     expect(res.status).toBe(400)
     expect((await res.json()).error).toContain("Slack rejected")

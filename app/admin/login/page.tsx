@@ -37,7 +37,7 @@ export default function AdminLoginPage() {
         <label htmlFor="admin-api-key" className="mt-6 block font-mono text-xs uppercase text-slate-400">Admin API key</label>
         <input id="admin-api-key" autoComplete="current-password" required type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-3 font-mono text-sm outline-none focus:border-cyan-400" />
         {error && <p role="alert" className="mt-3 font-mono text-sm text-rose-300">{error}</p>}
-        <button disabled={busy} className="mt-5 w-full rounded-lg border border-cyan-400/50 bg-cyan-400/10 px-4 py-3 font-mono text-xs uppercase tracking-[0.2em] text-cyan-100 disabled:opacity-60">{busy ? "Signing in…" : "Sign in"}</button>
+        <button type="submit" disabled={busy} className="mt-5 w-full rounded-lg border border-cyan-400/50 bg-cyan-400/10 px-4 py-3 font-mono text-xs uppercase tracking-[0.2em] text-cyan-100 disabled:opacity-60">{busy ? "Signing in…" : "Sign in"}</button>
       </form>
     </main>
   );

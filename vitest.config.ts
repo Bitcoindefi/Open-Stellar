@@ -17,7 +17,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: ["app/api/**/*.ts", "lib/**/*.ts"],
+      include: ["app/api/**/*.ts", "app/agent-functions/**/*.ts", "lib/**/*.ts"],
       exclude: [
         "lib/passport/validator-client.ts",
         "lib/passport/snarkjs.d.ts",
