@@ -38,23 +38,25 @@ function secureRandom(): number {
 const ONBOARDING_STEPS = [
   {
     title: "Agentic City",
-    body: "The arena shows your API-connected AI agents roaming a pixel city. Click any bot on the map to inspect it.",
+    body: "The city starts with a simulated roster. Register API-connected agents in Admin to monitor their live status here.",
     hint: "← try clicking a bot",
   },
   {
     title: "Sidebar Controls",
-    body: "The sidebar has tabs for overview, chat, offers, skills, quests, appearance, and multichain wallets.",
+    body: "The sidebar has tabs for AI models, connectors, team orchestration, chat, offers, skills, quests, appearance, and multichain wallets.",
     hint: "→ explore the tabs",
   },
   {
-    title: "Admin Console",
-    body: "Visit /admin to connect orchestrator agents, manage AI providers, ZK passports, wallet rails, subscriptions, and API keys.",
-    hint: "↗ click Admin in the sidebar",
+    title: "Bring Your Own AI",
+    body: "Open Modelos IA or Complementos from the sidebar to connect your own paid providers and tools, then build the agent team that runs missions.",
+    hint: "connect models first",
   },
 ]
 
 const MOBILE_NAV_ICONS: Record<SidebarTabId, ComponentType<{ size?: number; "aria-hidden"?: boolean | "true" }>> = {
   overview: Activity,
+  models: Bot,
+  connectors: PanelBottomOpen,
   chat: MessageSquare,
   offers: BriefcaseBusiness,
   skills: Wrench,
@@ -244,7 +246,7 @@ function OnboardingModal({ onDone }: { onDone: () => void }) {
   )
 }
 
-export function OpenStellarHub() {
+export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent: ReturnType<typeof getActiveDistrictEvent> }) {
   const [agents, setAgents] = useState<MoltbotAgent[]>(() => createAgents())
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -256,14 +258,9 @@ export function OpenStellarHub() {
   const [particleTriggers, setParticleTriggers] = useState<ParticleTrigger[]>([])
   const agentLevelsRef = useRef<Map<string, number>>(new Map())
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  // `open-stellar-hub.tsx` is a 'use client' component — the lazy useState
-  // initializer runs ONLY on the client, never during SSR, so reading
-  // localStorage here is safe and race-condition-free.
-  const [sidebarTab, setSidebarTab] = useState<SidebarTabId>(() => {
-    if (typeof window === "undefined") return "overview"
-    const stored = localStorage.getItem("sidebar-tab") as SidebarTabId | null
-    return stored && SIDEBAR_TABS.some((t) => t.id === stored) ? stored : "overview"
-  })
+  // Keep the server and first client render identical; restore the saved tab in
+  // the effect below after hydration.
+  const [sidebarTab, setSidebarTab] = useState<SidebarTabId>("overview")
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false)
   const [isMobile, setIsMobile] = useState<boolean | null>(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -274,7 +271,7 @@ export function OpenStellarHub() {
   const fallbackLoggedRef = useRef(false)
   const positionStreamErrorLoggedRef = useRef(false)
   const [audioEngine] = useState(() => new CityAudioEngine())
-  const [activeDistrictEvent, setActiveDistrictEvent] = useState(() => getActiveDistrictEvent())
+  const [activeDistrictEvent, setActiveDistrictEvent] = useState(initialDistrictEvent)
   const lastLeadingDistrictRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -746,10 +743,16 @@ export function OpenStellarHub() {
 
   useEffect(() => {
     let stopped = false
+    let interval: number | undefined
 
     const syncCloudAgents = async () => {
       try {
         const res = await fetch("/api/admin/agents", { cache: "no-store" })
+        if (res.status === 401 || res.status === 403) {
+          // Visitors have no admin session: stop polling so it does not burn the anonymous rate limit.
+          window.clearInterval(interval)
+          return
+        }
         if (!res.ok) return
         const data = await res.json() as { agents?: MoltbotAgent[] }
         if (stopped || !Array.isArray(data.agents) || data.agents.length === 0) return
@@ -764,7 +767,7 @@ export function OpenStellarHub() {
     }
 
     syncCloudAgents()
-    const interval = window.setInterval(syncCloudAgents, 15_000)
+    interval = window.setInterval(syncCloudAgents, 15_000)
     return () => {
       stopped = true
       window.clearInterval(interval)
@@ -774,27 +777,11 @@ export function OpenStellarHub() {
   useEffect(() => {
     let stopped = false
 
-    const sendHeartbeats = async () => {
-      const snapshot = agentsRef.current
-      await Promise.allSettled(
-        snapshot.map((agent) =>
-          fetch(`/api/agents/${encodeURIComponent(agent.id)}/heartbeat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              status: agent.status,
-              cpu: agent.cpu,
-              memory: agent.memory,
-              currentTask: agent.currentTask,
-              autoRestart: agent.autoRestart ?? false,
-            }),
-          }),
-        ),
-      )
-    }
-
     const syncHealth = async () => {
-      const snapshot = agentsRef.current
+      // The built-in bot-N roster is a front-end simulation, not an external
+      // process. Only query agents that can report real runtime health.
+      const snapshot = agentsRef.current.filter((agent) => !agent.id.startsWith("bot-"))
+      if (snapshot.length === 0) return
       const settled = await Promise.allSettled(
         snapshot.map(async (agent) => {
           const res = await fetch(`/api/agents/${encodeURIComponent(agent.id)}/health`, { cache: "no-store" })
@@ -833,14 +820,11 @@ export function OpenStellarHub() {
       )
     }
 
-    sendHeartbeats()
     syncHealth()
-    const heartbeatId = window.setInterval(sendHeartbeats, 15_000)
     const healthId = window.setInterval(syncHealth, 30_000)
 
     return () => {
       stopped = true
-      window.clearInterval(heartbeatId)
       window.clearInterval(healthId)
     }
   }, [])
@@ -1050,7 +1034,7 @@ export function OpenStellarHub() {
       overflow: "hidden",
       background: "#030712",
       position: "relative",
-      paddingBottom: isMobile ? "calc(78px + env(safe-area-inset-bottom))" : 0,
+      paddingBottom: isMobile ? "calc(132px + env(safe-area-inset-bottom))" : 0,
     }}>
       {showOnboarding && <OnboardingModal onDone={handleDoneOnboarding} />}
 
@@ -1103,7 +1087,7 @@ export function OpenStellarHub() {
 
         <AudioControls
           engine={audioEngine}
-          bottomOffset={isMobile ? "calc(96px + env(safe-area-inset-bottom))" : 16}
+          bottomOffset={isMobile ? "calc(148px + env(safe-area-inset-bottom))" : 16}
         />
 
         {isMobile === false && (
@@ -1127,6 +1111,7 @@ export function OpenStellarHub() {
               lineHeight: 1,
               transition: "background 0.15s",
             }}
+            aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
             title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
           >
             {sidebarOpen ? "›" : "‹"}
@@ -1195,7 +1180,7 @@ export function OpenStellarHub() {
             style={{
               position: "fixed",
               right: 16,
-              bottom: "calc(92px + env(safe-area-inset-bottom))",
+              bottom: "calc(144px + env(safe-area-inset-bottom))",
               zIndex: 30,
               width: 48,
               height: 48,
@@ -1222,18 +1207,16 @@ export function OpenStellarHub() {
               bottom: 0,
               zIndex: 25,
               boxSizing: "border-box",
-              minHeight: "calc(78px + env(safe-area-inset-bottom))",
+              minHeight: "calc(132px + env(safe-area-inset-bottom))",
               padding: "8px 10px calc(10px + env(safe-area-inset-bottom))",
               background: "rgba(15,23,42,0.94)",
               borderTop: "1px solid #2a3a52",
               display: "grid",
-              gridAutoFlow: "column",
-              gridAutoColumns: "minmax(62px, 1fr)",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gridAutoFlow: "row",
               gap: 6,
-              overflowX: "auto",
+              overflowX: "hidden",
               overflowY: "hidden",
-              WebkitOverflowScrolling: "touch",
-              scrollbarWidth: "none",
               backdropFilter: "blur(12px)",
             }}
           >

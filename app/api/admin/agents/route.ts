@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   }
   try {
     const body = await req.json().catch(() => ({}))
-    const config = provisionCloudAgent({ name: body.name, model: body.model, district: body.district, queueMode: body.queueMode }, req)
+    const config = provisionCloudAgent({ name: body.name, provider: body.provider, model: body.model, district: body.district, queueMode: body.queueMode }, req)
     return NextResponse.json({ ok: true, config, agent: cloudConfigToAgent(config, listCloudAgentConfigs().length - 1) }, { status: 201, headers: { "Cache-Control": "no-store" } })
   } catch (error) {
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Failed provisioning cloud agent" }, { status: 400 })

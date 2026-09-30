@@ -5,41 +5,46 @@ import { getAgentHealthSummary, recordAgentExecutionError, recordAgentInvocation
 import { publishSystemEvent } from "@/lib/events/system-events"
 import { isAuthorized } from "@/lib/auth"
 import { isJevModel, summarizeTaskWithJev } from "@/lib/ai/jev"
+import { BYOK_PROVIDERS, generateWithByokProvider, type ByokProviderId } from "@/lib/ai/byok-provider"
+import { verifyApiKey } from "@/lib/auth/api-keys"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
+async function isCloudAgentAuthorized(req: Request): Promise<boolean> {
+  if (isAuthorized(req)) return true
+  const authorization = req.headers.get("authorization")?.trim() || ""
+  const token = authorization.toLowerCase().startsWith("bearer ")
+    ? authorization.slice("bearer ".length).trim()
+    : req.headers.get("x-api-key")?.trim() || ""
+  if (!token) return false
+  const result = await verifyApiKey(token)
+  return result.valid && (result.isAdmin || result.scopes.includes("*") || result.scopes.includes("agents:write"))
+}
+
 function getConfig(id: string, req: Request) {
   return getCloudAgentConfig(id) ?? provisionCloudAgent({ name: id, queueMode: "post" }, req)
 }
 
-async function reasonAboutTask(task: string, model: string): Promise<string> {
-  if (isJevModel(model)) {
-    return summarizeTaskWithJev(task)
+async function reasonAboutTask(task: string, model: string, provider: string | null, apiKey: string | null): Promise<string> {
+  const effectiveProvider = provider ?? (isJevModel(model) ? "vercel-ai-gateway" : "anthropic")
+  if (effectiveProvider === "vercel-ai-gateway" && isJevModel(model)) {
+    return summarizeTaskWithJev(task, { apiKey: apiKey ?? undefined })
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return `Edge agent accepted task: ${task.slice(0, 120)}`
+  if (!(effectiveProvider in BYOK_PROVIDERS)) throw new Error("Unsupported AI provider. Choose Vercel AI Gateway, OpenAI, Anthropic, Groq, or OpenRouter.")
+  const key = apiKey ?? (effectiveProvider === "anthropic" ? process.env.ANTHROPIC_API_KEY : undefined)
+  if (!key) {
+    if (!provider) return `Edge agent accepted task: ${task.slice(0, 120)}`
+    throw new Error("Send the provider's key in the x-ai-api-key header.")
   }
-
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({ model, max_tokens: 220, messages: [{ role: "user", content: task }] }),
-  })
-  if (!res.ok) return `Claude API unavailable (${res.status}); queued task for retry: ${task.slice(0, 120)}`
-  const data = await res.json() as { content?: Array<{ text?: string }> }
-  return data.content?.map((part) => part.text).filter(Boolean).join("\n") || "Task completed."
+  return generateWithByokProvider({ provider: effectiveProvider as ByokProviderId, model, apiKey: key }, "You are a focused AI agent. Complete the user's task and state any assumptions. Do not claim external actions or tool use.", task)
 }
 
 export async function POST(req: Request, context: RouteContext) {
-  if (!isAuthorized(req)) {
+  if (!(await isCloudAgentAuthorized(req))) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 })
   }
 
@@ -47,6 +52,13 @@ export async function POST(req: Request, context: RouteContext) {
   const agentId = decodeURIComponent(id)
   const config = getConfig(agentId, req)
   const body = await req.json().catch(() => ({}))
+  const provider = req.headers.get("x-ai-provider")?.trim().toLowerCase() || config.provider || null
+  const apiKey = req.headers.get("x-ai-api-key")?.trim() || req.headers.get("x-ai-gateway-key")?.trim() || null
+  const model = req.headers.get("x-ai-model")?.trim() || config.model
+
+  if (apiKey && !provider && !req.headers.get("x-ai-gateway-key")) {
+    return NextResponse.json({ ok: false, error: "Send x-ai-provider with x-ai-api-key." }, { status: 400, headers: { "Cache-Control": "no-store" } })
+  }
 
   // Sanitize and limit task string length (max 2000 chars)
   const rawTask = String(body.task || body.title || body.prompt || "Process orchestrator task")
@@ -62,7 +74,7 @@ export async function POST(req: Request, context: RouteContext) {
 
   const started = Date.now()
   try {
-    const summary = await reasonAboutTask(task, config.model)
+    const summary = await reasonAboutTask(task, model, provider, apiKey)
     updateCloudAgentResult(config.id, summary)
     recordAgentHeartbeat(config.id, { status: getAgentHealthSummary(config.id).degraded ? "degraded" : "active", cpu: 8, memory: 24, currentTask: summary, autoRestart: true })
     publishSystemEvent({ type: "task.completed", agentId: config.id, taskId, result: { summary, durationMs: Date.now() - started } })

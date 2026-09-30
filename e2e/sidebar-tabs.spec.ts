@@ -5,14 +5,18 @@ test.describe('sidebar tab persistence', () => {
     await page.addInitScript(() => {
       window.localStorage.setItem('onboarding-seen', '1');
     });
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const showSidebar = page.getByRole('button', { name: 'Show sidebar' });
+    if (await showSidebar.isVisible()) {
+      await showSidebar.click();
+    }
   });
 
   const tabButton = (page: Parameters<Parameters<typeof test>[2]>[0]['page'], tab: string) =>
     page.getByRole('button', { name: `${tab} tab`, exact: true });
 
   test('shows all desktop sidebar tabs', async ({ page }) => {
-    const tabs = ['Overview', 'Chat', 'Offers', 'Skills', 'Quests', 'Wallet', 'Appearance'];
+    const tabs = ['Overview', 'Modelos IA', 'Complementos', 'Chat', 'Offers', 'Skills', 'Quests', 'Wallet', 'Appearance'];
 
     for (const tab of tabs) {
       await expect(tabButton(page, tab)).toBeVisible();
@@ -47,6 +51,8 @@ test.describe('sidebar tab persistence', () => {
   test('stores each tab selection in localStorage', async ({ page }) => {
     const tabs = [
       ['Chat', 'chat'],
+      ['Modelos IA', 'models'],
+      ['Complementos', 'connectors'],
       ['Offers', 'offers'],
       ['Skills', 'skills'],
       ['Quests', 'quests'],

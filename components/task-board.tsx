@@ -105,10 +105,16 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
 
   useEffect(() => {
     let active = true
+    let timer: number | undefined
 
     async function loadOffers() {
       try {
         const response = await fetch("/api/task-offers", { cache: "no-store" })
+        if (response.status === 401 || response.status === 404) {
+          // The task-offer API is not available to this visitor: keep the mock offers and stop polling.
+          window.clearInterval(timer)
+          return
+        }
         if (!response.ok) return
         const data = await response.json()
         const nextOffers = normalizeOffers(data)
@@ -121,7 +127,7 @@ export function TaskBoard({ agents, selectedAgent }: TaskBoardProps) {
     }
 
     void loadOffers()
-    const timer = window.setInterval(loadOffers, 5000)
+    timer = window.setInterval(loadOffers, 5000)
     return () => {
       active = false
       window.clearInterval(timer)
