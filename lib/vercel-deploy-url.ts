@@ -3,14 +3,12 @@ const REPOSITORY_URL = 'https://github.com/bitcoindefi/Open-Stellar'
 export type VercelDeployOptions = {
   nodeName?: string
   network?: 'testnet' | 'mainnet'
-  adminApiKey: string
   projectName?: string
 }
 
 export function buildVercelDeployUrl(options: VercelDeployOptions): string {
   const nodeName = options.nodeName ?? 'My Open Stellar Node'
   const network = options.network ?? 'testnet'
-  const adminApiKey = options.adminApiKey
   const projectName = options.projectName ?? 'open-stellar'
 
   const envKeys = [
@@ -31,7 +29,6 @@ export function buildVercelDeployUrl(options: VercelDeployOptions): string {
       NEXT_PUBLIC_NODE_NAME: nodeName,
       STELLAR_NETWORK: network,
       NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: 'your-walletconnect-project-id',
-      ADMIN_API_KEY: adminApiKey,
     }),
   })
 

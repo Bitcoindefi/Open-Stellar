@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const e2ePort = process.env.E2E_PORT || "3000";
+const baseURL = process.env.BASE_URL || `http://localhost:${e2ePort}`;
+
 /**
  * Playwright E2E configuration for Open-Stellar
  * Tests critical user flows with mocked wallet/payment interactions
@@ -14,7 +17,7 @@ export default defineConfig({
   reporter: process.env.CI ? "html" : "list",
 
   use: {
-    baseURL: process.env.BASE_URL || "http://localhost:3000",
+    baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -27,8 +30,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: "npm run dev",
-    url: "http://localhost:3000",
+    command: `npm run dev -- --port ${e2ePort}`,
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
     env: {

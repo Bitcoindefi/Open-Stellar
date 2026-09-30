@@ -8,7 +8,7 @@ Live deployment: [agentic-city.vercel.app](https://agentic-city.vercel.app/)
 
 Agentic City es una consola gamificada para conectar un agente orquestador por API, sumar workers especializados, y operar wallets, pagos, skills, reputación y modelos de IA como una arena de agentes. Nació como Open Stellar y conserva Stellar como rail principal, ahora con Solana, CosmosPay, x402, JEV y compatibilidad EVM dentro de una visión multichain.
 
-[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbitcoindefi%2FOpen-Stellar&project-name=agentic-city&repository-name=agentic-city&env=NEXT_PUBLIC_NODE_NAME%2CSTELLAR_NETWORK%2CNEXT_PUBLIC_WALLETCONNECT_PROJECT_ID%2CADMIN_API_KEY&envDescription=Agentic+City+node+configuration&envLink=https%3A%2F%2Fgithub.com%2Fbitcoindefi%2FOpen-Stellar%23variables-de-entorno&envDefaults=%7B%22NEXT_PUBLIC_NODE_NAME%22%3A%22My+Agentic+City+Node%22%2C%22STELLAR_NETWORK%22%3A%22testnet%22%2C%22NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID%22%3A%22your-walletconnect-project-id%22%2C%22ADMIN_API_KEY%22%3A%22osk_auto_generated_on_first_boot%22%7D)
+[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbitcoindefi%2FOpen-Stellar&project-name=agentic-city&repository-name=agentic-city&env=NEXT_PUBLIC_NODE_NAME%2CSTELLAR_NETWORK%2CNEXT_PUBLIC_WALLETCONNECT_PROJECT_ID%2CADMIN_API_KEY&envDescription=Agentic+City+node+configuration&envLink=https%3A%2F%2Fgithub.com%2Fbitcoindefi%2FOpen-Stellar%23variables-de-entorno)
 
 ---
 
@@ -133,7 +133,7 @@ Agentic City implementa un modelo de autenticación y autorización máquina a m
 
 #### Niveles de Claves
 
-- **Admin Key (`ADMIN_API_KEY`)**: Acceso total para la consola administrativa (`/admin/*`) y operaciones de escritura restringidas. Requerida en producción al iniciar la aplicación.
+- **Admin Key (`ADMIN_API_KEY`)**: Secreto del servidor para acceder a `/admin/*`. Configúralo en las variables protegidas de Vercel y en `.env.local` para desarrollo; nunca lo pongas en URLs, código cliente ni `NEXT_PUBLIC_*`.
 - **Service Keys (`osk_live_...`)**: Claves emitidas con scopes específicos (`x402:quote`, `x402:settle`, `agents:read`, `agents:write`, `webhooks:manage`, `quests:manage`).
 
 #### Autenticación en Requests
@@ -144,11 +144,7 @@ Las solicitudes se autentican mediante header:
 Authorization: Bearer osk_live_...
 ```
 
-O mediante query param para integraciones simples:
-
-```http
-GET /api/agents?apiKey=osk_live_...
-```
+La consola web inicia sesión en `/admin/login`. La clave se valida en el servidor y se intercambia por una cookie `HttpOnly` de ocho horas; no se guarda en `localStorage` ni en la URL. `DEV_MODE=true` solo omite autenticación en desarrollo y no abre el panel en producción.
 
 #### Rate Limits por Tier (Sliding Window)
 
@@ -236,7 +232,7 @@ STELLAR_NETWORK=testnet
 # WalletConnect Cloud project ID (requerido para conectores EVM)
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=abc123...
 
-# Admin API key (auto-generated on first boot if unset)
+# Admin API key (required for the admin console; keep server-side and out of git)
 ADMIN_API_KEY=osk_...
 
 # URL pública del deployment (opcional, usado en metadata)
