@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { BYOK_PROVIDERS, generateWithByokProvider, type ByokModelConnection, type ByokProviderId } from "@/lib/ai/byok-provider"
 import { isJevModel } from "@/lib/ai/jev"
+import { withOAuthCredentials } from "@/lib/connections/hydrate"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -79,7 +80,9 @@ async function askAgent(agent: ChatMember, message: string, history: ChatHistory
   return { id: agent.id, name: agent.name, role: agent.role, model: agent.connection.model, message: output }
 }
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
+  const req = await withOAuthCredentials(request)
+  if (req instanceof Response) return req
   const body = await req.json().catch(() => null) as Record<string, unknown> | null
   const message = typeof body?.message === "string" ? body.message.trim() : ""
   const target = typeof body?.target === "string" ? body.target as ChatTarget : "orchestrator"

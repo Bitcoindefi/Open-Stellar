@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Activity, Check, CircleAlert, PlugZap, Plus, Save, Server, ShieldCheck, Trash2, X } from "lucide-react"
+import { AccountConnections, useAccount } from "@/components/account/account-connections"
 
 const STORAGE_KEY = "agentic-city:connections:v1"
 const UPDATED_EVENT = "agentic-city:connections-updated"
@@ -22,7 +23,8 @@ const connectorTypes = [
 
 type ProviderId = (typeof providers)[number]["id"]
 type ConnectorId = (typeof connectorTypes)[number]["id"]
-type ProviderConnection = { id: string; provider: ProviderId; name: string; model: string; apiKey: string; updatedAt: string }
+// auth "oauth": the key lives server-side in an encrypted cookie; the browser keeps only the model choice.
+type ProviderConnection = { id: string; provider: ProviderId; name: string; model: string; apiKey: string; updatedAt: string; auth?: "oauth" }
 type ConnectorConnection = { id: string; connector: ConnectorId; name: string; apiKey: string; updatedAt: string }
 type TeamMember = { id: string; name: string; role: string; connectionId: string }
 type TeamConfig = { name: string; orchestratorId: string; members: TeamMember[] }
@@ -55,13 +57,22 @@ function makeId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+const OPENROUTER_FAMILIES = ["anthropic/", "openai/", "x-ai/", "google/"]
+
 export function ConnectionsPanel({
   compact = false,
   initialSection = "models",
+  allowApiKeys = false,
 }: {
   compact?: boolean
   initialSection?: "models" | "team" | "connectors"
+  /** Paste-your-key forms are for operators only; the public UI connects by login. */
+  allowApiKeys?: boolean
 }) {
+  const { account } = useAccount()
+  const [orName, setOrName] = useState("")
+  const [orModel, setOrModel] = useState("")
+  const [orCatalog, setOrCatalog] = useState<string[]>([])
   const [connections, setConnections] = useState<SavedConnections>(emptyConnections)
   const [section, setSection] = useState<"models" | "team" | "connectors">(initialSection)
   const [provider, setProvider] = useState<ProviderId>("vercel-ai-gateway")
@@ -108,6 +119,37 @@ export function ConnectionsPanel({
     setNotice(`${name} quedó guardado en este navegador. Probá la conexión antes de usarla.`)
   }
 
+  useEffect(() => {
+    if (!account.openrouter.connected || orCatalog.length > 0) return
+    let active = true
+    fetch("https://openrouter.ai/api/v1/models", { cache: "force-cache" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data: { data?: Array<{ id?: string }> } | null) => {
+        if (!active || !data?.data) return
+        setOrCatalog(data.data.map((item) => item.id ?? "").filter((id) => OPENROUTER_FAMILIES.some((prefix) => id.startsWith(prefix))).slice(0, 80))
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [account.openrouter.connected, orCatalog.length])
+
+  const saveOpenRouterModel = () => {
+    if (!account.openrouter.connected) {
+      setNotice("Conectá OpenRouter primero.")
+      return
+    }
+    if (!orModel.trim()) {
+      setNotice("Elegí un modelo de OpenRouter.")
+      return
+    }
+    const name = orName.trim() || orModel.trim().split("/").pop() || "OpenRouter"
+    const next = { ...connections, providers: [{ id: makeId(), provider: "openrouter" as ProviderId, name, model: orModel.trim(), apiKey: "", auth: "oauth" as const, updatedAt: new Date().toISOString() }, ...connections.providers] }
+    setConnections(next)
+    writeConnections(next)
+    setOrModel("")
+    setOrName("")
+    setNotice(`${name} quedó listo. Usa tu cuenta de OpenRouter, sin keys guardadas en el navegador.`)
+  }
+
   const saveConnector = () => {
     const name = connectorName.trim() || selectedConnector.name
     if (!connectorKey.trim()) {
@@ -137,7 +179,7 @@ export function ConnectionsPanel({
     setTestStates((states) => ({ ...states, [id]: { id, status: "checking", message: "Probando credenciales…" } }))
     try {
       const body = kind === "model"
-        ? { kind, provider: (item as ProviderConnection).provider, model: (item as ProviderConnection).model, apiKey: item.apiKey }
+        ? { kind, provider: (item as ProviderConnection).provider, model: (item as ProviderConnection).model, apiKey: item.apiKey, auth: (item as ProviderConnection).auth }
         : { kind, connector: (item as ConnectorConnection).connector, apiKey: item.apiKey }
       const result = await fetch("/api/connections/test", {
         method: "POST",
@@ -189,12 +231,12 @@ export function ConnectionsPanel({
         cache: "no-store",
         body: JSON.stringify({
           mission: mission.trim(),
-          orchestrator: { name: leader.name, connection: { provider: leader.provider, model: leader.model, apiKey: leader.apiKey } },
+          orchestrator: { name: leader.name, connection: { provider: leader.provider, model: leader.model, apiKey: leader.apiKey, auth: leader.auth } },
           members: selectedMembers.map(({ member, connection }) => ({
             id: member.id,
             name: member.name,
             role: member.role,
-            connection: { provider: connection!.provider, model: connection!.model, apiKey: connection!.apiKey },
+            connection: { provider: connection!.provider, model: connection!.model, apiKey: connection!.apiKey, auth: connection!.auth },
           })),
         }),
       })
@@ -234,22 +276,33 @@ export function ConnectionsPanel({
 
       {section === "models" ? (
         <div className={compact ? "grid gap-3 px-3 pb-3" : "grid gap-5 xl:grid-cols-[.85fr_1.15fr]"}>
+          <div className={compact ? "space-y-3" : "space-y-5"}>
+          <AccountConnections compact={compact} />
           <div className={compact ? "rounded-lg border border-slate-800 bg-[#080e18]/95 p-3" : "rounded-[26px] border border-slate-800 bg-[#080e18]/95 p-5 sm:p-6"}>
-            <SectionHeading icon={<Server className="h-4 w-4" />} eyebrow="Bring your own key" title="Agregar modelo" />
+            <SectionHeading icon={<Server className="h-4 w-4" />} eyebrow="Con tu cuenta de OpenRouter" title="Agregar modelo" />
+            {account.openrouter.connected ? <>
+              <label className="mt-5 block space-y-2"><FieldLabel>Modelo</FieldLabel><input list="openrouter-models" value={orModel} onChange={(event) => setOrModel(event.target.value)} className={inputClass} placeholder="anthropic/…, openai/…, x-ai/…, google/…" autoComplete="off" /><datalist id="openrouter-models">{orCatalog.map((id) => <option key={id} value={id} />)}</datalist></label>
+              <label className="mt-4 block space-y-2"><FieldLabel>Nombre para mostrar <span className="normal-case tracking-normal text-slate-600">(opcional)</span></FieldLabel><input value={orName} onChange={(event) => setOrName(event.target.value)} className={inputClass} placeholder="Investigador, Crítico…" /></label>
+              <button type="button" onClick={saveOpenRouterModel} className={primaryButton}><Save className="h-4 w-4" /> Agregar modelo</button>
+            </> : <p className="mt-4 text-xs leading-5 text-slate-400">Conectá OpenRouter en “Tu cuenta” para sumar Claude, GPT, Grok o Gemini sin pegar ninguna key.</p>}
+          </div>
+          {allowApiKeys ? <div className={compact ? "rounded-lg border border-slate-800 bg-[#080e18]/95 p-3" : "rounded-[26px] border border-slate-800 bg-[#080e18]/95 p-5 sm:p-6"}>
+            <SectionHeading icon={<Server className="h-4 w-4" />} eyebrow="Solo operadores · bring your own key" title="Agregar modelo con key" />
             <label className="mt-5 block space-y-2"><FieldLabel>Proveedor</FieldLabel><select value={provider} onChange={(event) => { const value = event.target.value as ProviderId; setProvider(value); setModel(value === "vercel-ai-gateway" ? "typesafe-ai/jev" : "") }} className={inputClass}>{providers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><span className="block text-xs text-slate-500">{selectedProvider.detail}</span></label>
             <label className="mt-4 block space-y-2"><FieldLabel>Nombre para mostrar <span className="normal-case tracking-normal text-slate-600">(opcional)</span></FieldLabel><input value={providerName} onChange={(event) => setProviderName(event.target.value)} className={inputClass} placeholder={selectedProvider.name} /></label>
             <label className="mt-4 block space-y-2"><FieldLabel>Model ID</FieldLabel><input value={model} onChange={(event) => setModel(event.target.value)} className={inputClass} placeholder={selectedProvider.hint} autoComplete="off" /></label>
             <label className="mt-4 block space-y-2"><FieldLabel>API key</FieldLabel><input value={modelKey} onChange={(event) => setModelKey(event.target.value)} className={inputClass} placeholder="Pegá la key de este proveedor" type="password" autoComplete="new-password" /></label>
             <button type="button" onClick={saveProvider} className={primaryButton}><Save className="h-4 w-4" /> Guardar conexión</button>
             <p className="mt-4 text-[11px] leading-5 text-slate-500">Vercel AI Gateway acepta IDs como <span className="font-mono text-slate-300">typesafe-ai/jev</span> o <span className="font-mono text-slate-300">openai/modelo</span>. Otros proveedores usan su ID nativo.</p>
+          </div> : null}
           </div>
 
           <div className={compact ? "rounded-lg border border-slate-800 bg-[#080e18]/95 p-3" : "rounded-[26px] border border-slate-800 bg-[#080e18]/95 p-5 sm:p-6"}>
             <SectionHeading icon={<Activity className="h-4 w-4" />} eyebrow="Saved in this browser" title="Modelos conectados" />
-            {connections.providers.length === 0 ? <EmptyState text="Todavía no hay modelos. Agregá una key para habilitar la prueba de conexión." /> : <div className="mt-5 space-y-3">{connections.providers.map((item) => {
+            {connections.providers.length === 0 ? <EmptyState text="Todavía no hay modelos. Conectá OpenRouter y agregá uno para empezar." /> : <div className="mt-5 space-y-3">{connections.providers.map((item) => {
               const status = testStates[item.id]
               const providerInfo = providers.find((entry) => entry.id === item.provider)
-              return <ConnectionCard key={item.id} title={item.name} subtitle={`${providerInfo?.name ?? item.provider} · ${item.model}`} status={status} onTest={() => void testConnection("model", item)} onRemove={() => removeConnection("model", item.id)} />
+              return <ConnectionCard key={item.id} title={item.name} subtitle={`${providerInfo?.name ?? item.provider}${item.auth === "oauth" ? " (login)" : ""} · ${item.model}`} status={status} onTest={() => void testConnection("model", item)} onRemove={() => removeConnection("model", item.id)} />
             })}</div>}
           </div>
         </div>

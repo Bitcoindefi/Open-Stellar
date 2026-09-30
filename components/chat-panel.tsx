@@ -9,7 +9,7 @@ const CHAT_STORAGE_KEY = "agentic-city:agent-chat:v1"
 const CONNECTIONS_UPDATED_EVENT = "agentic-city:connections-updated"
 
 type ProviderId = "vercel-ai-gateway" | "openai" | "anthropic" | "groq" | "openrouter"
-type ProviderConnection = { id: string; provider: ProviderId; name: string; model: string; apiKey: string; updatedAt: string }
+type ProviderConnection = { id: string; provider: ProviderId; name: string; model: string; apiKey: string; updatedAt: string; auth?: "oauth" }
 type TeamMember = { id: string; name: string; role: string; connectionId: string }
 type TeamConfig = { name: string; orchestratorId: string; members: TeamMember[] }
 type SavedConnections = { providers: ProviderConnection[]; team: TeamConfig | null }
@@ -140,13 +140,13 @@ export function ChatPanel({ messages }: ChatPanelProps) {
           history: nextChat.slice(-12).map((item) => ({ speaker: item.speaker, message: item.message })),
           orchestrator: {
             name: orchestrator.name,
-            connection: { provider: orchestrator.provider, model: orchestrator.model, apiKey: orchestrator.apiKey },
+            connection: { provider: orchestrator.provider, model: orchestrator.model, apiKey: orchestrator.apiKey, auth: orchestrator.auth },
           },
           members: members.map((member) => ({
             id: member.id,
             name: member.name,
             role: member.role,
-            connection: { provider: member.connection.provider, model: member.connection.model, apiKey: member.connection.apiKey },
+            connection: { provider: member.connection.provider, model: member.connection.model, apiKey: member.connection.apiKey, auth: member.connection.auth },
           })),
         }),
       })

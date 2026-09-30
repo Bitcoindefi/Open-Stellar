@@ -69,6 +69,7 @@
     "@vercel/analytics": "1.6.1",
     "ai": "^7.0.107",
     "autoprefixer": "^10.5.4",
+    "better-auth": "^1.7.6",
     "buffer": "^6.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
