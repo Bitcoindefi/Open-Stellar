@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const { verifier, challenge, state } = createPkce()
   const response = NextResponse.redirect(buildAuthorizeUrl(url.origin, challenge, state), 302)
-  response.cookies.set(OPENROUTER_PKCE_COOKIE, sealPkce({ verifier, state, returnTo: safeReturnTo(url.searchParams.get("returnTo")) }), cookieOptions(req, OPENROUTER_PKCE_MAX_AGE))
+  response.cookies.set(OPENROUTER_PKCE_COOKIE, sealPkce({ verifier, state, returnTo: safeReturnTo(url.searchParams.get("returnTo"), url.origin) }), cookieOptions(req, OPENROUTER_PKCE_MAX_AGE))
   response.headers.set("Cache-Control", "no-store")
   return response
 }

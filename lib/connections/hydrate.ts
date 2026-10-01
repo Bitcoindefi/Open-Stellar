@@ -20,6 +20,24 @@ export function isSameOrigin(req: Request): boolean {
   }
 }
 
+/**
+ * Stricter check for routes that spend treasury funds: the browser must positively say the
+ * request comes from this site (a matching Origin, or Sec-Fetch-Site: same-origin). A request
+ * with neither header is rejected, unlike isSameOrigin.
+ */
+export function isStrictSameOrigin(req: Request): boolean {
+  const origin = req.headers.get("origin")
+  if (origin) {
+    try {
+      // Host, like isSameOrigin: behind the platform proxy req.url can report another scheme.
+      return new URL(origin).host === new URL(req.url).host
+    } catch {
+      return false
+    }
+  }
+  return req.headers.get("sec-fetch-site") === "same-origin"
+}
+
 function deny(error: string, status: number) {
   return NextResponse.json({ ok: false, error }, { status, headers: { "Cache-Control": "no-store" } })
 }

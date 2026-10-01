@@ -10,7 +10,7 @@ import {
   safeReturnTo,
   sealPkce,
 } from "@/lib/connections/openrouter"
-import { withOAuthCredentials } from "@/lib/connections/hydrate"
+import { isStrictSameOrigin, withOAuthCredentials } from "@/lib/connections/hydrate"
 import { GET as start } from "@/app/api/connections/openrouter/start/route"
 import { GET as callback } from "@/app/api/connections/openrouter/callback/route"
 import { DELETE as disconnect, GET as status } from "@/app/api/connections/openrouter/route"
@@ -84,11 +84,36 @@ describe("OpenRouter OAuth", () => {
   })
 
   it("only allows same-site return paths", () => {
-    expect(safeReturnTo("/?tab=models")).toBe("/?tab=models")
-    expect(safeReturnTo("https://evil.test")).toBe("/")
-    expect(safeReturnTo("//evil.test")).toBe("/")
-    expect(safeReturnTo("/\\evil")).toBe("/")
-    expect(safeReturnTo(null)).toBe("/")
+    expect(safeReturnTo("/?tab=models", ORIGIN)).toBe("/?tab=models")
+    expect(safeReturnTo("/ok?x=1", ORIGIN)).toBe("/ok?x=1")
+    expect(safeReturnTo("/a/b?x=1#frag", ORIGIN)).toBe("/a/b?x=1#frag")
+    expect(safeReturnTo("https://evil.com", ORIGIN)).toBe("/")
+    expect(safeReturnTo("//evil.com", ORIGIN)).toBe("/")
+    expect(safeReturnTo("/\\evil.com", ORIGIN)).toBe("/")
+    expect(safeReturnTo("/\t/evil.com", ORIGIN)).toBe("/")
+    expect(safeReturnTo("/\n/evil.com", ORIGIN)).toBe("/")
+    expect(safeReturnTo("/" + "a".repeat(400), ORIGIN)).toBe("/")
+    expect(safeReturnTo(null, ORIGIN)).toBe("/")
+    expect(safeReturnTo("/x", "not a url")).toBe("/")
+  })
+
+  it("start never stores a cross-site return path", async () => {
+    const res = await start(new Request(`${ORIGIN}/api/connections/openrouter/start?returnTo=${encodeURIComponent("/\t/evil.com")}`))
+    const raw = (res.headers.get("set-cookie") ?? "").split(";")[0].slice(OPENROUTER_PKCE_COOKIE.length + 1)
+    const { readPkce } = await import("@/lib/connections/openrouter")
+    expect(readPkce(withCookies("/", { [OPENROUTER_PKCE_COOKIE]: decodeURIComponent(raw) }))?.returnTo).toBe("/")
+  })
+
+  it("callback re-checks the return path on the success and error branches", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ key: "sk-or-v1-user-key" }), { status: 200 })))
+    const evil = sealPkce({ verifier: "v", state: "s1", returnTo: "/\t/evil.com" })
+    const ok = await callback(withCookies("/api/connections/openrouter/callback?code=abc&state=s1", { [OPENROUTER_PKCE_COOKIE]: evil }))
+    expect(ok.headers.get("location")).toBe(`${ORIGIN}/?openrouter=connected`)
+    const wrong = await callback(withCookies("/api/connections/openrouter/callback?code=abc&state=nope", { [OPENROUTER_PKCE_COOKIE]: sealPkce({ verifier: "v", state: "s1", returnTo: "//evil.com" }) }))
+    expect(wrong.headers.get("location")).toBe(`${ORIGIN}/?openrouter=error`)
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 500 })))
+    const failed = await callback(withCookies("/api/connections/openrouter/callback?code=abc&state=s1", { [OPENROUTER_PKCE_COOKIE]: sealPkce({ verifier: "v", state: "s1", returnTo: "https://evil.com" }) }))
+    expect(failed.headers.get("location")).toBe(`${ORIGIN}/?openrouter=error`)
   })
 
   it("exchanges the code for a key and reports failures", async () => {
@@ -211,6 +236,20 @@ describe("withOAuthCredentials", () => {
     expect(await (text as Request).text()).toBe("not json")
     const scalar = await withOAuthCredentials(new Request(`${ORIGIN}/x`, { method: "POST", body: "7" }))
     expect(await (scalar as Request).text()).toBe("7")
+  })
+})
+
+describe("isStrictSameOrigin", () => {
+  const req = (headers: Record<string, string>) => new Request(`${ORIGIN}/api/8004/agents/a/register`, { method: "POST", headers })
+
+  it("accepts a matching Origin or Sec-Fetch-Site: same-origin, and nothing else", () => {
+    expect(isStrictSameOrigin(req({ origin: ORIGIN }))).toBe(true)
+    expect(isStrictSameOrigin(req({ "sec-fetch-site": "same-origin" }))).toBe(true)
+    expect(isStrictSameOrigin(req({}))).toBe(false)
+    expect(isStrictSameOrigin(req({ "sec-fetch-site": "none" }))).toBe(false)
+    expect(isStrictSameOrigin(req({ "sec-fetch-site": "same-site" }))).toBe(false)
+    expect(isStrictSameOrigin(req({ origin: "https://evil.test", "sec-fetch-site": "same-origin" }))).toBe(false)
+    expect(isStrictSameOrigin(req({ origin: "null" }))).toBe(false)
   })
 })
 

@@ -6,14 +6,17 @@ import {
   cookieOptions,
   exchangeCode,
   readPkce,
+  safeReturnTo,
 } from "@/lib/connections/openrouter"
 import { seal } from "@/lib/connections/sealed-cookie"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-function back(req: Request, returnTo: string, status: string) {
-  const target = new URL(returnTo, new URL(req.url).origin)
+function back(req: Request, returnTo: string | null | undefined, status: string) {
+  // Re-check the path here too: it comes back from a cookie, on success and error branches.
+  const origin = new URL(req.url).origin
+  const target = new URL(safeReturnTo(returnTo, origin), origin)
   target.searchParams.set("openrouter", status)
   const response = NextResponse.redirect(target, 302)
   response.cookies.set(OPENROUTER_PKCE_COOKIE, "", cookieOptions(req, 0))
@@ -25,7 +28,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const pkce = readPkce(req)
   const code = url.searchParams.get("code")
-  if (!pkce || !code || url.searchParams.get("state") !== pkce.state) return back(req, pkce?.returnTo ?? "/", "error")
+  if (!pkce || !code || url.searchParams.get("state") !== pkce.state) return back(req, pkce?.returnTo, "error")
 
   try {
     const key = await exchangeCode(code, pkce.verifier)
