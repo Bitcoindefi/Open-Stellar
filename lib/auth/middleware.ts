@@ -205,7 +205,13 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
       pathname.startsWith("/api/protocol/x402/receipts") ||
       pathname.startsWith("/api/subscriptions/") ||
       pathname.startsWith("/api/stellar/balance") ||
-      pathname === "/api/user/export"
+      pathname === "/api/user/export" ||
+      // User sign-in and login-based connections (no API keys involved).
+      pathname.startsWith("/api/auth/") ||
+      pathname === "/api/account" ||
+      pathname === "/api/connections/openrouter" ||
+      pathname === "/api/connections/openrouter/start" ||
+      pathname === "/api/connections/openrouter/callback"
     ) {
       return true;
     }
@@ -222,10 +228,15 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
       // Bring-your-own-key relays: stateless, the caller supplies the provider key.
       pathname === "/api/connections/test" ||
       pathname === "/api/connections/chat" ||
-      pathname === "/api/connections/run"
+      pathname === "/api/connections/run" ||
+      pathname.startsWith("/api/auth/")
     ) {
       return true;
     }
+  }
+
+  if (method === "DELETE" && pathname === "/api/connections/openrouter") {
+    return true;
   }
 
   return false;

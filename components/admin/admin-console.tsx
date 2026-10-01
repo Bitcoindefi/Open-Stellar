@@ -194,7 +194,7 @@ export function AdminConsole({ agents, districts }: AdminConsoleProps) {
         </nav>
 
         {tab === "connections" ? (
-          <ConnectionsPanel />
+          <ConnectionsPanel allowApiKeys />
         ) : tab === "queue" ? (
           <TaskQueueTab />
         ): tab === "receipts" ? (
