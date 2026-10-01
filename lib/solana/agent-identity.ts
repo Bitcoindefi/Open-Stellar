@@ -179,6 +179,9 @@ export async function prepareFeedback(input: { agentId: string; score: number; p
   }, { skipSend: true, signer: payer, feePayer: server.publicKey })
   if (!("transaction" in prepared) || typeof prepared.transaction !== "string") throw new IdentityError("The registry did not return a transaction.", 502)
   const tx = Transaction.from(Buffer.from(prepared.transaction, "base64"))
+  // 8004-solana 0.8.5 ignores `feePayer` for reviews and leaves the reviewer as fee payer.
+  // Set the treasury explicitly before signing so the reviewer needs no SOL.
+  tx.feePayer = server.publicKey
   tx.partialSign(server)
   reviewAttempts.set(input.paymentSignature, (reviewAttempts.get(input.paymentSignature) ?? 0) + 1)
   return { transaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"), asset: asset.toBase58() }

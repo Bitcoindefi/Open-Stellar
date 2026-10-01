@@ -34,7 +34,7 @@ function makeDeps(overrides: { loadAgent?: unknown; getTransaction?: unknown; re
       return { transaction: overrides.registerTx ?? tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"), blockhash: BLOCKHASH, lastValidBlockHeight: 10, signer: TREASURY, signed: false, asset: options.assetPubkey }
     }),
     getSummary: vi.fn().mockResolvedValue({ averageScore: 92.5, totalFeedbacks: 4 }),
-    giveFeedback: vi.fn(async () => ({ transaction: unsignedTx(server.publicKey), blockhash: BLOCKHASH, lastValidBlockHeight: 10, signer: payer.publicKey.toBase58(), signed: false, feedbackIndex: BigInt(0) })),
+    giveFeedback: vi.fn(async () => ({ transaction: unsignedTx(payer.publicKey), blockhash: BLOCKHASH, lastValidBlockHeight: 10, signer: payer.publicKey.toBase58(), signed: false, feedbackIndex: BigInt(0) })),
   }
   const connection = {
     sendRawTransaction: vi.fn().mockResolvedValue("register-sig"),
@@ -117,6 +117,7 @@ describe("8004 agent identity", () => {
     const { deps, sdk } = makeDeps({ loadAgent: {} })
     const result = await prepareFeedback({ agentId: "agent-1", score: 100, paymentSignature: "pay-sig", payer: payer.publicKey.toBase58() }, deps)
     const tx = Transaction.from(Buffer.from(result.transaction, "base64"))
+    expect(tx.feePayer?.equals(server.publicKey)).toBe(true)
     expect(tx.signatures.find((s) => s.publicKey.equals(server.publicKey))?.signature).not.toBeNull()
     const [, params, options] = sdk.giveFeedback.mock.calls[0] as unknown as [PublicKey, Record<string, unknown>, Record<string, PublicKey | boolean>]
     expect(params).toMatchObject({ score: 100, tag1: "x402-resource-delivered", tag2: "exact-svm", feedbackUri: "https://explorer.solana.com/tx/pay-sig?cluster=devnet" })
