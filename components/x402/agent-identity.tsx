@@ -5,10 +5,11 @@ import type { UiWalletAccount } from "@wallet-standard/react"
 import { useSignAndSendTransaction } from "@solana/react"
 import { getBase58Decoder } from "@solana/kit"
 import { BadgeCheck, ExternalLink, Fingerprint } from "lucide-react"
+import { reviewTransactionProblem, type TreasuryKeys } from "@/lib/solana/client-guards"
 
 type Identity = { asset: string; registered: boolean; explorerUrl: string; reputation: { averageScore: number; totalFeedbacks: number } | null }
 
-export function AgentIdentityRow({ agent, refreshKey }: { agent: { id: string; name: string; role: string; model: string }; refreshKey: number }) {
+export function AgentIdentityRow({ agent, refreshKey, onTreasury }: { agent: { id: string; name: string; role: string; model: string }; refreshKey: number; onTreasury?: (treasury: TreasuryKeys) => void }) {
   const [identity, setIdentity] = useState<Identity | null>(null)
   const [state, setState] = useState<"loading" | "ready" | "registering" | "unavailable">("loading")
   const [error, setError] = useState("")
@@ -17,7 +18,8 @@ export function AgentIdentityRow({ agent, refreshKey }: { agent: { id: string; n
     setState("loading")
     try {
       const response = await fetch(`/api/8004/agents/${encodeURIComponent(agent.id)}`, { cache: "no-store" })
-      const data = await response.json() as Identity & { ok?: boolean; error?: string }
+      const data = await response.json() as Identity & { ok?: boolean; error?: string; treasury?: TreasuryKeys }
+      if (data.treasury) onTreasury?.(data.treasury)
       if (!response.ok || !data.ok) {
         setState("unavailable")
         setError(data.error ?? "")
@@ -28,7 +30,7 @@ export function AgentIdentityRow({ agent, refreshKey }: { agent: { id: string; n
     } catch {
       setState("unavailable")
     }
-  }, [agent.id])
+  }, [agent.id, onTreasury])
 
   useEffect(() => { void load() }, [load, refreshKey])
 
@@ -65,7 +67,7 @@ export function AgentIdentityRow({ agent, refreshKey }: { agent: { id: string; n
   )
 }
 
-export function ReviewAfterPayment({ account, agentId, paymentSignature, onReviewed }: { account: UiWalletAccount; agentId: string; paymentSignature: string; onReviewed: () => void }) {
+export function ReviewAfterPayment({ account, agentId, paymentSignature, feePayer, onReviewed }: { account: UiWalletAccount; agentId: string; paymentSignature: string; feePayer: string | null; onReviewed: () => void }) {
   const signAndSend = useSignAndSendTransaction(account, "solana:devnet")
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState<string | null>(null)
@@ -83,6 +85,9 @@ export function ReviewAfterPayment({ account, agentId, paymentSignature, onRevie
       const data = await response.json() as { ok?: boolean; error?: string; transaction?: string }
       if (!response.ok || !data.ok || !data.transaction) throw new Error(data.error || "No se pudo preparar la reseña.")
       const bytes = Uint8Array.from(atob(data.transaction), (char) => char.charCodeAt(0))
+      // Only sign what we expect: an 8004 review (plus compute budget) paid by the treasury.
+      const problem = reviewTransactionProblem(bytes, feePayer)
+      if (problem) throw new Error(`La transacción de reseña no es la esperada (${problem}). No la firmes.`)
       const { signature } = await signAndSend({ transaction: bytes })
       setDone(getBase58Decoder().decode(signature))
       onReviewed()
