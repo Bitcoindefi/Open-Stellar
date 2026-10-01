@@ -213,3 +213,15 @@ describe("withOAuthCredentials", () => {
     expect(await (scalar as Request).text()).toBe("7")
   })
 })
+
+describe("rate limit exemptions", () => {
+  it("exempts only the account and connection status reads", async () => {
+    const { isRateLimitExempt } = await import("@/lib/auth/middleware")
+    expect(isRateLimitExempt("/api/account", "GET")).toBe(true)
+    expect(isRateLimitExempt("/api/connections/openrouter", "GET")).toBe(true)
+    expect(isRateLimitExempt("/api/auth/get-session", "GET")).toBe(true)
+    expect(isRateLimitExempt("/api/connections/openrouter", "DELETE")).toBe(false)
+    expect(isRateLimitExempt("/api/connections/chat", "POST")).toBe(false)
+    expect(isRateLimitExempt("/api/feed", "GET")).toBe(false)
+  })
+})

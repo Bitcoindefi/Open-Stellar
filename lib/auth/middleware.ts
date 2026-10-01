@@ -349,6 +349,15 @@ function evaluateScopedWriteRoute(
   return null;
 }
 
+/**
+ * Cheap reads the UI needs on every page load (who am I, what is connected). They don't count
+ * against the anonymous budget, so a visitor reloading the page never sees a broken account panel.
+ */
+export function isRateLimitExempt(pathname: string, method: string): boolean {
+  if (method !== "GET" && method !== "HEAD") return false;
+  return pathname === "/api/account" || pathname === "/api/connections/openrouter" || pathname === "/api/auth/get-session";
+}
+
 function evaluateRateLimit(
   authResult: VerificationResult,
   clientIp: string,
@@ -497,7 +506,9 @@ export async function evaluateAuth(
   const isDevBypass = process.env.NODE_ENV !== "production" && process.env.DEV_MODE?.trim().toLowerCase() === "true";
 
   // Rate Limiting Evaluation
-  const rateLimitEval = evaluateRateLimit(authResult, clientIp);
+  const rateLimitEval = isRateLimitExempt(pathname, method)
+    ? { allowed: true, status: 200, headers: {} as Record<string, string>, error: undefined }
+    : evaluateRateLimit(authResult, clientIp);
   if (!rateLimitEval.allowed) {
     return {
       allowed: false,

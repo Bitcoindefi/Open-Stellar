@@ -958,12 +958,12 @@ export function SidebarPanel({
           <ChatPanel messages={chatMessages} />
         )}
         {activeTab === "models" && (
-          <div style={{ height: "100%", overflow: "auto" }}>
+          <div style={{ height: "100%", overflowY: "auto", overflowX: "hidden" }}>
             <ConnectionsPanel compact initialSection="models" />
           </div>
         )}
         {activeTab === "connectors" && (
-          <div style={{ height: "100%", overflow: "auto" }}>
+          <div style={{ height: "100%", overflowY: "auto", overflowX: "hidden" }}>
             <ConnectionsPanel compact initialSection="connectors" />
           </div>
         )}

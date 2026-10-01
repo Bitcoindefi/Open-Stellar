@@ -8,6 +8,7 @@ import { wrapFetchWithPayment, x402Client } from "@x402/fetch"
 import { ExactSvmScheme } from "@x402/svm/exact/client"
 import { Activity, CircleAlert, ExternalLink, Wallet } from "lucide-react"
 import { AgentIdentityRow, ReviewAfterPayment } from "./agent-identity"
+import { friendlyProviderError } from "@/lib/ai/friendly-error"
 
 // Pay an agent per task with x402 on Solana devnet. The wallet signs a USDC transfer;
 // the facilitator pays the network fee, so the user needs devnet USDC but no SOL.
@@ -147,7 +148,7 @@ function PayForm({ account, wallet, walletName, onDisconnect }: { account: UiWal
       if (!response.ok || !data.ok) throw new Error(data.error || `El pago no se completó (HTTP ${response.status}).`)
     } catch (payError) {
       const message = payError instanceof Error ? payError.message : "Falló el pago."
-      setError(/insufficient|0x1\b|funds|InvalidAccountData|AccountNotFound/i.test(message) ? "Tu wallet no tiene USDC de devnet (o no le alcanza). Cargá en faucet.circle.com → Solana Devnet y probá de nuevo." : message)
+      setError(/insufficient|0x1\b|funds|InvalidAccountData|AccountNotFound/i.test(message) ? "Tu wallet no tiene USDC de devnet (o no le alcanza). Cargá en faucet.circle.com → Solana Devnet y probá de nuevo." : friendlyProviderError(message))
     } finally {
       setBusy(false)
     }
