@@ -1,5 +1,34 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { formatAssetAmount, paymentAssetFor, parseFeatureFlag, publicNetworkLabel } from "./chains"
+
+describe("NEXT_PUBLIC_ENABLE_STELLAR", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  async function load(flag: string) {
+    vi.resetModules()
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_STELLAR", flag)
+    return import("./chains")
+  }
+
+  it("keeps the public UI on Solana and USDC by default", async () => {
+    const chains = await load("")
+    expect(chains.STELLAR_ENABLED).toBe(false)
+    expect(chains.PAYMENT_ASSET).toBe("USDC")
+    expect(chains.formatAssetAmount("0.01")).toBe("0.01 USDC")
+    expect(chains.publicNetworkLabel()).toBe("Solana devnet")
+  })
+
+  it("brings back XLM and Stellar labels when the flag is on", async () => {
+    const chains = await load("true")
+    expect(chains.STELLAR_ENABLED).toBe(true)
+    expect(chains.PAYMENT_ASSET).toBe("XLM")
+    expect(chains.formatAssetAmount("0.01")).toBe("0.01 XLM")
+    expect(chains.publicNetworkLabel()).toBe("Stellar testnet")
+  })
+})
 
 describe("parseFeatureFlag", () => {
   it("is off by default", () => {
