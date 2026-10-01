@@ -211,7 +211,9 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
       pathname === "/api/account" ||
       pathname === "/api/connections/openrouter" ||
       pathname === "/api/connections/openrouter/start" ||
-      pathname === "/api/connections/openrouter/callback"
+      pathname === "/api/connections/openrouter/callback" ||
+      // 8004 agent identity: status and registration files are public.
+      pathname.startsWith("/api/8004/agents/")
     ) {
       return true;
     }
@@ -231,7 +233,9 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
       pathname === "/api/connections/run" ||
       pathname.startsWith("/api/auth/") ||
       // Paid agent tasks: access is granted by an x402 payment, not by an API key.
-      /^\/api\/x402\/agents\/[^/]+\/task$/.test(pathname)
+      /^\/api\/x402\/agents\/[^/]+\/task$/.test(pathname) ||
+      // Registration needs a connected account; reviews need an x402 payment (checked in the route).
+      /^\/api\/8004\/agents\/[^/]+\/(register|feedback)$/.test(pathname)
     ) {
       return true;
     }
