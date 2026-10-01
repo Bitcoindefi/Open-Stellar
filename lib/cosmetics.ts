@@ -57,7 +57,7 @@ export const BADGES: BadgeDef[] = [
   {
     id: "zk-certified",
     name: "ZK Certified",
-    description: "Wallet funded and verified on Stellar testnet",
+    description: "Agent wallet funded and verified on-chain",
     isUnlocked: (agent) => Boolean(agent.wallet?.funded),
   },
 ]

@@ -109,7 +109,7 @@ const CHAT_TEMPLATES: Record<string, string[]> = {
   ],
   social: [
     "@{to}, nice work on that last batch!",
-    "Stellar balance looking healthy today",
+    "Wallet balance looking healthy today",
     "Who wants to run a joint analysis?",
     "@{to}, transfer confirmed. Thanks!",
     "New skill unlocked! Leveling up {skill}",

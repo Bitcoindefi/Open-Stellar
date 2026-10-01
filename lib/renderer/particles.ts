@@ -1,4 +1,6 @@
-export type ParticleEvent = "xp-burst" | "payment-spark" | "level-up" | "badge-unlock" | "district-win"
+import { formatAssetAmount } from "@/lib/config/chains"
+
+export type ParticleEvent ="xp-burst" | "payment-spark" | "level-up" | "badge-unlock" | "district-win"
 
 export type ParticleKind = "text" | "spark" | "confetti" | "ray" | "ring" | "flash"
 
@@ -159,7 +161,7 @@ export class ParticleSystem {
       scale: 1,
       color: "#fbbf24",
       type: "text",
-      text: opts.amount ?? opts.text ?? "+0.01 XLM",
+      text: opts.amount ?? opts.text ?? `+${formatAssetAmount("0.01")}`,
       fontSize: 10,
       bold: true,
       life: 0,

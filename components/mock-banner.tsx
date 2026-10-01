@@ -21,7 +21,7 @@ export function MockBanner() {
         textAlign: "center",
       }}
     >
-      MOCK MODE - no real transactions. Set NEXT_PUBLIC_MOCK_MODE=false for live Stellar and passport calls.
+      MOCK MODE - no real transactions. Set NEXT_PUBLIC_MOCK_MODE=false for live on-chain and passport calls.
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import type { District, MoltbotAgent } from "@/lib/types"
 import type { AgentCardStats } from "@/lib/og-card-data"
+import { formatAssetAmount } from "@/lib/config/chains"
 
 interface AgentCardOGProps {
   agent: MoltbotAgent
@@ -197,7 +198,7 @@ export function AgentCardOG({
 
           <div style={{ display: "flex", gap: 18, marginTop: 34 }}>
             <StatTile value={agent.tasksCompleted.toLocaleString("en-US")} label="Tasks" color="#22d3ee" />
-            <StatTile value={`${stats.earnedXlm} XLM`} label="Earned" color="#fbbf24" />
+            <StatTile value={formatAssetAmount(stats.earnedXlm)} label="Earned" color="#fbbf24" />
             <StatTile value={`${stats.uptime}%`} label="Uptime" color="#34d399" />
           </div>
 

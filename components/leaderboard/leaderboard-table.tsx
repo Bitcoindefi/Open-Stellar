@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import type { DistrictId } from "@/lib/types"
 import type { LeaderboardAgent, LeaderboardView } from "@/lib/leaderboard"
+import { STELLAR_ENABLED } from "@/lib/config/chains"
 
 type LeaderboardTableProps = {
   initialAgents: LeaderboardAgent[]
@@ -65,7 +66,7 @@ export function LeaderboardTable({ initialAgents, view, district }: LeaderboardT
                 <div className="flex flex-wrap items-center gap-2 font-pixel text-lg uppercase text-slate-100">
                   {agent.name}
                   {agent.globalRank <= 3 && <span aria-label="top-three crown">🏆</span>}
-                  {agent.attestationHash && (
+                  {STELLAR_ENABLED && agent.attestationHash && (
                     <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[10px] uppercase text-emerald-400 border border-emerald-500/30" title={`Soroban Attestation Hash: ${agent.attestationHash}`}>
                       🛡️ Soroban Verified
                     </span>

@@ -7,6 +7,7 @@ import {
 } from "@/lib/og-card-data"
 import type { PublishedSystemEvent } from "@/lib/events/system-events"
 import type { DistrictId, MoltbotAgent } from "@/lib/types"
+import { formatAssetAmount, publicNetworkLabel } from "@/lib/config/chains"
 
 export type FeedEventKind = "payment" | "level-up" | "badge" | "district" | "task"
 
@@ -85,8 +86,8 @@ function buildSeedEvents(): FeedEvent[] {
     eventForAgent(
       cipher,
       "payment",
-      `${cipher.name} earned 0.5 XLM from threat-analysis`,
-      "Largest single payment this hour - 86.2 XLM lifetime",
+      `${cipher.name} earned ${formatAssetAmount("0.5")} from threat-analysis`,
+      `Largest single payment this hour - ${formatAssetAmount("86.2")} lifetime`,
       "Payment received",
       minutesAgo(5),
     ),
@@ -99,7 +100,7 @@ function buildSeedEvents(): FeedEvent[] {
       detail: "50,000 XP milestone reached",
       highlight: "District event",
       occurredAt: minutesAgo(60),
-      shareText: "Processing district upgraded to Tier 3 on Open Stellar",
+      shareText: "Processing district upgraded to Tier 3 on Agentic City",
     } satisfies FeedEvent,
     eventForAgent(
       vector,
@@ -118,7 +119,7 @@ function buildSeedEvents(): FeedEvent[] {
       detail: "+2x XP bonus for all Comm Hub agents for 24h",
       highlight: "Weekly winner",
       occurredAt: minutesAgo(180),
-      shareText: "Comm Hub wins this week's Throughput Race on Open Stellar",
+      shareText: "Comm Hub wins this week's Throughput Race on Agentic City",
     } satisfies FeedEvent,
     eventForAgent(
       pulse,
@@ -131,8 +132,8 @@ function buildSeedEvents(): FeedEvent[] {
     eventForAgent(
       halo,
       "payment",
-      `${halo.name} settled 0.12 XLM for dataset cleanup`,
-      "x402 receipt verified on Stellar testnet",
+      `${halo.name} settled ${formatAssetAmount("0.12")} for dataset cleanup`,
+      `x402 receipt verified on ${publicNetworkLabel()}`,
       "Receipt verified",
       minutesAgo(320),
     ),
@@ -217,7 +218,7 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
       title: `${base.agentName} received a payment`,
       detail: `${amount} settled with tx ${event.receipt.txHash.slice(0, 12)}...`,
       highlight: "Payment received",
-      shareText: `${base.agentName} received a payment on Open Stellar`,
+      shareText: `${base.agentName} received a payment on Agentic City`,
     }
   }
 
@@ -226,9 +227,9 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
       ...base,
       kind: "level-up",
       title: `${base.agentName} reached Level ${event.level}`,
-      detail: `+${event.xp} XP earned in ${base.districtName ?? "Open Stellar"}`,
+      detail: `+${event.xp} XP earned in ${base.districtName ?? "Agentic City"}`,
       highlight: "Level-up",
-      shareText: `${base.agentName} reached Level ${event.level} on Open Stellar`,
+      shareText: `${base.agentName} reached Level ${event.level} on Agentic City`,
     }
   }
 
@@ -239,7 +240,7 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
       title: `${base.agentName} unlocked ${event.badge.name}`,
       detail: `${event.badge.rarity ?? "common"} badge unlocked`,
       highlight: "Badge unlocked",
-      shareText: `${base.agentName} unlocked ${event.badge.name} on Open Stellar`,
+      shareText: `${base.agentName} unlocked ${event.badge.name} on Agentic City`,
     }
   }
 
@@ -250,7 +251,7 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
       title: `${base.agentName} completed a task`,
       detail: event.result.summary,
       highlight: "Task completed",
-      shareText: `${base.agentName} completed a task on Open Stellar`,
+      shareText: `${base.agentName} completed a task on Agentic City`,
     }
   }
 
@@ -258,7 +259,7 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
     const questTitle = event.quest?.title ?? event.questId ?? "a quest"
     const rewards = [
       typeof event.reward?.xp === "number" ? `+${event.reward.xp} XP` : null,
-      event.reward?.xlm ? `${event.reward.xlm} XLM` : null,
+      event.reward?.xlm ? formatAssetAmount(event.reward.xlm) : null,
       event.reward?.badge ?? null,
       event.reward?.title ?? null,
     ].filter((reward): reward is string => Boolean(reward))
@@ -270,7 +271,7 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
       title: `${base.agentName} completed ${questTitle}`,
       detail,
       highlight: "Quest completed",
-      shareText: `${base.agentName} completed ${questTitle} on Open Stellar`,
+      shareText: `${base.agentName} completed ${questTitle} on Agentic City`,
     }
   }
 
@@ -282,9 +283,9 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
       districtId: event.districtId ?? event.district?.id,
       districtName,
       title: `${districtName} unlocked`,
-      detail: `New district available on Open Stellar`,
+      detail: `New district available on Agentic City`,
       highlight: "District unlocked",
-      shareText: `${districtName} unlocked on Open Stellar`,
+      shareText: `${districtName} unlocked on Agentic City`,
     }
   }
 
@@ -297,7 +298,7 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
       title: `${event.agent.agentId} registry ${event.action}`,
       detail: `${event.agent.capabilities.length} capabilities declared`,
       highlight: "Registry update",
-      shareText: `${event.agent.agentId} updated its registry manifest on Open Stellar`,
+      shareText: `${event.agent.agentId} updated its registry manifest on Agentic City`,
     }
   }
 
@@ -307,6 +308,6 @@ export function feedEventFromSystemEvent(event: PublishedSystemEvent): FeedEvent
     title: `${base.agentName} activity update`,
     detail: event.type === "task.started" ? event.task.title : event.type === "agent.status" ? `Status changed to ${event.status}` : (event as PublishedSystemEvent).type,
     highlight: (event as PublishedSystemEvent).type,
-    shareText: `${base.agentName} activity update on Open Stellar`,
+    shareText: `${base.agentName} activity update on Agentic City`,
   }
 }

@@ -5,6 +5,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, Copy, Terminal } from 'lucide-react'
 import { getDistrictName, getMarketplaceService, listMarketplaceServices } from '@/lib/marketplace/services'
+import { STELLAR_ENABLED, formatAssetAmount } from '@/lib/config/chains'
 
 interface ServiceDetailPageProps {
   params: Promise<{ serviceId: string }>
@@ -64,18 +65,21 @@ console.log(result.data)`
         </section>
 
         <div className="grid gap-5 md:grid-cols-5">
-          <Stat label="Price" value={`${service.priceXlm.toFixed(2)} XLM`} />
+          <Stat label="Price" value={formatAssetAmount(service.priceXlm, { digits: 2 })} />
           <Stat label="Calls" value={service.totalCalls.toLocaleString()} />
           <Stat label="Avg response" value={`${service.averageResponseMs}ms`} />
           <Stat label="Rating" value={service.rating.toFixed(1)} />
           <Stat label="Reputation" value={`${service.reputationScore}/1000`} />
         </div>
 
-        <section className="grid gap-5 lg:grid-cols-2">
-          <Panel title="One-click copy" icon={<Copy className="h-4 w-4" />}>
-            <pre className="overflow-x-auto rounded-2xl bg-black/50 p-4 text-sm leading-6 text-slate-200"><code>{installSnippet}</code></pre>
-            <pre className="mt-3 overflow-x-auto rounded-2xl bg-black/50 p-4 text-sm leading-6 text-slate-200"><code>{codeSnippet}</code></pre>
-          </Panel>
+        <section className={`grid gap-5 ${STELLAR_ENABLED ? 'lg:grid-cols-2' : ''}`}>
+          {/* The SDK snippet is Stellar-era, so it only shows when Stellar is enabled. */}
+          {STELLAR_ENABLED && (
+            <Panel title="One-click copy" icon={<Copy className="h-4 w-4" />}>
+              <pre className="overflow-x-auto rounded-2xl bg-black/50 p-4 text-sm leading-6 text-slate-200"><code>{installSnippet}</code></pre>
+              <pre className="mt-3 overflow-x-auto rounded-2xl bg-black/50 p-4 text-sm leading-6 text-slate-200"><code>{codeSnippet}</code></pre>
+            </Panel>
+          )}
           <Panel title="Full docs" icon={<Terminal className="h-4 w-4" />}>
             <ul className="space-y-3 text-sm leading-6 text-slate-300">
               {service.docs.map((doc) => <li key={doc} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3">{doc}</li>)}
@@ -116,7 +120,7 @@ console.log(result.data)`
                   <tr key={receipt.id} className="border-t border-slate-800">
                     <td className="p-3 font-mono text-cyan-200">{receipt.id}</td>
                     <td className="p-3">{receipt.agent}</td>
-                    <td className="p-3 font-mono">{receipt.amountXlm.toFixed(2)} XLM</td>
+                    <td className="p-3 font-mono">{formatAssetAmount(receipt.amountXlm, { digits: 2 })}</td>
                     <td className="p-3 font-mono">{receipt.latencyMs}ms</td>
                     <td className="p-3 text-slate-400">{new Date(receipt.settledAt).toLocaleString()}</td>
                   </tr>

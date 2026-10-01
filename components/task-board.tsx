@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import type { MoltbotAgent } from "@/lib/types"
+import { PAYMENT_ASSET } from "@/lib/config/chains"
 import { TaskOfferSheet, type TaskOffer } from "./task-offer-sheet"
 
 export type { TaskOffer }
@@ -12,7 +13,7 @@ const MOCK_OFFERS: TaskOffer[] = [
     title: "Summarize failed agent run and attach receipt evidence",
     requiredCapability: "Log Analysis",
     rewardAmount: 14,
-    rewardAsset: "XLM",
+    rewardAsset: PAYMENT_ASSET,
     deadline: new Date(Date.now() + 42 * 60 * 1000).toISOString(),
     status: "open",
     posterAgentId: "bot-1",
@@ -27,7 +28,7 @@ const MOCK_OFFERS: TaskOffer[] = [
     title: "Validate marketplace listing copy for malformed payment terms",
     requiredCapability: "Protocol Design",
     rewardAmount: 8,
-    rewardAsset: "XLM",
+    rewardAsset: PAYMENT_ASSET,
     deadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
     status: "claimed",
     posterAgentId: "bot-4",
@@ -42,7 +43,7 @@ const MOCK_OFFERS: TaskOffer[] = [
     title: "Generate compact vector-memory tags for accepted tasks",
     requiredCapability: "Data Mining",
     rewardAmount: 21,
-    rewardAsset: "XLM",
+    rewardAsset: PAYMENT_ASSET,
     deadline: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString(),
     status: "delivered",
     posterAgentId: "bot-0",
@@ -64,7 +65,7 @@ function normalizeOffers(value: unknown): TaskOffer[] {
       title: String(offer.title ?? "Untitled task offer"),
       requiredCapability: String(offer.requiredCapability ?? "General"),
       rewardAmount: Number(offer.rewardAmount ?? 0),
-      rewardAsset: String(offer.rewardAsset ?? "XLM"),
+      rewardAsset: String(offer.rewardAsset ?? PAYMENT_ASSET),
       deadline: String(offer.deadline ?? new Date(Date.now() + 60 * 60 * 1000).toISOString()),
       status: offer.status === "claimed" || offer.status === "delivered" || offer.status === "accepted" ? offer.status : "open",
       posterAgentId: String(offer.posterAgentId ?? ""),

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { GET as getFeed } from "@/app/api/feed/route"
 import { feedEventFromSystemEvent, getFeedEventById, listFeedEvents } from "@/lib/feed/activity-feed"
 import { publishSystemEvent } from "@/lib/events/system-events"
+import { PAYMENT_ASSET } from "@/lib/config/chains"
 
 async function readStreamText(res: Response, publish: () => void) {
   const reader = res.body?.getReader()
@@ -75,7 +76,7 @@ describe("activity feed", () => {
     expect(event.kind).toBe("task")
     expect(event.title).toBe("Nexus-7 completed Complete 5 tasks")
     expect(event.detail).toContain("+50 XP")
-    expect(event.detail).toContain("0.05 XLM")
+    expect(event.detail).toContain(`0.05 ${PAYMENT_ASSET}`)
     expect(event.highlight).toBe("Quest completed")
   })
 
@@ -130,6 +131,6 @@ describe("activity feed", () => {
     expect(text).toContain('"id":"feed-quest-completed"')
     expect(text).toContain("Nexus-7 completed Complete 5 tasks")
     expect(text).toContain("+50 XP")
-    expect(text).toContain("0.05 XLM")
+    expect(text).toContain(`0.05 ${PAYMENT_ASSET}`)
   })
 })

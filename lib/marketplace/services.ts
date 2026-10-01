@@ -1,5 +1,6 @@
 import { DISTRICTS, createAgents } from '@/lib/data'
 import type { DistrictId } from '@/lib/types'
+import { STELLAR_ENABLED } from '@/lib/config/chains'
 
 export type ServiceCapability = 'data' | 'comms' | 'processing' | 'defense' | 'research'
 export type ServiceStatus = 'online' | 'offline'
@@ -42,8 +43,11 @@ const spritePaths = [
 const baseServices: Array<Omit<MarketplaceService, 'providerAgent'>> = [
   {
     id: 'stellar-price-oracle',
-    name: 'Stellar Price Oracle',
-    description: 'Low-latency XLM, stablecoin, and liquidity pool quotes for agent payment decisions.',
+    // The id stays stable for existing links; the public copy follows the chain flag.
+    name: STELLAR_ENABLED ? 'Stellar Price Oracle' : 'Solana Price Oracle',
+    description: STELLAR_ENABLED
+      ? 'Low-latency XLM, stablecoin, and liquidity pool quotes for agent payment decisions.'
+      : 'Low-latency SOL, stablecoin, and liquidity pool quotes for agent payment decisions.',
     priceXlm: 0.08,
     district: 'data-center',
     capabilityTags: ['data', 'research'],
@@ -52,9 +56,11 @@ const baseServices: Array<Omit<MarketplaceService, 'providerAgent'>> = [
     averageResponseMs: 142,
     rating: 4.9,
     reputationScore: 930,
-    docs: ['Request normalized market snapshots for Stellar assets.', 'Responses include freshness metadata and x402 receipt references.'],
-    exampleRequest: { pair: 'XLM/USDC', horizon: '5m', includeDepth: true },
-    exampleResponse: { pair: 'XLM/USDC', mid: '0.1241', confidence: 0.98, receiptRequired: true },
+    docs: [`Request normalized market snapshots for ${STELLAR_ENABLED ? 'Stellar' : 'Solana'} assets.`, 'Responses include freshness metadata and x402 receipt references.'],
+    exampleRequest: { pair: STELLAR_ENABLED ? 'XLM/USDC' : 'SOL/USDC', horizon: '5m', includeDepth: true },
+    exampleResponse: STELLAR_ENABLED
+      ? { pair: 'XLM/USDC', mid: '0.1241', confidence: 0.98, receiptRequired: true }
+      : { pair: 'SOL/USDC', mid: '152.40', confidence: 0.98, receiptRequired: true },
     receiptHistory: [
       { id: 'rcpt_oracle_1042', agent: 'bot-0', amountXlm: 0.08, settledAt: '2026-06-25T15:22:11Z', latencyMs: 128 },
       { id: 'rcpt_oracle_1041', agent: 'bot-8', amountXlm: 0.08, settledAt: '2026-06-25T14:47:02Z', latencyMs: 151 },
