@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Bot, BrainCircuit, Loader2, Send, UsersRound } from "lucide-react"
 import type { ChatMessage } from "@/lib/types"
+import { friendlyProviderError } from "@/lib/ai/friendly-error"
 
 const CONNECTIONS_STORAGE_KEY = "agentic-city:connections:v1"
 const CHAT_STORAGE_KEY = "agentic-city:agent-chat:v1"
@@ -163,7 +164,7 @@ export function ChatPanel({ messages }: ChatPanelProps) {
       }))
       persistChat([...nextChat, ...agentMessages])
     } catch (sendError) {
-      const messageText = sendError instanceof Error ? sendError.message : "Falló el chat con agentes."
+      const messageText = sendError instanceof Error ? friendlyProviderError(sendError.message) : "Falló el chat con agentes."
       setError(messageText)
       persistChat([...nextChat, {
         id: makeId(),

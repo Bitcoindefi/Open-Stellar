@@ -48,3 +48,26 @@ describe("POST /api/admin/connections/test", () => {
     expect((await res.json()).error).toContain("Slack rejected")
   })
 })
+
+describe("OpenRouter key check", () => {
+  it("rejects an invalid OpenRouter key even though the model list is public", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: "x-ai/grok-4" }] }), { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const res = await POST(request({ kind: "model", provider: "openrouter", model: "x-ai/grok-4", apiKey: "sk-or-v1-invalid-key" }))
+    expect(res.status).toBe(400)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://openrouter.ai/api/v1/key")
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("checks the key, then the model list, for a valid OpenRouter key", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { label: "Agentic City" } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: "x-ai/grok-4" }] }), { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+    const res = await POST(request({ kind: "model", provider: "openrouter", model: "x-ai/grok-4", apiKey: "sk-or-v1-valid-key" }))
+    expect(await res.json()).toMatchObject({ ok: true, modelAvailable: true })
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://openrouter.ai/api/v1/models")
+  })
+})

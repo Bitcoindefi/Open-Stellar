@@ -211,7 +211,9 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
       pathname === "/api/account" ||
       pathname === "/api/connections/openrouter" ||
       pathname === "/api/connections/openrouter/start" ||
-      pathname === "/api/connections/openrouter/callback"
+      pathname === "/api/connections/openrouter/callback" ||
+      // 8004 agent identity: status and registration files are public.
+      pathname.startsWith("/api/8004/agents/")
     ) {
       return true;
     }
@@ -231,7 +233,9 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
       pathname === "/api/connections/run" ||
       pathname.startsWith("/api/auth/") ||
       // Paid agent tasks: access is granted by an x402 payment, not by an API key.
-      /^\/api\/x402\/agents\/[^/]+\/task$/.test(pathname)
+      /^\/api\/x402\/agents\/[^/]+\/task$/.test(pathname) ||
+      // Registration needs a connected account; reviews need an x402 payment (checked in the route).
+      /^\/api\/8004\/agents\/[^/]+\/(register|feedback)$/.test(pathname)
     ) {
       return true;
     }
@@ -343,6 +347,15 @@ function evaluateScopedWriteRoute(
   }
 
   return null;
+}
+
+/**
+ * Cheap reads the UI needs on every page load (who am I, what is connected). They don't count
+ * against the anonymous budget, so a visitor reloading the page never sees a broken account panel.
+ */
+export function isRateLimitExempt(pathname: string, method: string): boolean {
+  if (method !== "GET" && method !== "HEAD") return false;
+  return pathname === "/api/account" || pathname === "/api/connections/openrouter" || pathname === "/api/auth/get-session";
 }
 
 function evaluateRateLimit(
@@ -493,7 +506,9 @@ export async function evaluateAuth(
   const isDevBypass = process.env.NODE_ENV !== "production" && process.env.DEV_MODE?.trim().toLowerCase() === "true";
 
   // Rate Limiting Evaluation
-  const rateLimitEval = evaluateRateLimit(authResult, clientIp);
+  const rateLimitEval = isRateLimitExempt(pathname, method)
+    ? { allowed: true, status: 200, headers: {} as Record<string, string>, error: undefined }
+    : evaluateRateLimit(authResult, clientIp);
   if (!rateLimitEval.allowed) {
     return {
       allowed: false,

@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { Check, CircleAlert, KeyRound, LogIn, LogOut, PlugZap } from "lucide-react"
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
+import { Check, CircleAlert, KeyRound, LogIn, LogOut, PlugZap, RefreshCw } from "lucide-react"
 import { authClient } from "@/lib/auth/user-auth-client"
 
 export const ACCOUNT_UPDATED_EVENT = "agentic-city:account-updated"
@@ -12,31 +12,52 @@ export type AccountState = {
   openrouter: { enabled: boolean; connected: boolean; connectedAt: string | null }
 }
 
+type Snapshot = { account: AccountState; status: "loading" | "ready" | "error" }
+
 const emptyAccount: AccountState = { user: null, google: { enabled: false }, openrouter: { enabled: false, connected: false, connectedAt: null } }
 
-export function useAccount() {
-  const [account, setAccount] = useState<AccountState>(emptyAccount)
-  const [loaded, setLoaded] = useState(false)
+// One shared fetch for every component that needs the account (panel, model form, chat).
+let snapshot: Snapshot = { account: emptyAccount, status: "loading" }
+let inflight: Promise<void> | null = null
+const listeners = new Set<() => void>()
 
-  const refresh = useCallback(async () => {
+function publish(next: Snapshot) {
+  snapshot = next
+  listeners.forEach((listener) => listener())
+}
+
+function refreshAccount(): Promise<void> {
+  if (inflight) return inflight
+  inflight = (async () => {
     try {
       const response = await fetch("/api/account", { cache: "no-store" })
-      if (response.ok) setAccount(await response.json() as AccountState)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      publish({ account: await response.json() as AccountState, status: "ready" })
     } catch {
-      // Offline or blocked: keep the last known state.
+      // Keep what we knew; the UI offers a retry instead of showing a false "not available".
+      publish({ account: snapshot.account, status: snapshot.status === "ready" ? "ready" : "error" })
     } finally {
-      setLoaded(true)
+      inflight = null
     }
-  }, [])
+  })()
+  return inflight
+}
 
-  useEffect(() => {
-    void refresh()
-    const onUpdate = () => void refresh()
-    window.addEventListener(ACCOUNT_UPDATED_EVENT, onUpdate)
-    return () => window.removeEventListener(ACCOUNT_UPDATED_EVENT, onUpdate)
-  }, [refresh])
+function subscribe(listener: () => void) {
+  listeners.add(listener)
+  if (listeners.size === 1 && snapshot.status !== "ready") void refreshAccount()
+  const onUpdate = () => void refreshAccount()
+  window.addEventListener(ACCOUNT_UPDATED_EVENT, onUpdate)
+  return () => {
+    listeners.delete(listener)
+    window.removeEventListener(ACCOUNT_UPDATED_EVENT, onUpdate)
+  }
+}
 
-  return { account, loaded, refresh }
+export function useAccount() {
+  const state = useSyncExternalStore(subscribe, () => snapshot, () => snapshot)
+  const refresh = useCallback(() => refreshAccount(), [])
+  return { account: state.account, loaded: state.status !== "loading", failed: state.status === "error", refresh }
 }
 
 function currentPath() {
@@ -44,7 +65,7 @@ function currentPath() {
 }
 
 export function AccountConnections({ compact = false }: { compact?: boolean }) {
-  const { account, loaded } = useAccount()
+  const { account, loaded, failed, refresh } = useAccount()
   const [busy, setBusy] = useState<"google" | "logout" | "openrouter" | null>(null)
   const [notice, setNotice] = useState("")
 
@@ -92,7 +113,11 @@ export function AccountConnections({ compact = false }: { compact?: boolean }) {
   }
 
   const box = compact ? "rounded-lg border border-slate-800 bg-[#080e18]/95 p-3" : "rounded-[26px] border border-slate-800 bg-[#080e18]/95 p-5 sm:p-6"
-  const row = "flex flex-col gap-3 rounded-xl border border-slate-800 bg-[#050a12] p-3 sm:flex-row sm:items-center sm:justify-between"
+  // The sidebar is narrow even on wide screens: stack text and action unless there is room.
+  const row = compact
+    ? "flex flex-col gap-3 rounded-xl border border-slate-800 bg-[#050a12] p-3"
+    : "flex flex-col gap-3 rounded-xl border border-slate-800 bg-[#050a12] p-4 sm:flex-row sm:items-center sm:justify-between"
+  const action = compact ? "w-full" : ""
 
   return (
     <div className={box}>
@@ -104,35 +129,44 @@ export function AccountConnections({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      <div className="mt-4 space-y-3">
-        <div className={row}>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-100">Google</p>
-            <p className="mt-1 break-all font-mono text-[11px] text-slate-500">
-              {!loaded ? "Revisando sesión…" : account.user ? `${account.user.name} · ${account.user.email}` : account.google.enabled ? "Guardá tu sesión y tus conexiones en este navegador." : "El login con Google todavía no está configurado en este servidor."}
-            </p>
-          </div>
-          {account.user ? (
-            <button type="button" onClick={() => void signOut()} disabled={busy !== null} className={secondaryButton}><LogOut className="h-3.5 w-3.5" /> Salir</button>
-          ) : (
-            <button type="button" onClick={() => void signIn()} disabled={!account.google.enabled || busy !== null} className={primaryButton}><LogIn className="h-3.5 w-3.5" /> {busy === "google" ? "Abriendo Google…" : "Entrar con Google"}</button>
-          )}
+      {failed ? (
+        <div className="mt-4 flex flex-col gap-2 rounded-xl border border-amber-300/20 bg-amber-300/[.06] p-3 text-xs leading-5 text-amber-100">
+          <p className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> No pudimos cargar tu cuenta.</p>
+          <button type="button" onClick={() => void refresh()} className={`${secondaryButton} ${action}`}><RefreshCw className="h-3.5 w-3.5" /> Reintentar</button>
         </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          <div className={row}>
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-sm font-semibold text-slate-100">OpenRouter {account.openrouter.connected ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-300/10 px-2 py-0.5 text-[10px] font-normal uppercase tracking-wider text-emerald-200"><Check className="h-3 w-3" /> Conectado</span> : null}</p>
+              <p className="mt-1 text-[12px] leading-5 text-slate-400">Un solo login para Claude, GPT, Grok y Gemini. Usa el crédito de tu cuenta de OpenRouter.</p>
+            </div>
+            {!loaded ? (
+              <span className="text-[11px] text-slate-500">Revisando…</span>
+            ) : account.openrouter.connected ? (
+              <button type="button" onClick={() => void disconnectOpenRouter()} disabled={busy !== null} className={`${secondaryButton} ${action}`}>Desconectar</button>
+            ) : account.openrouter.enabled ? (
+              <a href={`/api/connections/openrouter/start?returnTo=${encodeURIComponent(currentPath())}`} className={`${primaryButton} ${action}`}><PlugZap className="h-3.5 w-3.5" /> Conectar con OpenRouter</a>
+            ) : (
+              <span className="text-[11px] text-slate-500">No disponible en este servidor</span>
+            )}
+          </div>
 
-        <div className={row}>
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 text-sm font-semibold text-slate-100">OpenRouter {account.openrouter.connected ? <span className="inline-flex items-center gap-1 rounded-full bg-emerald-300/10 px-2 py-0.5 text-[10px] font-normal uppercase tracking-wider text-emerald-200"><Check className="h-3 w-3" /> Conectado</span> : null}</p>
-            <p className="mt-1 text-[11px] leading-5 text-slate-500">Un solo login para Claude, GPT, Grok y Gemini. Usa el crédito de tu cuenta de OpenRouter.</p>
+          <div className={row}>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-100">Google</p>
+              <p className="mt-1 break-words text-[12px] leading-5 text-slate-400">
+                {account.user ? `${account.user.name} · ${account.user.email}` : account.google.enabled ? "Guardá tu sesión y tus conexiones en este navegador." : "Muy pronto vas a poder entrar con tu cuenta de Google."}
+              </p>
+            </div>
+            {account.user ? (
+              <button type="button" onClick={() => void signOut()} disabled={busy !== null} className={`${secondaryButton} ${action}`}><LogOut className="h-3.5 w-3.5" /> Salir</button>
+            ) : account.google.enabled ? (
+              <button type="button" onClick={() => void signIn()} disabled={busy !== null} className={`${primaryButton} ${action}`}><LogIn className="h-3.5 w-3.5" /> {busy === "google" ? "Abriendo Google…" : "Entrar con Google"}</button>
+            ) : null}
           </div>
-          {account.openrouter.connected ? (
-            <button type="button" onClick={() => void disconnectOpenRouter()} disabled={busy !== null} className={secondaryButton}>Desconectar</button>
-          ) : account.openrouter.enabled ? (
-            <a href={`/api/connections/openrouter/start?returnTo=${encodeURIComponent(currentPath())}`} className={primaryButton}><PlugZap className="h-3.5 w-3.5" /> Conectar con OpenRouter</a>
-          ) : (
-            <span className="text-[11px] text-slate-500">No disponible en este servidor</span>
-          )}
         </div>
-      </div>
+      )}
 
       {notice ? <p role="status" className="mt-3 flex items-start gap-2 text-xs leading-5 text-cyan-100"><CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{notice}</p> : null}
     </div>

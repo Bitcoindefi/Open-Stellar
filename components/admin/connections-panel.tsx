@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Activity, Check, CircleAlert, PlugZap, Plus, Save, Server, ShieldCheck, Trash2, X } from "lucide-react"
 import { AccountConnections, useAccount } from "@/components/account/account-connections"
+import { friendlyProviderError } from "@/lib/ai/friendly-error"
 
 const STORAGE_KEY = "agentic-city:connections:v1"
 const UPDATED_EVENT = "agentic-city:connections-updated"
@@ -189,12 +190,13 @@ export function ConnectionsPanel({
       })
       const data = await result.json().catch(() => ({})) as { ok?: boolean; error?: string; modelAvailable?: boolean }
       if (!result.ok || !data.ok) throw new Error(data.error || "No se pudo conectar.")
+      const viaLogin = kind === "model" && (item as ProviderConnection).auth === "oauth"
       const message = kind === "model" && data.modelAvailable === false
-        ? "La key funciona, pero el proveedor no devolvió ese ID de modelo. Revisalo antes de asignarlo."
-        : "Conexión verificada. La credencial no se guardó en el servidor."
+        ? (viaLogin ? "Tu cuenta funciona, pero OpenRouter no tiene ese modelo. Elegí otro de la lista." : "La key funciona, pero el proveedor no devolvió ese ID de modelo. Revisalo antes de asignarlo.")
+        : (viaLogin ? "Tu cuenta de OpenRouter funciona con este modelo." : "Conexión verificada. La credencial no se guardó en el servidor.")
       setTestStates((states) => ({ ...states, [id]: { id, status: data.modelAvailable === false ? "error" : "ok", message } }))
     } catch (error) {
-      setTestStates((states) => ({ ...states, [id]: { id, status: "error", message: error instanceof Error ? error.message : "Falló la verificación." } }))
+      setTestStates((states) => ({ ...states, [id]: { id, status: "error", message: error instanceof Error ? friendlyProviderError(error.message) : "Falló la verificación." } }))
     }
   }
 
@@ -245,7 +247,7 @@ export function ConnectionsPanel({
       setTeamRun(data)
       setNotice("Misión completada. Revisá el plan del orquestador y el resultado de cada agente abajo.")
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Falló la ejecución del equipo.")
+      setNotice(error instanceof Error ? friendlyProviderError(error.message) : "Falló la ejecución del equipo.")
     } finally {
       setRunning(false)
     }
@@ -302,7 +304,7 @@ export function ConnectionsPanel({
             {connections.providers.length === 0 ? <EmptyState text="Todavía no hay modelos. Conectá OpenRouter y agregá uno para empezar." /> : <div className="mt-5 space-y-3">{connections.providers.map((item) => {
               const status = testStates[item.id]
               const providerInfo = providers.find((entry) => entry.id === item.provider)
-              return <ConnectionCard key={item.id} title={item.name} subtitle={`${providerInfo?.name ?? item.provider}${item.auth === "oauth" ? " (login)" : ""} · ${item.model}`} status={status} onTest={() => void testConnection("model", item)} onRemove={() => removeConnection("model", item.id)} />
+              return <ConnectionCard compact={compact} key={item.id} title={item.name} subtitle={`${providerInfo?.name ?? item.provider}${item.auth === "oauth" ? " (login)" : ""} · ${item.model}`} status={status} onTest={() => void testConnection("model", item)} onRemove={() => removeConnection("model", item.id)} />
             })}</div>}
           </div>
         </div>
@@ -352,7 +354,7 @@ export function ConnectionsPanel({
             {connections.connectors.length === 0 ? <EmptyState text="Todavía no hay complementos. Guardá GitHub, Slack o Discord para probar su token." /> : <div className="mt-5 space-y-3">{connections.connectors.map((item) => {
               const status = testStates[item.id]
               const connectorInfo = connectorTypes.find((entry) => entry.id === item.connector)
-              return <ConnectionCard key={item.id} title={item.name} subtitle={`${connectorInfo?.name ?? item.connector} · token oculto`} status={status} onTest={() => void testConnection("connector", item)} onRemove={() => removeConnection("connector", item.id)} />
+              return <ConnectionCard compact={compact} key={item.id} title={item.name} subtitle={`${connectorInfo?.name ?? item.connector} · token oculto`} status={status} onTest={() => void testConnection("connector", item)} onRemove={() => removeConnection("connector", item.id)} />
             })}</div>}
           </div>
         </div>
@@ -387,9 +389,9 @@ function EmptyState({ text }: { text: string }) {
   return <div className="mt-5 flex min-h-36 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 px-6 text-center"><span className="rounded-full border border-slate-700 bg-slate-900 p-3 text-slate-500"><PlugZap className="h-4 w-4" /></span><p className="mt-3 max-w-sm font-vt323 text-lg text-slate-400">{text}</p></div>
 }
 
-function ConnectionCard({ title, subtitle, status, onTest, onRemove }: { title: string; subtitle: string; status?: TestState; onTest: () => void; onRemove: () => void }) {
-  return <article className="rounded-2xl border border-slate-800 bg-[#050a12] p-4">
-    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div className="min-w-0"><h4 className="truncate font-pixel text-xs uppercase text-slate-100">{title}</h4><p className="mt-2 break-all font-mono text-[11px] text-slate-500">{subtitle}</p></div><div className="flex shrink-0 gap-2"><button type="button" onClick={onTest} disabled={status?.status === "checking"} className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/20 px-3 py-2 text-[10px] uppercase tracking-[.12em] text-cyan-100 transition hover:bg-cyan-300/10 disabled:cursor-wait disabled:opacity-50">{status?.status === "checking" ? <Activity className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} Probar</button><button type="button" onClick={onRemove} aria-label={`Eliminar ${title}`} className="rounded-lg border border-rose-400/15 p-2 text-rose-300/70 transition hover:border-rose-300/40 hover:bg-rose-400/10 hover:text-rose-200"><Trash2 className="h-3.5 w-3.5" /></button></div></div>
+function ConnectionCard({ title, subtitle, status, onTest, onRemove, compact = false }: { title: string; subtitle: string; status?: TestState; onTest: () => void; onRemove: () => void; compact?: boolean }) {
+  return <article className={compact ? "rounded-xl border border-slate-800 bg-[#050a12] p-3" : "rounded-2xl border border-slate-800 bg-[#050a12] p-4"}>
+    <div className={compact ? "flex flex-col gap-3" : "flex flex-col justify-between gap-3 sm:flex-row sm:items-start"}><div className="min-w-0"><h4 className="truncate font-pixel text-xs uppercase text-slate-100">{title}</h4><p className="mt-2 break-all font-mono text-[11px] text-slate-500">{subtitle}</p></div><div className="flex shrink-0 gap-2"><button type="button" onClick={onTest} disabled={status?.status === "checking"} className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/20 px-3 py-2 text-[10px] uppercase tracking-[.12em] text-cyan-100 transition hover:bg-cyan-300/10 disabled:cursor-wait disabled:opacity-50">{status?.status === "checking" ? <Activity className="h-3.5 w-3.5 animate-pulse" /> : <Check className="h-3.5 w-3.5" />} Probar</button><button type="button" onClick={onRemove} aria-label={`Eliminar ${title}`} className="rounded-lg border border-rose-400/15 p-2 text-rose-300/70 transition hover:border-rose-300/40 hover:bg-rose-400/10 hover:text-rose-200"><Trash2 className="h-3.5 w-3.5" /></button></div></div>
     {status ? <p role="status" className={`mt-3 flex items-start gap-2 text-xs leading-5 ${status.status === "error" ? "text-rose-200" : status.status === "ok" ? "text-emerald-200" : "text-cyan-200"}`}>{status.status === "error" ? <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : status.status === "ok" ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <Activity className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-pulse" />}{status.message}</p> : null}
   </article>
 }

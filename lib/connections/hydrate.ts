@@ -10,7 +10,7 @@ function needsOAuthKey(value: unknown): value is Json {
   return Boolean(value && typeof value === "object" && (value as Json).auth === "oauth")
 }
 
-function isSameOrigin(req: Request): boolean {
+export function isSameOrigin(req: Request): boolean {
   const origin = req.headers.get("origin")
   if (!origin) return req.headers.get("sec-fetch-site") !== "cross-site"
   try {

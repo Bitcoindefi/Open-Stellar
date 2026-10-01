@@ -14,7 +14,8 @@ const MODEL_PROVIDERS = {
   openai: { label: "OpenAI", url: "https://api.openai.com/v1/models", auth: "bearer" },
   anthropic: { label: "Anthropic", url: "https://api.anthropic.com/v1/models", auth: "anthropic" },
   groq: { label: "Groq", url: "https://api.groq.com/openai/v1/models", auth: "bearer" },
-  openrouter: { label: "OpenRouter", url: "https://openrouter.ai/api/v1/models", auth: "bearer" },
+  // The model list is public on OpenRouter, so the key is checked first against /key.
+  openrouter: { label: "OpenRouter", url: "https://openrouter.ai/api/v1/models", auth: "bearer", keyUrl: "https://openrouter.ai/api/v1/key" },
 } as const
 
 const CONNECTORS = {
@@ -62,6 +63,10 @@ export async function POST(req: Request) {
       const headers: Record<string, string> = config.auth === "anthropic"
         ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
         : { Authorization: `Bearer ${apiKey}` }
+      if ("keyUrl" in config) {
+        const keyCheck = await fetch(config.keyUrl, { headers, signal: AbortSignal.timeout(10_000) })
+        if (!keyCheck.ok) return response({ ok: false, error: `${config.label} rejected the key or request (HTTP ${keyCheck.status}).` }, 400)
+      }
       const upstream = await fetch(config.url, { headers, signal: AbortSignal.timeout(10_000) })
       if (!upstream.ok) {
         return response({ ok: false, error: `${config.label} rejected the key or request (HTTP ${upstream.status}).` }, 400)
