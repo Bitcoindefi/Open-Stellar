@@ -208,6 +208,23 @@ Para desarrolladores que quieren su propio nodo Agentic City:
 
 ---
 
+### Soroswap DEX Integration (Automated Agent Treasury)
+
+Agentic City includes native Soroswap integration on Stellar Testnet for automated treasury management and auto-rebalancing across XLM, USDC, and BSTC:
+
+- **Strict Slippage Protection**: Slippage is validated on quotes and executed transactions (`default: 0.5% / 50 bps`); executions abort cleanly if the minimum received threshold cannot be guaranteed.
+- **Pure Integer Arithmetic**: All amounts are parsed, calculated, and tracked using minimal integer units (Stroops: $10^7$ decimals), preventing precision loss and floating-point drift.
+- **Auto-Rebalancing Policies**: Pure rule evaluation engine (`lib/defi/treasury-policy.ts`) supporting triggers (e.g., `XLM > 100`, `XLM < 10`) and actions (`swap 50% XLM → USDC`, `swap 20 USDC → XLM`).
+- **Safety Caps & Reserves**: Enforces per-swap limits, 24-hour cumulative volume caps, and mandatory network gas reserve retention (minimum 0.01 XLM).
+- **Concurrency Idempotency**: Deduplication windows prevent concurrent triggers from executing duplicate swaps.
+- **Endpoints**:
+  - `POST /api/agents/:id/swap`: Execute manual or programmatic asset swaps.
+  - `GET /api/agents/:id/swap`: Retrieve agent swap execution history and audit logs.
+  - `GET /api/agents/:id/treasury`: Fetch current balances, rebalancing rules, and policy limits.
+  - `POST /api/agents/:id/treasury`: Configure rebalancing rules or trigger policy evaluation.
+
+---
+
 ## Quickstart CLI
 
 Scaffold a new node in one command:
