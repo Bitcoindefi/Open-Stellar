@@ -147,7 +147,7 @@ function PayForm({ account, wallet, walletName, onDisconnect }: { account: UiWal
       if (!response.ok || !data.ok) throw new Error(data.error || `El pago no se completó (HTTP ${response.status}).`)
     } catch (payError) {
       const message = payError instanceof Error ? payError.message : "Falló el pago."
-      setError(/insufficient|0x1\b|funds/i.test(message) ? "No tenés USDC de devnet suficiente. Cargá en faucet.circle.com (Solana Devnet) y probá de nuevo." : message)
+      setError(/insufficient|0x1\b|funds|InvalidAccountData|AccountNotFound/i.test(message) ? "Tu wallet no tiene USDC de devnet (o no le alcanza). Cargá en faucet.circle.com → Solana Devnet y probá de nuevo." : message)
     } finally {
       setBusy(false)
     }
