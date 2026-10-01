@@ -37,8 +37,9 @@ export async function withOAuthCredentials(req: Request): Promise<Request | Resp
   const record = body as Json
   const targets: Json[] = []
   if (needsOAuthKey(record)) targets.push(record)
-  const orchestrator = record.orchestrator as Json | undefined
-  if (orchestrator && needsOAuthKey(orchestrator.connection)) targets.push(orchestrator.connection as Json)
+  for (const holder of [record.orchestrator, record.agent] as Array<Json | undefined>) {
+    if (holder && typeof holder === "object" && needsOAuthKey(holder.connection)) targets.push(holder.connection as Json)
+  }
   if (Array.isArray(record.members)) {
     for (const member of record.members) {
       if (member && typeof member === "object" && needsOAuthKey((member as Json).connection)) targets.push((member as Json).connection as Json)

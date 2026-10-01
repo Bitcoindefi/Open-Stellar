@@ -229,7 +229,9 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
       pathname === "/api/connections/test" ||
       pathname === "/api/connections/chat" ||
       pathname === "/api/connections/run" ||
-      pathname.startsWith("/api/auth/")
+      pathname.startsWith("/api/auth/") ||
+      // Paid agent tasks: access is granted by an x402 payment, not by an API key.
+      /^\/api\/x402\/agents\/[^/]+\/task$/.test(pathname)
     ) {
       return true;
     }

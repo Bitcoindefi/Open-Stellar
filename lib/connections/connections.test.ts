@@ -179,6 +179,12 @@ describe("withOAuthCredentials", () => {
     expect(hydrated.members[1].connection.apiKey).toBe("sk-own-key-123")
   })
 
+  it("fills the connection of a single paid agent", async () => {
+    const req = withCookies("/api/x402/agents/a/task", cookie(), { method: "POST", headers: { origin: ORIGIN }, body: JSON.stringify({ task: "t", agent: { connection: { provider: "openrouter", model: "m", apiKey: "", auth: "oauth" } } }) })
+    const hydrated = await (await withOAuthCredentials(req) as Request).json()
+    expect(hydrated.agent.connection).toEqual({ provider: "openrouter", model: "m", apiKey: "sk-or-v1-user-key" })
+  })
+
   it("fills a top-level connection (connection test)", async () => {
     const req = withCookies("/api/connections/test", cookie(), { method: "POST", headers: { "sec-fetch-site": "same-origin" }, body: JSON.stringify({ kind: "model", provider: "openrouter", model: "m", auth: "oauth" }) })
     const hydrated = await (await withOAuthCredentials(req) as Request).json()

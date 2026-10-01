@@ -9,6 +9,10 @@ import { formatAgentShareText, getAgentOgPath, getAgentProfilePath, slugifyAgent
 import { ChatPanel } from "./chat-panel"
 import { SkillsPanel } from "./skills-panel"
 import { WalletPanel } from "./wallet-panel"
+import dynamic from "next/dynamic"
+
+// Wallet Standard discovery only exists in the browser.
+const PaidTaskPanel = dynamic(() => import("./x402/paid-task-panel").then((mod) => mod.PaidTaskPanel), { ssr: false })
 import { AppearancePanel } from "./appearance-panel"
 import { QuestsPanel } from "./quests-panel"
 import { MOCK_OFFERS, TaskBoard, getTaskOfferCounts } from "./task-board"
@@ -973,6 +977,8 @@ export function SidebarPanel({
           <QuestsPanel selectedAgentId={selectedAgent?.id ?? null} />
         )}
         {activeTab === "wallet" && (
+          <div className="space-y-3 p-3">
+          <PaidTaskPanel />
           <WalletPanel
             agents={agents}
             selectedAgent={selectedAgent}
@@ -980,6 +986,7 @@ export function SidebarPanel({
             onUpdateAgent={onUpdateAgent}
             onAddTransaction={onAddTransaction}
           />
+          </div>
         )}
         {activeTab === "appearance" && (
           <AppearancePanel
