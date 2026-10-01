@@ -6,6 +6,8 @@ vi.mock("@/lib/ai/byok-provider", async (importOriginal) => ({ ...(await importO
 vi.mock("@/lib/solana/x402", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/solana/x402")>()), requirePayment }))
 
 import { POST } from "@/app/api/x402/agents/[id]/task/route"
+import { createMemoryStore, setKvStoreForTests } from "@/lib/security/kv-store"
+import { getPaymentAgent } from "@/lib/solana/payment-bindings"
 
 const settle = { success: true, transaction: "settle-sig", network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", payer: "payer" }
 const paid = { ok: true, settle, payer: "payer", requirements: { amount: "10000", asset: "usdc-mint" } }
@@ -30,6 +32,25 @@ describe("POST /api/x402/agents/[id]/task", () => {
     expect(res.headers.get("PAYMENT-RESPONSE")).toBeTruthy()
     expect(requirePayment.mock.invocationCallOrder[0]).toBeLessThan(generate.mock.invocationCallOrder[0])
     expect(generate.mock.calls[0][0]).toEqual({ provider: "openrouter", model: "x-ai/grok-4", apiKey: "or-key-123456" })
+  })
+
+  it("records which agent the settled payment was for, so it can be reviewed", async () => {
+    setKvStoreForTests(createMemoryStore())
+    try {
+      expect((await post({ task: "hola", agent })).status).toBe(200)
+      expect(await getPaymentAgent("settle-sig")).toBe("legacy/agent-1")
+      // A replayed signature never re-binds to another agent.
+      await post({ task: "hola", agent }, "agent-2")
+      expect(await getPaymentAgent("settle-sig")).toBe("legacy/agent-1")
+
+      // If the store is down the paid task still completes.
+      const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
+      setKvStoreForTests({ ...createMemoryStore(), set: vi.fn().mockRejectedValue(new Error("KV SET failed")) })
+      expect((await post({ task: "hola", agent })).status).toBe(200)
+      expect(error).toHaveBeenCalled()
+    } finally {
+      setKvStoreForTests(null)
+    }
   })
 
   it("validates the task and the model before asking for payment", async () => {

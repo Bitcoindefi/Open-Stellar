@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { BYOK_PROVIDERS, generateWithByokProvider, type ByokProviderId } from "@/lib/ai/byok-provider"
 import { withOAuthCredentials } from "@/lib/connections/hydrate"
+import { resolveAgentOwner, scopedAgentKey } from "@/lib/solana/agent-owner"
+import { recordAgentPayment } from "@/lib/solana/payment-bindings"
 import { AGENT_TASK_PRICE, attachPaymentResponse, explorerTxUrl, requirePayment } from "@/lib/solana/x402"
 
 export const runtime = "nodejs"
@@ -37,6 +39,14 @@ export async function POST(request: Request, context: RouteContext) {
 
   const payment = await requirePayment(req, { price: AGENT_TASK_PRICE, description: `Task for agent ${name} in Agentic City` })
   if (!payment.ok) return payment.response
+
+  // Remember which agent (of which owner) this payment was for: a review needs that binding.
+  try {
+    const owner = await resolveAgentOwner(req)
+    await recordAgentPayment(payment.settle.transaction, scopedAgentKey(agentId, owner?.tag ?? null))
+  } catch (error) {
+    console.error("[x402] could not record the payment binding:", error instanceof Error ? error.message : error)
+  }
 
   const receipt = {
     transaction: payment.settle.transaction,
