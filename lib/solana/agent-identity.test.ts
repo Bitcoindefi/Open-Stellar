@@ -33,7 +33,7 @@ function makeDeps(overrides: { loadAgent?: unknown; getTransaction?: unknown; re
       tx.add(SystemProgram.transfer({ fromPubkey: options.assetPubkey, toPubkey: server.publicKey, lamports: 1 }))
       return { transaction: overrides.registerTx ?? tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"), blockhash: BLOCKHASH, lastValidBlockHeight: 10, signer: TREASURY, signed: false, asset: options.assetPubkey }
     }),
-    getSummary: vi.fn().mockResolvedValue({ averageScore: 92.5, totalFeedbacks: 4 }),
+    readAllFeedback: vi.fn().mockResolvedValue([{ score: 100, revoked: false }, { score: 85, revoked: false }, { score: 0, revoked: true }, { score: null, revoked: false }]),
     giveFeedback: vi.fn(async () => ({ transaction: unsignedTx(payer.publicKey), blockhash: BLOCKHASH, lastValidBlockHeight: 10, signer: payer.publicKey.toBase58(), signed: false, feedbackIndex: BigInt(0) })),
   }
   const connection = {
@@ -88,8 +88,8 @@ describe("8004 agent identity", () => {
   it("reports status with reputation, and tolerates an indexer that is not ready", async () => {
     const { deps, sdk } = makeDeps({ loadAgent: { owner: TREASURY } })
     const status = await getIdentityStatus("agent-1", deps)
-    expect(status).toMatchObject({ registered: true, reputation: { averageScore: 92.5, totalFeedbacks: 4 } })
-    sdk.getSummary.mockRejectedValue(new Error("indexer lag"))
+    expect(status).toMatchObject({ registered: true, reputation: { averageScore: 93, totalFeedbacks: 2 } })
+    sdk.readAllFeedback.mockRejectedValue(new Error("indexer lag"))
     expect((await getIdentityStatus("agent-1", deps)).reputation).toBeNull()
     expect((await getIdentityStatus("agent-1", makeDeps().deps)).registered).toBe(false)
   })

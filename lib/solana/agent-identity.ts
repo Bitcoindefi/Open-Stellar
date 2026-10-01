@@ -73,7 +73,7 @@ export function buildRegistrationFile(origin: string, agentId: string, params: U
 }
 
 export type IdentityDeps = {
-  createSdk: (signer?: Keypair) => Pick<SolanaSDK, "loadAgent" | "registerAgent" | "getSummary" | "giveFeedback">
+  createSdk: (signer?: Keypair) => Pick<SolanaSDK, "loadAgent" | "registerAgent" | "readAllFeedback" | "giveFeedback">
   connection: () => Pick<Connection, "sendRawTransaction" | "confirmTransaction" | "getTransaction">
 }
 
@@ -102,8 +102,11 @@ export async function getIdentityStatus(agentId: string, deps: IdentityDeps = de
   let reputation: IdentityStatus["reputation"] = null
   if (account) {
     try {
-      const summary = await sdk.getSummary(asset)
-      reputation = { averageScore: summary.averageScore, totalFeedbacks: summary.totalFeedbacks }
+      // Average the 0-100 scores ourselves: the SDK summary (0.8.5) reports 0 for agents
+      // registered without the ATOM engine.
+      const reviews = (await sdk.readAllFeedback(asset)).filter((review) => !review.revoked && typeof review.score === "number")
+      const total = reviews.reduce((sum, review) => sum + (review.score ?? 0), 0)
+      reputation = { averageScore: reviews.length ? Math.round(total / reviews.length) : 0, totalFeedbacks: reviews.length }
     } catch {
       reputation = null // indexer not caught up or unavailable
     }
