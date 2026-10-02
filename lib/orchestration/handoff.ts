@@ -131,7 +131,7 @@ async function payAndRun(deps: HandoffDeps, run: RunState, from: Hirer, agent: R
     return { ok: false, refusal: `Hiring ${agent.name} did not go through: ${reason}. Nothing was charged. Answer with what you have, or ask the person.` }
   }
 
-  run.spentMicro += deps.priceMicro
+  // run.spentMicro already holds this hire: it was reserved before the first await.
   run.receipts.push(result.receipt)
   deps.emit({ type: "handoff", turnId: from.turnId, fromName: from.name, toName: agent.name, task: envelope.task.slice(0, 300), amount, receipt: result.receipt })
 
@@ -220,22 +220,28 @@ export async function sendHandoff(deps: HandoffDeps, run: RunState, from: Hirer,
     run.hops -= 1
     return requestApproval(deps, run, from, agent, normalized, "run")
   }
+  // Hold this hire's price against the per-run cap before the first await, like the hop count:
+  // hires the model asks for in parallel each see the ones already in flight.
+  run.spentMicro += deps.priceMicro
 
   let reservation: Awaited<ReturnType<typeof reserveDaily>>
   try {
     reservation = await reserveDaily(deps.store, deps.owner, deps.priceMicro, deps.budget.perDayMicro, deps.now?.())
   } catch {
     run.hops -= 1
+    run.spentMicro -= deps.priceMicro
     run.asked.delete(key)
     return { ok: false, refusal: "The spending ledger could not be checked just now, so nothing was paid. Answer with what you have." }
   }
   if (!reservation.ok) {
     run.hops -= 1
+    run.spentMicro -= deps.priceMicro
     return requestApproval(deps, run, from, agent, normalized, "day")
   }
   const held = reservation
   return payAndRun(deps, run, from, agent, normalized, async () => {
     run.hops -= 1
+    run.spentMicro -= deps.priceMicro
     run.asked.delete(key)
     await releaseDaily(deps.store, held).catch(() => undefined)
   })
@@ -262,8 +268,10 @@ export async function executeApprovedHandoff(deps: HandoffDeps, run: RunState, p
   }
   const held = reservation
   run.hops += 1
+  run.spentMicro += payload.amountMicro
   return payAndRun({ ...deps, priceMicro: payload.amountMicro }, run, from, agent, { task: payload.task }, async () => {
     run.hops -= 1
+    run.spentMicro -= payload.amountMicro
     await releaseDaily(deps.store, held).catch(() => undefined)
   })
 }

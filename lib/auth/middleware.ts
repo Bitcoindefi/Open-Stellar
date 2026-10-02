@@ -374,6 +374,26 @@ export function isRateLimitExempt(pathname: string, method: string): boolean {
   return pathname === "/api/account" || pathname === "/api/connections/openrouter" || pathname === "/api/auth/get-session";
 }
 
+/**
+ * The no-login browser flow: this browser's agents' wallet, 8004 identity, paid agent tasks and the
+ * agent chat. One person using it makes several calls a minute by design (a fund refreshes the
+ * balance four times, a paid task is a 402 and then the paid retry, a review re-reads the identity),
+ * so against the 10-a-minute anonymous API budget a visitor who funds, chats and pays in the same
+ * minute got "rate_limit_exceeded" (seen in a real-browser run). These routes have their own
+ * per-browser limits or need an x402 payment, so they share a separate, larger per-IP budget.
+ */
+export function isBrowserFlowRoute(pathname: string, method: string): boolean {
+  if (method === "GET") return pathname === "/api/agent-wallet" || /^\/api\/8004\/agents\/[^/]+$/.test(pathname);
+  if (method !== "POST") return false;
+  return (
+    pathname === "/api/agent-wallet/fund" ||
+    pathname === "/api/agent-wallet/withdraw" ||
+    pathname === "/api/connections/chat" ||
+    /^\/api\/x402\/agents\/[^/]+\/task$/.test(pathname) ||
+    /^\/api\/8004\/agents\/[^/]+\/(register|feedback)$/.test(pathname)
+  );
+}
+
 function evaluateRateLimit(
   authResult: VerificationResult,
   clientIp: string,
@@ -522,9 +542,13 @@ export async function evaluateAuth(
   const isDevBypass = process.env.NODE_ENV !== "production" && process.env.DEV_MODE?.trim().toLowerCase() === "true";
 
   // Rate Limiting Evaluation
+  // Anonymous calls of the no-login browser flow get their own bucket, at the free-tier size.
+  const browserFlow = !authResult.valid && isBrowserFlowRoute(pathname, method);
   const rateLimitEval = isRateLimitExempt(pathname, method)
     ? { allowed: true, status: 200, headers: {} as Record<string, string>, error: undefined }
-    : evaluateRateLimit(authResult, clientIp);
+    : browserFlow
+      ? evaluateRateLimit({ ...authResult, tier: "free" }, `browser-flow:${clientIp}`)
+      : evaluateRateLimit(authResult, clientIp);
   if (!rateLimitEval.allowed) {
     return {
       allowed: false,

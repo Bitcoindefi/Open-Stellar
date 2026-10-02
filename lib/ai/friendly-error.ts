@@ -3,6 +3,8 @@
 export function friendlyProviderError(message: string): string {
   if (/^Connect OpenRouter first/i.test(message)) return "Conectá tu cuenta de OpenRouter en Modelos IA y probá de nuevo."
   if (/^Cross-site requests/i.test(message)) return "Abrí Agentic City directamente para usar tus conexiones."
+  // The API rate limiter answers {"error":"rate_limit_exceeded"}; the wallet routes say "Too many ...".
+  if (/^rate_limit_exceeded$|^Too many .*requests/i.test(message)) return "Demasiados pedidos seguidos. Esperá un minuto y probá de nuevo."
   const empty = /^(.+?) returned an empty response/.exec(message)
   if (empty) return `${empty[1]} respondió vacío. Probá de nuevo o elegí otro modelo.`
   const rejected = /^(.+?) rejected the (?:key or request|request|token) \(HTTP (\d+)\)/.exec(message)

@@ -174,6 +174,32 @@ describe("sendHandoff", () => {
     expect(deps.approvals?.verify((approval as { token: string }).token, "run-1", "d".repeat(32), day.getTime()).ok).toBe(false)
   })
 
+  it("holds the per-run cap when the model asks for several hires at the same time", async () => {
+    // Seen in a real browser run: two parallel tool calls each saw 0 spent and both paid past a 0.01 cap.
+    const { deps, run, events, hire } = setup({ budget: { perRunMicro: 10_000, perDayMicro: 500_000, hardDayMicro: 2_000_000 } })
+    const outcomes = await Promise.all([
+      sendHandoff(deps, run, from, "research", { task: "a" }),
+      sendHandoff(deps, run, from, "critic", { task: "b" }),
+    ])
+    expect(outcomes[0]).toMatchObject({ ok: true })
+    expect(outcomes[1]).toMatchObject({ ok: false, approval: { toId: "critic", reason: "run" } })
+    expect(hire).toHaveBeenCalledTimes(1)
+    expect(run).toMatchObject({ hops: 1, spentMicro: 10_000 })
+    expect(events.filter((event) => event.type === "approval")).toHaveLength(1)
+  })
+
+  it("frees the held amount when a parallel hire is not paid", async () => {
+    let calls = 0
+    const hire = vi.fn(async (agent: RosterAgent): Promise<HopResult> => (++calls === 1
+      ? { ok: false, error: "the agent's endpoint did not accept the payment" }
+      : { ok: true, answer: `answer from ${agent.name}`, receipt: receipt(calls) }))
+    const { deps, run } = setup({ hire, budget: { perRunMicro: 10_000, perDayMicro: 500_000, hardDayMicro: 2_000_000 } })
+    expect(await sendHandoff(deps, run, from, "research", { task: "a" })).toMatchObject({ ok: false, refusal: expect.stringContaining("did not go through") })
+    expect(run.spentMicro).toBe(0)
+    expect(await sendHandoff(deps, run, from, "critic", { task: "b" })).toMatchObject({ ok: true })
+    expect(run.spentMicro).toBe(10_000)
+  })
+
   it("asks the person when today's budget is spent", async () => {
     const { deps, run, events, store } = setup({ budget: { perRunMicro: 50_000, perDayMicro: 10_000, hardDayMicro: 2_000_000 } })
     await store.incr(`orchestrator:spend:${OWNER}:2026-10-01`, 60)
@@ -241,6 +267,7 @@ describe("executeApprovedHandoff", () => {
     expect(outcome).toMatchObject({ ok: true, toName: "Redactor" })
     expect(hire).toHaveBeenCalledWith(roster[2], "Write it")
     expect(events[0]).toMatchObject({ type: "handoff", fromName: "Supervisor", toName: "Redactor" })
+    expect(run.spentMicro).toBe(10_000)
   })
 
   it("still stops at the hard daily ceiling", async () => {
@@ -262,7 +289,7 @@ describe("executeApprovedHandoff", () => {
     const { deps, run, store } = setup({ hire: vi.fn(async (): Promise<HopResult> => ({ ok: false, error: "facilitator down" })) })
     expect(await executeApprovedHandoff(deps, run, payload)).toMatchObject({ ok: false, refusal: expect.stringContaining("Nothing was charged") })
     expect(await spentToday(store, OWNER, day)).toBe(0)
-    expect(run.hops).toBe(0)
+    expect(run).toMatchObject({ hops: 0, spentMicro: 0 })
   })
 })
 

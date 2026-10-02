@@ -7,6 +7,8 @@ import { useSignAndSendTransaction, useSignTransaction } from "@solana/react"
 import { createSolanaRpc, getBase58Decoder, getBase64Decoder, getBase64Encoder, type Base64EncodedWireTransaction } from "@solana/kit"
 import { Activity, Bot, CircleAlert, Copy, ExternalLink, RefreshCw } from "lucide-react"
 import { FUND_AMOUNT_MICRO, buildFundTransaction, fundTransactionProblem } from "@/lib/agent-wallet/fund-tx"
+import { mayHoldUsdc, usdcLabel } from "@/lib/agent-wallet/format"
+import { friendlyProviderError } from "@/lib/ai/friendly-error"
 import { ConnectButton, DisconnectButton, WALLET_CHAIN, supportsDevnetSigning } from "./wallet-connect"
 
 // "La wallet de tus agentes": a Solana devnet wallet that belongs to this browser (its key lives
@@ -33,10 +35,6 @@ function short(value: string) {
   return `${value.slice(0, 4)}…${value.slice(-4)}`
 }
 
-function decimal(value: string) {
-  return value.replace(".", ",")
-}
-
 export function AgentWalletPanel({ compact = false }: { compact?: boolean }) {
   const wallets = useWallets().filter(supportsDevnetSigning)
   const [status, setStatus] = useState<AgentWalletStatus | null>(null)
@@ -55,7 +53,7 @@ export function AgentWalletPanel({ compact = false }: { compact?: boolean }) {
       setStatus(data)
       setError("")
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "No pudimos abrir la wallet de tus agentes.")
+      setError(loadError instanceof Error ? friendlyProviderError(loadError.message) : "No pudimos abrir la wallet de tus agentes.")
     } finally {
       setLoading(false)
     }
@@ -92,10 +90,10 @@ export function AgentWalletPanel({ compact = false }: { compact?: boolean }) {
           <a href={status.explorerUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate font-mono text-[11px] text-cyan-100 underline">{short(status.address)}</a>
           <button type="button" onClick={() => void copy()} aria-label="Copiar dirección" className="text-slate-400"><Copy className="h-3.5 w-3.5" /></button>
           {copied ? <span className="text-[10px] text-emerald-200">Copiada</span> : null}
-          <span className="ml-auto font-mono text-sm text-slate-100">{status.balanceUsdc === null ? "…" : `${decimal(status.balanceUsdc)} USDC`}</span>
+          <span className="ml-auto font-mono text-sm text-slate-100">{status.balanceUsdc === null ? "…" : `${usdcLabel(status.balanceUsdc)} USDC`}</span>
         </div>
         <p className="mt-2 text-[11px] leading-5 text-slate-400">
-          Paga {decimal(status.hirePriceUsdc)} USDC cada vez que un agente contrata a otro en el chat. Tope sin preguntarte: {decimal(status.caps.perRunUsdc)} por conversación y {decimal(status.caps.perDayUsdc)} por día (hoy: {decimal(status.spentTodayUsdc)}). Ni esta wallet ni la tuya necesitan SOL{status.feePayer ? "" : " (en este servidor la carga la paga tu wallet)"}.
+          Paga {usdcLabel(status.hirePriceUsdc)} USDC cada vez que un agente contrata a otro en el chat. Tope sin preguntarte: {usdcLabel(status.caps.perRunUsdc)} por conversación y {usdcLabel(status.caps.perDayUsdc)} por día (hoy: {usdcLabel(status.spentTodayUsdc)}). Ni esta wallet ni la tuya necesitan SOL{status.feePayer ? "" : " (en este servidor la carga la paga tu wallet)"}.
         </p>
         {account ? (
           <WalletActions account={account} wallet={connected} walletName={walletName} status={status} onDone={load} onDisconnect={() => setAccount(null)} />
@@ -165,14 +163,17 @@ function WalletActions({ account, wallet, walletName, status, onDone, onDisconne
       } else {
         throw new Error(data.error || "No se pudo preparar la carga.")
       }
-      setLast({ label: `Cargaste ${status.fundUsdc.replace(".", ",")} USDC`, url: `https://explorer.solana.com/tx/${text}?cluster=devnet` })
+      setLast({ label: `Cargaste ${usdcLabel(status.fundUsdc)} USDC`, url: `https://explorer.solana.com/tx/${text}?cluster=devnet` })
+      // Signed and sent: free the buttons while the balance catches up (it kept saying "Firmando…").
+      setBusy(null)
       await refreshSoon()
     } catch (fundError) {
       const message = fundError instanceof Error ? fundError.message : ""
       setError(/insufficient|0x1\b|funds|AccountNotFound|InvalidAccountData/i.test(message)
         ? "Tu wallet no tiene USDC de devnet suficiente. Cargá en faucet.circle.com → Solana Devnet."
         : /reject|cancel|denied/i.test(message) ? "Cancelaste la firma."
-        : message.startsWith("La transacción") || message.startsWith("Too many") ? message
+        : message.startsWith("La transacción") ? message
+        : message.startsWith("Too many") ? friendlyProviderError(message)
         : "No se pudo cargar la wallet de tus agentes.")
     } finally {
       setBusy(null)
@@ -190,10 +191,10 @@ function WalletActions({ account, wallet, walletName, status, onDone, onDisconne
       })
       const data = await response.json().catch(() => ({})) as { ok?: boolean; error?: string; amountUsdc?: string; explorerUrl?: string }
       if (!response.ok || !data.ok) throw new Error(data.error || "No se pudo retirar.")
-      setLast({ label: `Retiraste ${(data.amountUsdc ?? "").replace(".", ",")} USDC a ${short(account.address)}`, url: data.explorerUrl ?? "" })
+      setLast({ label: `Retiraste ${usdcLabel(data.amountUsdc ?? "0")} USDC a ${short(account.address)}`, url: data.explorerUrl ?? "" })
       await onDone()
     } catch (withdrawError) {
-      setError(withdrawError instanceof Error ? withdrawError.message : "No se pudo retirar.")
+      setError(withdrawError instanceof Error ? friendlyProviderError(withdrawError.message) : "No se pudo retirar.")
     } finally {
       setBusy(null)
     }
@@ -206,8 +207,9 @@ function WalletActions({ account, wallet, walletName, status, onDone, onDisconne
         {wallet ? <DisconnectButton wallet={wallet} onDisconnect={onDisconnect} /> : null}
       </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => void fund()} disabled={busy !== null} className={buttonClass}>{busy === "fund" ? <Activity className="h-4 w-4 animate-pulse" /> : null}{busy === "fund" ? "Firmando…" : `Cargar ${status.fundUsdc.replace(".", ",")} USDC`}</button>
-        {status.withdrawAvailable ? <button type="button" onClick={() => void withdraw()} disabled={busy !== null} className={secondaryButtonClass}>{busy === "withdraw" ? "Retirando…" : "Retirar todo"}</button> : null}
+        <button type="button" onClick={() => void fund()} disabled={busy !== null} className={buttonClass}>{busy === "fund" ? <Activity className="h-4 w-4 animate-pulse" /> : null}{busy === "fund" ? "Firmando…" : `Cargar ${usdcLabel(status.fundUsdc)} USDC`}</button>
+        {/* Nothing to withdraw from an empty wallet: the button only led to an English 409 error. */}
+        {status.withdrawAvailable && mayHoldUsdc(status.balanceUsdc) ? <button type="button" onClick={() => void withdraw()} disabled={busy !== null} className={secondaryButtonClass}>{busy === "withdraw" ? "Retirando…" : "Retirar todo"}</button> : null}
       </div>
       {last ? <a href={last.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-200 underline">{last.label} <ExternalLink className="h-3 w-3" /></a> : null}
       {error ? <p role="alert" className="flex items-start gap-2 text-xs leading-5 text-rose-200"><CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{error}</p> : null}
