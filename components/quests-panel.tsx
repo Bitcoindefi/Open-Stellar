@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import type { Quest } from "@/lib/gamification/quests"
+import { formatAssetAmount } from "@/lib/config/chains"
 import type { QuestLeaderboardEntry } from "@/lib/gamification/quest-leaderboard"
 
 const questTypeColors: Record<Quest["type"], string> = {
@@ -14,7 +15,7 @@ const questTypeColors: Record<Quest["type"], string> = {
 
 function formatReward(quest: Quest): string {
   const parts = [`${quest.reward.xp} XP`]
-  if (quest.reward.xlm) parts.push(`${quest.reward.xlm} XLM`)
+  if (quest.reward.xlm) parts.push(formatAssetAmount(quest.reward.xlm))
   if (quest.reward.badge) parts.push(quest.reward.badge)
   if (quest.reward.title) parts.push(quest.reward.title)
   return parts.join(" + ")
@@ -340,7 +341,7 @@ export function QuestsPanel({ selectedAgentId }: { selectedAgentId?: string | nu
 
   function handleClaim(quest: Quest): void {
     if (quest.reward.xlm) {
-      toast.info(`${quest.title} requires wallet signature to claim ${quest.reward.xlm} XLM`)
+      toast.info(`${quest.title} requires wallet signature to claim ${formatAssetAmount(quest.reward.xlm)}`)
       return
     }
 

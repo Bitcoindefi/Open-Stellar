@@ -17,6 +17,13 @@ interface ReceiptExplorerPayload {
   }
 }
 
+const CHAIN_LABELS: Record<string, string> = {
+  solana: 'Solana',
+  stellar: 'Stellar',
+  bnb: 'BNB',
+  base: 'Base',
+}
+
 function shortHash(hash: string) {
   if (hash.length <= 16) return hash
   return `${hash.slice(0, 8)}...${hash.slice(-6)}`
@@ -51,6 +58,11 @@ export function ReceiptTable({ initialData }: { initialData: ReceiptExplorerPayl
     })
   }, [chain, initialData.receipts, query])
 
+  const chainOptions = useMemo(
+    () => Array.from(new Set(initialData.receipts.map((receipt) => String(receipt.chain)))).sort(),
+    [initialData.receipts],
+  )
+
   return (
     <section className="space-y-5">
       <div className="grid gap-3 md:grid-cols-4">
@@ -73,9 +85,10 @@ export function ReceiptTable({ initialData }: { initialData: ReceiptExplorerPayl
           className="min-h-10 rounded-lg border border-slate-700 bg-slate-900 px-3 font-mono text-sm text-slate-100 outline-none focus:border-cyan-400"
         >
           <option value="all">All chains</option>
-          <option value="stellar">Stellar</option>
-          <option value="bnb">BNB</option>
-          <option value="base">Base</option>
+          {/* Only offer chains that actually have receipts, so legacy rails stay out of the filter. */}
+          {chainOptions.map((value) => (
+            <option key={value} value={value}>{CHAIN_LABELS[value] ?? value}</option>
+          ))}
         </select>
       </div>
 

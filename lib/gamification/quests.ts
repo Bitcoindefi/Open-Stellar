@@ -1,6 +1,7 @@
 import { addNotification } from "@/lib/notifications/notification-store"
 import { invalidateLeaderboardCache } from "./leaderboard-cache"
 import { listStoredQuests } from "./quest-store"
+import { PAYMENT_ASSET } from "@/lib/config/chains"
 
 export type QuestType = "daily" | "weekly" | "story"
 
@@ -88,7 +89,7 @@ const QUEST_DEFINITIONS: QuestDefinition[] = [
     id: "daily-process-payment",
     type: "daily",
     title: "Process a payment",
-    description: "Settle one Stellar or x402 payment through the agent wallet.",
+    description: "Settle one x402 payment through the agent wallet.",
     reward: { xp: 30 },
     goal: 1,
     metric: "paymentsProcessedToday",
@@ -123,8 +124,8 @@ const QUEST_DEFINITIONS: QuestDefinition[] = [
   {
     id: "weekly-earn-1-xlm",
     type: "weekly",
-    title: "Earn 1 XLM from x402 services",
-    description: "Collect one XLM in service revenue from x402 payments.",
+    title: `Earn 1 ${PAYMENT_ASSET} from x402 services`,
+    description: `Collect one ${PAYMENT_ASSET} in service revenue from x402 payments.`,
     reward: { xp: 300 },
     goal: 1,
     metric: "xlmEarnedWeek",

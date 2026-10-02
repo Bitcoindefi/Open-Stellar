@@ -15,6 +15,7 @@ import {
 } from "@/lib/cosmetics"
 import { drawBot } from "@/lib/renderer"
 import { SPRITE_CONFIGS } from "@/components/pixel-city"
+import { STELLAR_ENABLED } from "@/lib/config/chains"
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/
 
@@ -359,8 +360,8 @@ export function AppearancePanel({ agents, selectedAgent, onUpdateAgentAppearance
         </div>
       </div>
 
-      {/* Color customization */}
-      <div>
+      {/* Color customization: paid in XLM via Freighter, so only shown when Stellar is enabled. */}
+      {STELLAR_ENABLED && <div>
         <div style={{ fontFamily: "monospace", fontSize: 10, color: "#64748b", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
           Agent Color
         </div>
@@ -413,7 +414,7 @@ export function AppearancePanel({ agents, selectedAgent, onUpdateAgentAppearance
         <div style={{ fontFamily: "monospace", fontSize: 8, color: "#475569", marginTop: 4 }}>
           Paid to the protocol treasury via Freighter, Stellar Testnet
         </div>
-      </div>
+      </div>}
 
       {error && (
         <div

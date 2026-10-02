@@ -17,6 +17,7 @@ import { AppearancePanel } from "./appearance-panel"
 import { QuestsPanel } from "./quests-panel"
 import { MOCK_OFFERS, TaskBoard, getTaskOfferCounts } from "./task-board"
 import { ConnectionsPanel } from "./admin/connections-panel"
+import { STELLAR_ENABLED } from "@/lib/config/chains"
 
 export type SidebarTabId = "overview" | "models" | "connectors" | "chat" | "offers" | "skills" | "quests" | "wallet" | "appearance"
 
@@ -184,7 +185,7 @@ function AgentShareControls({ agent }: { agent: MoltbotAgent }) {
       const objectUrl = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = objectUrl
-      link.download = `open-stellar-${slugifyAgent(agent)}.png`
+      link.download = `agentic-city-${slugifyAgent(agent)}.png`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -650,14 +651,15 @@ function OverviewTab({
               <span style={{ color: tierColor(reputation?.tier || "Unrated"), fontWeight: 700 }}>{reputation?.score ?? "--"}/1300</span>
             </div>
             <ProgressBar value={Math.min(100, ((reputation?.score ?? 0) / 1300) * 100)} color={tierColor(reputation?.tier || "Unrated")} />
-            <button
+            {/* The attestation is minted on Soroban, so it only shows when Stellar is enabled. */}
+            {STELLAR_ENABLED && <button
               onClick={mintReputationAttestation}
               disabled={mintingAttestation}
               style={{ width: "100%", marginTop: 8, padding: "6px 8px", background: "#22d3ee22", color: "#67e8f9", border: "1px solid #22d3ee44", borderRadius: 4, cursor: mintingAttestation ? "wait" : "pointer", fontFamily: "monospace", fontSize: 10, fontWeight: 700 }}
             >
               {mintingAttestation ? "Minting..." : "Mint reputation attestation"}
-            </button>
-            {attestation && (
+            </button>}
+            {STELLAR_ENABLED && attestation && (
               <a href={attestation.stellarExpertUrl} target="_blank" rel="noreferrer" style={{ display: "block", marginTop: 6, color: "#38bdf8", fontFamily: "monospace", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {attestation.hash}
               </a>
@@ -792,7 +794,8 @@ export function SidebarPanel({
 
   const chatCount = chatMessages.length
   const errorCount = agents.filter(a => a.status === "error").length
-  const walletAlert = agents.some(a => !a.wallet || (a.wallet.funded && parseFloat(a.wallet.balance) < 10))
+  // The low-balance dot tracks the legacy Stellar agent wallets.
+  const walletAlert = STELLAR_ENABLED && agents.some(a => !a.wallet || (a.wallet.funded && parseFloat(a.wallet.balance) < 10))
   const openOfferCount = MOCK_OFFERS.filter(offer => offer.status === "open").length
   const tabIconMap: Partial<Record<SidebarTabId, ReactNode>> = {
     models: <BrainCircuit size={14} aria-hidden="true" />,
@@ -979,13 +982,16 @@ export function SidebarPanel({
         {activeTab === "wallet" && (
           <div className="space-y-3 p-3">
           <PaidTaskPanel />
-          <WalletPanel
-            agents={agents}
-            selectedAgent={selectedAgent}
-            transactions={transactions}
-            onUpdateAgent={onUpdateAgent}
-            onAddTransaction={onAddTransaction}
-          />
+          {/* Legacy Stellar wallet (Freighter, XLM, Friendbot): hidden unless NEXT_PUBLIC_ENABLE_STELLAR is on. */}
+          {STELLAR_ENABLED && (
+            <WalletPanel
+              agents={agents}
+              selectedAgent={selectedAgent}
+              transactions={transactions}
+              onUpdateAgent={onUpdateAgent}
+              onAddTransaction={onAddTransaction}
+            />
+          )}
           </div>
         )}
         {activeTab === "appearance" && (

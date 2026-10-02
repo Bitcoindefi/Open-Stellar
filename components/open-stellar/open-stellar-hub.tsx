@@ -12,6 +12,7 @@ import { MOCK_OFFERS } from "@/components/task-board"
 import { CityAudioEngine } from "@/lib/audio/city-audio"
 import { DISTRICTS, createAgents, generateChatMessage, getRandomTask } from "@/lib/data"
 import { LEGAL_LINKS } from "@/lib/legal-links"
+import { formatAssetAmount } from "@/lib/config/chains"
 import type { PublishedSystemEvent } from "@/lib/events/system-events"
 import { XP_AWARDS } from "@/lib/gamification/constants"
 import { getActiveDistrictEvent, getDistrictStandings } from "@/lib/gamification/events"
@@ -43,7 +44,7 @@ const ONBOARDING_STEPS = [
   },
   {
     title: "Sidebar Controls",
-    body: "The sidebar has tabs for AI models, connectors, team orchestration, chat, offers, skills, quests, appearance, and multichain wallets.",
+    body: "The sidebar has tabs for AI models, connectors, team orchestration, chat, offers, skills, quests, appearance, and a Solana wallet to pay agents per task with x402.",
     hint: "→ explore the tabs",
   },
   {
@@ -535,7 +536,7 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
       if (agent) {
         animateAgentToDistrict(agent)
         showAgentOverlay(agent, `+${amount}`, "#fbbf24")
-        const xlmAmount = event.receipt.amountUnits ? `+${event.receipt.amountUnits} XLM` : "+0.01 XLM"
+        const xlmAmount = `+${formatAssetAmount(event.receipt.amountUnits || "0.01")}`
         spawnParticles("payment-spark", agent.pixelX + 8, agent.pixelY + 10, {
           amount: xlmAmount,
         })
@@ -566,7 +567,7 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
       const questTitle = event.quest?.title ?? event.questId ?? "Quest"
       const rewards = [
         typeof event.reward?.xp === "number" ? `+${event.reward.xp} XP` : null,
-        event.reward?.xlm ? `${event.reward.xlm} XLM` : null,
+        event.reward?.xlm ? formatAssetAmount(event.reward.xlm) : null,
         event.reward?.badge ?? null,
         event.reward?.title ?? null,
       ].filter((reward): reward is string => Boolean(reward))
