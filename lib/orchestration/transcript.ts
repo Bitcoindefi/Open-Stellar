@@ -39,7 +39,9 @@ export type TranscriptApproval = {
   expiresAt: number
   state: "pending" | "working" | "approved" | "rejected" | "expired" | "failed"
 }
-export type TranscriptItem = TranscriptMessage | TranscriptTool | TranscriptReceipt | TranscriptApproval
+/** The agents' wallet could not pay a hire: the chat shows the Fund button here. */
+export type TranscriptFund = { kind: "fund"; id: string; address: string; balanceUsdc: string; neededUsdc: string }
+export type TranscriptItem = TranscriptMessage | TranscriptTool | TranscriptReceipt | TranscriptApproval | TranscriptFund
 
 type TurnMeta = { speaker: string; model: string; color: string; hiredBy?: string }
 
@@ -115,6 +117,11 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatStreamEvent, 
         expiresAt: event.expiresAt,
         state: "pending",
       }]
+    case "wallet": {
+      // One Fund card per wallet is enough: a newer one replaces an older one still on screen.
+      const rest = items.filter((item) => !(item.kind === "fund" && item.address === event.address))
+      return [...rest, { kind: "fund", id: ctx.makeId(), address: event.address, balanceUsdc: event.balanceUsdc, neededUsdc: event.neededUsdc }]
+    }
     case "notice":
       return [...items, systemMessage(ctx, event.message)]
     case "error":
@@ -144,7 +151,7 @@ export function normalizeStoredTranscript(value: unknown, limit = 120): Transcri
     const record = item as Record<string, unknown>
     // A pending approval survives a reload: its token still expires on the server's clock.
     if (record.kind === "approval" && record.state === "working") return [{ ...(record as TranscriptApproval), state: "pending" }]
-    if (record.kind === "tool" || record.kind === "receipt" || record.kind === "approval") return [record as TranscriptItem]
+    if (record.kind === "tool" || record.kind === "receipt" || record.kind === "approval" || record.kind === "fund") return [record as TranscriptItem]
     if (typeof record.message !== "string" || typeof record.speaker !== "string") return []
     return [{ ...(record as Omit<TranscriptMessage, "kind">), kind: "message" } as TranscriptMessage]
   })

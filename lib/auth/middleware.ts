@@ -224,7 +224,9 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
       pathname === "/api/connections/openrouter/start" ||
       pathname === "/api/connections/openrouter/callback" ||
       // 8004 agent identity: status and registration files are public.
-      pathname.startsWith("/api/8004/agents/")
+      pathname.startsWith("/api/8004/agents/") ||
+      // This browser's agents' wallet (cookie-scoped, same-origin checked in the route).
+      pathname === "/api/agent-wallet"
     ) {
       return true;
     }
@@ -245,8 +247,11 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
       pathname.startsWith("/api/auth/") ||
       // Paid agent tasks: access is granted by an x402 payment, not by an API key.
       /^\/api\/x402\/agents\/[^/]+\/task$/.test(pathname) ||
-      // Registration needs a connected account; reviews need an x402 payment (checked in the route).
-      /^\/api\/8004\/agents\/[^/]+\/(register|feedback)$/.test(pathname)
+      // Registration is per browser (quota checked in the route); reviews need an x402 payment.
+      /^\/api\/8004\/agents\/[^/]+\/(register|feedback)$/.test(pathname) ||
+      // Fund (sponsored tx) and withdraw this browser's agents' wallet (cookie-scoped, strict same-origin in the routes).
+      pathname === "/api/agent-wallet/withdraw" ||
+      pathname === "/api/agent-wallet/fund"
     ) {
       return true;
     }

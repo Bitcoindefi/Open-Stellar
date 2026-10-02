@@ -13,6 +13,7 @@ import dynamic from "next/dynamic"
 
 // Wallet Standard discovery only exists in the browser.
 const PaidTaskPanel = dynamic(() => import("./x402/paid-task-panel").then((mod) => mod.PaidTaskPanel), { ssr: false })
+const AgentWalletPanel = dynamic(() => import("./x402/agent-wallet-panel").then((mod) => mod.AgentWalletPanel), { ssr: false })
 import { AppearancePanel } from "./appearance-panel"
 import { QuestsPanel } from "./quests-panel"
 import { MOCK_OFFERS, TaskBoard, getTaskOfferCounts } from "./task-board"
@@ -980,7 +981,8 @@ export function SidebarPanel({
           <QuestsPanel selectedAgentId={selectedAgent?.id ?? null} />
         )}
         {activeTab === "wallet" && (
-          <div className="space-y-3 p-3">
+          <div className="h-full space-y-3 overflow-y-auto p-3">
+          <AgentWalletPanel />
           <PaidTaskPanel />
           {/* Legacy Stellar wallet (Freighter, XLM, Friendbot): hidden unless NEXT_PUBLIC_ENABLE_STELLAR is on. */}
           {STELLAR_ENABLED && (

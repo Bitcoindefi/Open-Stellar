@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
 import { BYOK_PROVIDERS, type ByokModelConnection, type ByokProviderId } from "@/lib/ai/byok-provider"
 import { isJevModel } from "@/lib/ai/jev"
-import { withOAuthCredentials } from "@/lib/connections/hydrate"
+import { resolveAgentWallet } from "@/lib/agent-wallet/cookie"
+import { isStrictSameOrigin, withOAuthCredentials } from "@/lib/connections/hydrate"
+import { appendCookies } from "@/lib/connections/sealed-cookie"
 import { runChat, type ChatHistoryItem, type ChatRunInput, type ChatTarget } from "@/lib/orchestration/chat-run"
 import { createChatRunDeps } from "@/lib/orchestration/deps"
 import { encodeEvent, type ChatStreamEvent } from "@/lib/orchestration/events"
@@ -112,7 +114,10 @@ export async function POST(request: Request) {
     members,
     ...(approval ? { approval } : {}),
   }
-  const deps = await createChatRunDeps(req.url)
+  // The browser's own agents' wallet pays its hires; the first chat creates it (cookie only).
+  // Wallet cookies are only used for requests this site made, never for a cross-site post.
+  const browser = isStrictSameOrigin(req) ? await resolveAgentWallet(req, { create: true }) : null
+  const deps = await createChatRunDeps(req.url, browser ? { uid: browser.uid, wallet: browser.wallet } : { uid: "anonymous", wallet: null })
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -137,12 +142,11 @@ export async function POST(request: Request) {
     },
   })
 
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Accel-Buffering": "no",
-    },
+  const headers = new Headers({
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Accel-Buffering": "no",
   })
+  if (browser) appendCookies(req, headers, browser.cookies)
+  return new Response(stream, { status: 200, headers })
 }

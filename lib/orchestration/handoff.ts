@@ -6,7 +6,7 @@ import type { ApprovalPayload, ApprovalReason, ApprovalSigner } from "@/lib/orch
 import { hiredLabel, shortSignature, type ChatStreamEvent } from "@/lib/orchestration/events"
 import type { HireAgent, HopReceipt, HopResult } from "@/lib/orchestration/wallet"
 
-// One agent hiring another, paid from the orchestrator wallet.
+// One agent hiring another, paid from the browser's own agents' wallet.
 //
 // Adapted from CopilotKit/openbot (MIT), server/src/agents/handoff.ts and handoff-tool.ts:
 //  - the tool takes typed fields (agent, task, constraints, expecting), not a paragraph, so the
@@ -35,6 +35,8 @@ export type RunState = {
   receipts: HopReceipt[]
   /** Set when a hire is waiting on the person: the turn ends instead of taking another step. */
   approvalPending: boolean
+  /** Set when the agents' wallet could not pay a hire: later hires in this run are refused at once. */
+  walletEmpty: boolean
 }
 
 export type Hirer = { id: string; name: string; depth: number; turnId: string }
@@ -45,7 +47,11 @@ export type HandoffDeps = {
   budget: OrchestratorCaps
   priceMicro: number
   store: KvStore
-  /** Pays and runs the hired agent. Null when this server has no orchestrator wallet. */
+  /** The browser id: the daily ledger and approvals are per browser. */
+  owner: string
+  /** The browser's agents' wallet. Null when this server cannot keep one (no sealing secret). */
+  wallet: { address: string } | null
+  /** Pays (from the agents' wallet) and runs the hired agent. Null when hiring is unavailable. */
   hire: ((agent: RosterAgent, task: string) => Promise<HopResult>) | null
   approvals: ApprovalSigner | null
   emit: (event: ChatStreamEvent) => void
@@ -58,7 +64,7 @@ export type HandoffOutcome =
   | { ok: false; refusal: string; approval?: ApprovalPayload; paid?: { toName: string; receipt: HopReceipt } }
 
 export function createRunState(runId: string): RunState {
-  return { runId, hops: 0, spentMicro: 0, asked: new Set(), receipts: [], approvalPending: false }
+  return { runId, hops: 0, spentMicro: 0, asked: new Set(), receipts: [], approvalPending: false, walletEmpty: false }
 }
 
 /** The message the hired agent receives: the task, then what bounds it and what to hand back. */
@@ -88,6 +94,15 @@ function plural(count: number, word: string) {
   return `${count} ${word}${count === 1 ? "" : "s"}`
 }
 
+function unfundedRefusal(agentName: string, balance: string | null, price: string): string {
+  const holds = balance === null ? "does not hold enough" : `holds ${balance} USDC`
+  return `Hiring ${agentName} costs ${price} USDC, but the person's agents' wallet ${holds}, so nothing was charged. ` +
+    "Tell the person their agents' wallet needs funds and that the Fund button is right here in the chat (one wallet signature, devnet USDC). " +
+    `Then answer with what you can do yourself; do not answer on ${agentName}'s behalf.`
+}
+
+const HIRING_OFF = "Hiring is switched off on this server (agents' wallets need BETTER_AUTH_SECRET to be set). Do the work yourself, or tell the person."
+
 /**
  * Pays and runs one hire whose budget is already reserved; emits the receipt and the answer.
  * `rollback` undoes the reservation and the counters when no money moved.
@@ -100,6 +115,14 @@ async function payAndRun(deps: HandoffDeps, run: RunState, from: Hirer, agent: R
     result = await hire(agent, composeTask(envelope))
   } catch (error) {
     result = { ok: false, error: error instanceof Error ? error.message : "unexpected error" }
+  }
+
+  if (!result.ok && result.code === "unfunded") {
+    await rollback()
+    run.walletEmpty = true
+    const balance = microToUsdc(result.balanceMicro ?? 0)
+    if (deps.wallet) deps.emit({ type: "wallet", status: "unfunded", address: deps.wallet.address, balanceUsdc: balance, neededUsdc: amount })
+    return { ok: false, refusal: unfundedRefusal(agent.name, balance, amount) }
   }
 
   if (!result.receipt) {
@@ -139,10 +162,11 @@ function requestApproval(deps: HandoffDeps, run: RunState, from: Hirer, agent: R
   const cap = reason === "run" ? deps.budget.perRunMicro : deps.budget.perDayMicro
   const capWords = reason === "run" ? "per-conversation" : "daily"
   if (!deps.approvals) {
-    return { ok: false, refusal: `Hiring ${agent.name} would go over the orchestrator's ${capWords} spending cap of ${microToUsdc(cap)} USDC, and approvals are not available here. Answer with what you have.` }
+    return { ok: false, refusal: `Hiring ${agent.name} would go over the agents' wallet ${capWords} spending cap of ${microToUsdc(cap)} USDC, and approvals are not available here. Answer with what you have.` }
   }
   const { token, payload } = deps.approvals.issue({
     runId: run.runId,
+    owner: deps.owner,
     fromId: from.id,
     fromName: from.name,
     toId: agent.id,
@@ -156,7 +180,7 @@ function requestApproval(deps: HandoffDeps, run: RunState, from: Hirer, agent: R
   return {
     ok: false,
     approval: payload,
-    refusal: `Hiring ${agent.name} costs ${amount} USDC and would go over the orchestrator's ${capWords} spending cap of ${microToUsdc(cap)} USDC, so it is waiting for the person's approval in the chat. Stop here: do not answer on ${agent.name}'s behalf.`,
+    refusal: `Hiring ${agent.name} costs ${amount} USDC and would go over the agents' wallet ${capWords} spending cap of ${microToUsdc(cap)} USDC, so it is waiting for the person's approval in the chat. Stop here: do not answer on ${agent.name}'s behalf.`,
   }
 }
 
@@ -180,7 +204,8 @@ export async function sendHandoff(deps: HandoffDeps, run: RunState, from: Hirer,
   if (!resolved.ok) return resolved
   const agent = resolved.agent
 
-  if (!deps.hire) return { ok: false, refusal: "Hiring is switched off on this server (no orchestrator wallet is configured). Do the work yourself, or tell the person." }
+  if (!deps.hire) return { ok: false, refusal: HIRING_OFF }
+  if (run.walletEmpty) return { ok: false, refusal: unfundedRefusal(agent.name, null, microToUsdc(deps.priceMicro)) }
 
   const key = `${agent.id}\u0000${task}`
   if (run.asked.has(key)) return { ok: false, refusal: `You have already asked ${agent.name} exactly this in this conversation. Use that answer rather than paying again.` }
@@ -198,7 +223,7 @@ export async function sendHandoff(deps: HandoffDeps, run: RunState, from: Hirer,
 
   let reservation: Awaited<ReturnType<typeof reserveDaily>>
   try {
-    reservation = await reserveDaily(deps.store, deps.priceMicro, deps.budget.perDayMicro, deps.now?.())
+    reservation = await reserveDaily(deps.store, deps.owner, deps.priceMicro, deps.budget.perDayMicro, deps.now?.())
   } catch {
     run.hops -= 1
     run.asked.delete(key)
@@ -224,16 +249,16 @@ export async function executeApprovedHandoff(deps: HandoffDeps, run: RunState, p
   const from: Hirer = { id: payload.fromId, name: payload.fromName, depth: hirerDepth, turnId: deps.newTurnId(payload.fromId) }
   const agent = deps.roster.find((item) => item.id === payload.toId)
   if (!agent || agent.id === payload.fromId) return { ok: false, refusal: `${payload.toName} is no longer on this team, so nothing was paid.` }
-  if (!deps.hire) return { ok: false, refusal: "Hiring is switched off on this server (no orchestrator wallet is configured)." }
+  if (!deps.hire) return { ok: false, refusal: HIRING_OFF }
 
   let reservation: Awaited<ReturnType<typeof reserveDaily>>
   try {
-    reservation = await reserveDaily(deps.store, payload.amountMicro, deps.budget.hardDayMicro, deps.now?.())
+    reservation = await reserveDaily(deps.store, deps.owner, payload.amountMicro, deps.budget.hardDayMicro, deps.now?.())
   } catch {
     return { ok: false, refusal: "The spending ledger could not be checked just now, so nothing was paid." }
   }
   if (!reservation.ok) {
-    return { ok: false, refusal: `The orchestrator wallet reached its hard daily limit of ${microToUsdc(deps.budget.hardDayMicro)} USDC, so even approved hires wait until tomorrow.` }
+    return { ok: false, refusal: `The agents' wallet reached its hard daily limit of ${microToUsdc(deps.budget.hardDayMicro)} USDC, so even approved hires wait until tomorrow.` }
   }
   const held = reservation
   run.hops += 1
@@ -269,7 +294,7 @@ export function handoffTool(
   return tool({
     description:
       "Hire a teammate for a piece of work that needs their role, and get their answer back. " +
-      `Each hire is a real payment of ${microToUsdc(deps.priceMicro)} USDC on Solana devnet from the orchestrator wallet, ` +
+      `Each hire is a real payment of ${microToUsdc(deps.priceMicro)} USDC on Solana devnet from the person's agents' wallet, ` +
       "so hire only when their role is needed, ask each teammate once, and do the work yourself when it is yours. " +
       "If it needs the person's judgement rather than a teammate's, ask the person instead.",
     inputSchema: handoffInput,

@@ -100,6 +100,14 @@ describe("transcript", () => {
     expect(historyFrom(items, 1)).toEqual([{ speaker: "Supervisor", message: "hi" }])
   })
 
+  it("shows one Fund card per agents' wallet when a hire could not be paid", () => {
+    const wallet = (balanceUsdc: string): ChatStreamEvent => ({ type: "wallet", status: "unfunded", address: "Wallet1", balanceUsdc, neededUsdc: "0.01" })
+    const items = play([wallet("0"), { type: "notice", message: "later" }, wallet("0.005")])
+    expect(items.filter((item) => item.kind === "fund")).toEqual([{ kind: "fund", id: "id3", address: "Wallet1", balanceUsdc: "0.005", neededUsdc: "0.01" }])
+    expect(items.at(-1)?.kind).toBe("fund")
+    expect(play([{ type: "run", runId: "r", hiring: true, perRunUsdc: "0.05", perDayUsdc: "0.5", wallet: "Wallet1" }])).toEqual([])
+  })
+
   it("reads stored transcripts, including ones saved before tool lines existed", () => {
     expect(normalizeStoredTranscript("nope")).toEqual([])
     const stored = normalizeStoredTranscript([
@@ -107,10 +115,11 @@ describe("transcript", () => {
       { kind: "tool", id: "c1", turnId: "t", status: "done", label: "x" },
       { kind: "approval", id: "a", state: "working" },
       { kind: "receipt", id: "r" },
+      { kind: "fund", id: "f", address: "W", balanceUsdc: "0", neededUsdc: "0.01" },
       null,
       { speaker: 1 },
     ])
-    expect(stored.map((item) => item.kind)).toEqual(["message", "tool", "approval", "receipt"])
+    expect(stored.map((item) => item.kind)).toEqual(["message", "tool", "approval", "receipt", "fund"])
     expect(stored[2]).toMatchObject({ state: "pending" })
     expect(normalizeStoredTranscript(Array.from({ length: 5 }, (_, i) => ({ speaker: "s", message: String(i) })), 2)).toHaveLength(2)
   })

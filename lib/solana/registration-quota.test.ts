@@ -12,29 +12,38 @@ describe("registration quota", () => {
   it("caps registrations per owner per day and gives back released slots", async () => {
     const reservations = []
     for (let i = 0; i < REGISTRATION_LIMITS.perOwnerPerDay; i += 1) {
-      const r = await reserveRegistration("owner-a", DAY)
+      const r = await reserveRegistration("owner-a", null, DAY)
       expect(r.ok).toBe(true)
       reservations.push(r)
     }
-    expect(await reserveRegistration("owner-a", DAY)).toEqual({ ok: false, scope: "owner" })
+    expect(await reserveRegistration("owner-a", null, DAY)).toEqual({ ok: false, scope: "owner" })
     const first = reservations[0]
     if (first?.ok) {
       await first.release()
       await first.release() // idempotent
     }
-    expect((await reserveRegistration("owner-a", DAY)).ok).toBe(true)
-    expect(await reserveRegistration("owner-a", DAY)).toEqual({ ok: false, scope: "owner" })
+    expect((await reserveRegistration("owner-a", null, DAY)).ok).toBe(true)
+    expect(await reserveRegistration("owner-a", null, DAY)).toEqual({ ok: false, scope: "owner" })
     // A new day starts a new count.
-    expect((await reserveRegistration("owner-a", new Date("2026-10-02T00:00:01Z"))).ok).toBe(true)
+    expect((await reserveRegistration("owner-a", null, new Date("2026-10-02T00:00:01Z"))).ok).toBe(true)
   })
 
   it("caps registrations globally without charging the owner", async () => {
     const owners = Math.ceil(REGISTRATION_LIMITS.globalPerDay / REGISTRATION_LIMITS.perOwnerPerDay)
     for (let o = 0; o < owners; o += 1) {
-      for (let i = 0; i < REGISTRATION_LIMITS.perOwnerPerDay; i += 1) await reserveRegistration(`owner-${o}`, DAY)
+      for (let i = 0; i < REGISTRATION_LIMITS.perOwnerPerDay; i += 1) await reserveRegistration(`owner-${o}`, null, DAY)
     }
-    expect(await reserveRegistration("late-owner", DAY)).toEqual({ ok: false, scope: "global" })
-    expect(await reserveRegistration("late-owner", DAY)).toEqual({ ok: false, scope: "global" })
+    expect(await reserveRegistration("late-owner", null, DAY)).toEqual({ ok: false, scope: "global" })
+    expect(await reserveRegistration("late-owner", null, DAY)).toEqual({ ok: false, scope: "global" })
+  })
+
+  it("caps registrations per client IP, so fresh cookies do not reset the quota", async () => {
+    for (let i = 0; i < REGISTRATION_LIMITS.perIpPerDay; i += 1) {
+      expect((await reserveRegistration(`fresh-${i}`, "203.0.113.7", DAY)).ok).toBe(true)
+    }
+    expect(await reserveRegistration("fresh-next", "203.0.113.7", DAY)).toEqual({ ok: false, scope: "ip" })
+    // The refused owner was given its slot back, and another IP is unaffected.
+    expect((await reserveRegistration("fresh-next", "198.51.100.1", DAY)).ok).toBe(true)
   })
 })
 
