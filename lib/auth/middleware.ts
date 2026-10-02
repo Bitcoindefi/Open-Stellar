@@ -88,23 +88,34 @@ function isPrivateOrProxyIp(ip: string): boolean {
  * Robust client IP extraction.
  *
  * Priority order:
- *   1. `cf-connecting-ip` — set by Cloudflare, not client-controlled.
- *   2. `x-real-ip` — set by Nginx/trusted reverse proxy.
- *   3. `x-forwarded-for` via TRUSTED_PROXY_COUNT strategy:
+ *   1. `cf-connecting-ip`: ONLY when TRUST_CF_CONNECTING_IP=true (the app really sits
+ *      behind Cloudflare). On Vercel a client can send this header itself, so it is ignored
+ *      by default.
+ *   2. `x-real-ip`: overwritten by Vercel (and Nginx-style proxies) with the client IP.
+ *   3. `x-vercel-forwarded-for`: first hop, set by Vercel.
+ *   4. `x-forwarded-for` via TRUSTED_PROXY_COUNT strategy (Vercel overwrites it too):
  *      - If `TRUSTED_PROXY_COUNT` env var is set (e.g. "1" on Vercel), take
  *        the Nth-from-right entry where N = trustedProxyCount. This is safe
  *        because all N rightmost hops are added by your own infrastructure.
  *      - Otherwise fall back to the right-most non-private hop (best effort).
  */
 export function getClientIp(req: Request | NextRequest): string {
-  const cfConnectingIp = req.headers.get("cf-connecting-ip");
-  if (cfConnectingIp?.trim()) {
-    return normalizeIp(cfConnectingIp);
+  if (process.env.TRUST_CF_CONNECTING_IP === "true") {
+    const cfConnectingIp = req.headers.get("cf-connecting-ip");
+    if (cfConnectingIp?.trim()) {
+      return normalizeIp(cfConnectingIp);
+    }
   }
 
   const xRealIp = req.headers.get("x-real-ip");
   if (xRealIp?.trim()) {
     return normalizeIp(xRealIp);
+  }
+
+  const vercelForwardedFor = req.headers.get("x-vercel-forwarded-for");
+  const vercelClientIp = vercelForwardedFor?.split(",")[0]?.trim();
+  if (vercelClientIp) {
+    return normalizeIp(vercelClientIp);
   }
 
   const xForwardedFor = req.headers.get("x-forwarded-for");

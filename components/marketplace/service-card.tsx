@@ -6,6 +6,9 @@ import { useMemo, useState } from 'react'
 import { Copy, ExternalLink, Filter, Star, Zap } from 'lucide-react'
 import { DISTRICTS } from '@/lib/data'
 import { getDistrictName, type MarketplaceService, type ServiceCapability, type ServiceStatus } from '@/lib/marketplace/services'
+import { STELLAR_ENABLED, formatAssetAmount } from '@/lib/config/chains'
+
+const PRICE_CAPS = ['0.05', '0.10', '0.20', '0.25']
 
 const CAPABILITIES: Array<ServiceCapability | 'all'> = ['all', 'data', 'comms', 'processing', 'defense', 'research']
 const STATUSES: Array<ServiceStatus | 'all'> = ['all', 'online', 'offline']
@@ -44,7 +47,7 @@ export function MarketplaceCatalog({ services }: { services: MarketplaceService[
         </div>
         <div className="grid gap-3 md:grid-cols-4">
           <FilterSelect label="District" value={district} onChange={setDistrict} options={[{ value: 'all', label: 'All districts' }, ...DISTRICTS.map((item) => ({ value: item.id, label: item.name }))]} />
-          <FilterSelect label="Max price" value={maxPrice} onChange={setMaxPrice} options={[{ value: 'all', label: 'Any price' }, { value: '0.05', label: '≤ 0.05 XLM' }, { value: '0.10', label: '≤ 0.10 XLM' }, { value: '0.20', label: '≤ 0.20 XLM' }, { value: '0.25', label: '≤ 0.25 XLM' }]} />
+          <FilterSelect label="Max price" value={maxPrice} onChange={setMaxPrice} options={[{ value: 'all', label: 'Any price' }, ...PRICE_CAPS.map((cap) => ({ value: cap, label: `≤ ${formatAssetAmount(cap)}` }))]} />
           <FilterSelect label="Capability" value={capability} onChange={(value) => setCapability(value as ServiceCapability | 'all')} options={CAPABILITIES.map((item) => ({ value: item, label: item === 'all' ? 'All capabilities' : item }))} />
           <FilterSelect label="Status" value={status} onChange={(value) => setStatus(value as ServiceStatus | 'all')} options={STATUSES.map((item) => ({ value: item, label: item === 'all' ? 'All statuses' : item }))} />
         </div>
@@ -94,7 +97,7 @@ export function ServiceCard({ service }: { service: MarketplaceService }) {
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-        <Metric label="Price" value={`${service.priceXlm.toFixed(2)} XLM`} />
+        <Metric label="Price" value={formatAssetAmount(service.priceXlm, { digits: 2 })} />
         <Metric label="Calls" value={service.totalCalls.toLocaleString()} />
         <Metric label="Avg response" value={`${service.averageResponseMs}ms`} />
         <Metric label="Reputation" value={`${service.reputationScore}/1000`} />
@@ -105,17 +108,22 @@ export function ServiceCard({ service }: { service: MarketplaceService }) {
         <span className="font-mono text-sm">{service.rating.toFixed(1)} rating</span>
       </div>
 
-      <div className="mt-5 grid gap-2 sm:grid-cols-2">
-        <button type="button" onClick={copySnippet} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 py-2 font-mono text-xs font-bold uppercase text-slate-950 transition hover:bg-cyan-200">
-          <Copy className="h-4 w-4" /> {copied ? 'Copied' : 'Quick integrate'}
-        </button>
+      <div className={`mt-5 grid gap-2 ${STELLAR_ENABLED ? 'sm:grid-cols-2' : ''}`}>
+        {/* The integration snippet uses the Stellar-era SDK, so it only shows when Stellar is enabled. */}
+        {STELLAR_ENABLED && (
+          <button type="button" onClick={copySnippet} className="inline-flex items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 py-2 font-mono text-xs font-bold uppercase text-slate-950 transition hover:bg-cyan-200">
+            <Copy className="h-4 w-4" /> {copied ? 'Copied' : 'Quick integrate'}
+          </button>
+        )}
         <Link href={`/marketplace/${service.id}`} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 px-3 py-2 font-mono text-xs font-bold uppercase text-slate-200 transition hover:border-cyan-400/60 hover:text-cyan-100">
           Details <ExternalLink className="h-4 w-4" />
         </Link>
       </div>
 
-      <pre className="mt-4 overflow-x-auto rounded-2xl border border-slate-800 bg-black/40 p-3 text-[11px] leading-5 text-slate-300"><code>{`OPEN_STELLAR_SERVICE_ID=${service.id}
+      {STELLAR_ENABLED && (
+        <pre className="mt-4 overflow-x-auto rounded-2xl border border-slate-800 bg-black/40 p-3 text-[11px] leading-5 text-slate-300"><code>{`OPEN_STELLAR_SERVICE_ID=${service.id}
 await stellar.services.call({ input })`}</code></pre>
+      )}
     </article>
   )
 }

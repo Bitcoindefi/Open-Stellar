@@ -26,11 +26,11 @@ export const metadata: Metadata = {
     template: "%s | Agentic City",
   },
   description:
-    "Connect orchestrator agents by API, add specialized workers, and run gamified AI operations across Stellar, Solana, CosmosPay, x402, wallets, skills, and reputation rails.",
+    "Connect orchestrator agents by API, add specialized workers, and pay them per task with x402 on Solana, with on-chain 8004 agent identity and reputation.",
   keywords: [
     "Agentic City", "AI agents", "agent orchestration", "gamified agents",
-    "Stellar blockchain", "Solana agents", "CosmosPay", "x402 payments",
-    "Web3 agents", "AI agent marketplace", "JEV",
+    "Solana", "Solana agents", "x402 payments", "8004 agent identity",
+    "USDC", "AI agent marketplace", "JEV",
   ],
   authors: [{ name: "Agentic City" }],
   creator: "Agentic City",
@@ -44,14 +44,14 @@ export const metadata: Metadata = {
     siteName: "Agentic City",
     title: "Agentic City | Gamified AI Agent Orchestration",
     description:
-      "A gamified control plane for API-connected AI agents, wallets, payments, skills, reputation, and multichain orchestration.",
+      "A gamified control plane for AI agents on Solana: x402 pay-per-task, 8004 agent identity, skills, and reputation.",
     locale: "en_US",
   },
   twitter: {
     card: "summary",
     title: "Agentic City | Gamified AI Agent Orchestration",
     description:
-      "Connect and orchestrate autonomous AI agents with wallets, payments, services, and reputation.",
+      "Connect and orchestrate autonomous AI agents on Solana with x402 payments, 8004 identity, and reputation.",
   },
   robots: { index: true, follow: true },
   generator: "Agentic City",

@@ -1,5 +1,6 @@
 import { DISTRICTS, createAgents } from "@/lib/data"
 import type { District, DistrictId, MoltbotAgent } from "@/lib/types"
+import { formatAssetAmount } from "@/lib/config/chains"
 
 export const AGENT_OG_SIZE = {
   width: 1200,
@@ -167,8 +168,8 @@ export function formatAgentShareText(agent: MoltbotAgent): string {
   const district = getAgentDistrict(agent)
 
   return [
-    `My AI agent ${agent.name} just hit Level ${stats.level} on Open Stellar`,
-    `${agent.tasksCompleted.toLocaleString("en-US")} tasks completed - ${stats.earnedXlm} XLM earned - ${stats.uptime}% uptime`,
+    `My AI agent ${agent.name} just hit Level ${stats.level} on Agentic City`,
+    `${agent.tasksCompleted.toLocaleString("en-US")} tasks completed - ${formatAssetAmount(stats.earnedXlm)} earned - ${stats.uptime}% uptime`,
     `${district.name} District`,
   ].join("\n")
 }

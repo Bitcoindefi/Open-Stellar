@@ -11,7 +11,7 @@ import { ExactSvmScheme } from "@x402/svm/exact/server"
 
 export const X402_NETWORK = SOLANA_DEVNET_CAIP2
 export const DEFAULT_FACILITATOR_URL = "https://x402.org/facilitator"
-export const AGENT_TASK_PRICE = "$0.01"
+export { AGENT_TASK_PRICE, AGENT_TASK_PRICE_BASE_UNITS, USDC_DECIMALS, USDC_DEVNET_MINT, usdPriceToBaseUnits } from "@/lib/solana/payment-constants"
 
 type ServerFactory = () => x402ResourceServer
 let createServer: ServerFactory = () =>
@@ -61,7 +61,9 @@ export async function requirePayment(req: Request, options: { price: string; des
     server = await getServer()
     accepts = await server.buildPaymentRequirements({ scheme: "exact", payTo, price: options.price, network: X402_NETWORK, maxTimeoutSeconds: 60 })
   } catch (error) {
-    return { ok: false, response: noStore({ ok: false, error: `Payment facilitator unavailable: ${error instanceof Error ? error.message : "unknown error"}` }, 502) }
+    // Facilitator internals stay in the server log, not in the response.
+    console.error("[x402] facilitator unavailable:", error instanceof Error ? error.message : error)
+    return { ok: false, response: noStore({ ok: false, error: "Payment facilitator unavailable. Try again later." }, 502) }
   }
   const resource = { url: req.url, description: options.description, mimeType: "application/json" }
 
@@ -89,7 +91,8 @@ export async function requirePayment(req: Request, options: { price: string; des
     if (!settle.success) return challenge(settle.errorMessage || settle.errorReason || "Payment could not be settled")
     return { ok: true, settle, requirements, payer: settle.payer ?? verified.payer ?? null }
   } catch (error) {
-    return challenge(error instanceof Error ? error.message : "Payment failed")
+    console.error("[x402] verify/settle failed:", error instanceof Error ? error.message : error)
+    return challenge("Payment failed")
   }
 }
 
