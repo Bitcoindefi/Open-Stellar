@@ -168,7 +168,7 @@ describe("API Key Authentication and Zero-Trust Protection", () => {
     expect(blocked.retryAfterSeconds).toBeGreaterThanOrEqual(1);
 
     const req = new Request("http://localhost:3000/api/feed", {
-      headers: { "cf-connecting-ip": testIp },
+      headers: { "x-real-ip": testIp },
     });
     const result = await evaluateAuth(req);
     expect(result.allowed).toBe(false);
@@ -196,6 +196,24 @@ describe("API Key Authentication and Zero-Trust Protection", () => {
   describe("getClientIp — IP normalisation and XFF strategies", () => {
     afterEach(() => {
       delete process.env.TRUSTED_PROXY_COUNT;
+      delete process.env.TRUST_CF_CONNECTING_IP;
+    });
+
+    it("ignores a client-sent cf-connecting-ip unless TRUST_CF_CONNECTING_IP=true", () => {
+      const headers = { "cf-connecting-ip": "6.6.6.6", "x-real-ip": "198.51.100.1" };
+      expect(getClientIp(new Request("http://localhost:3000/api/feed", { headers }))).toBe("198.51.100.1");
+      expect(getClientIp(new Request("http://localhost:3000/api/feed", { headers: { "cf-connecting-ip": "6.6.6.6" } }))).toBe("127.0.0.1");
+      process.env.TRUST_CF_CONNECTING_IP = "1";
+      expect(getClientIp(new Request("http://localhost:3000/api/feed", { headers }))).toBe("198.51.100.1");
+      process.env.TRUST_CF_CONNECTING_IP = "true";
+      expect(getClientIp(new Request("http://localhost:3000/api/feed", { headers }))).toBe("6.6.6.6");
+    });
+
+    it("prefers x-real-ip, then the first x-vercel-forwarded-for hop, then x-forwarded-for", () => {
+      const req = (headers: Record<string, string>) => new Request("http://localhost:3000/api/feed", { headers });
+      expect(getClientIp(req({ "x-real-ip": "198.51.100.2", "x-vercel-forwarded-for": "203.0.113.9", "x-forwarded-for": "192.0.2.1" }))).toBe("198.51.100.2");
+      expect(getClientIp(req({ "x-vercel-forwarded-for": "203.0.113.9, 10.0.0.1", "x-forwarded-for": "192.0.2.1" }))).toBe("203.0.113.9");
+      expect(getClientIp(req({ "x-vercel-forwarded-for": " ", "x-forwarded-for": "192.0.2.1" }))).toBe("192.0.2.1");
     });
 
     it("extracts real client IP by skipping internal proxy hops (best-effort)", () => {

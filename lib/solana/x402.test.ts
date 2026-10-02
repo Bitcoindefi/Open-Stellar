@@ -2,7 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { decodePaymentRequiredHeader, decodePaymentResponseHeader, encodePaymentSignatureHeader } from "@x402/core/http"
 import type { x402ResourceServer } from "@x402/core/server"
 import type { PaymentPayload, PaymentRequirements } from "@x402/core/types"
-import { X402_NETWORK, attachPaymentResponse, explorerTxUrl, getPayTo, requirePayment, setResourceServerFactoryForTests } from "@/lib/solana/x402"
+import { AGENT_TASK_PRICE_BASE_UNITS, X402_NETWORK, attachPaymentResponse, explorerTxUrl, getPayTo, requirePayment, setResourceServerFactoryForTests, usdPriceToBaseUnits } from "@/lib/solana/x402"
+
+describe("usdPriceToBaseUnits", () => {
+  it("converts dollar prices to token base units", () => {
+    expect(AGENT_TASK_PRICE_BASE_UNITS).toBe(BigInt(10000))
+    expect(usdPriceToBaseUnits("$1")).toBe(BigInt(1000000))
+    expect(usdPriceToBaseUnits("0.5")).toBe(BigInt(500000))
+    expect(usdPriceToBaseUnits("$2.25", 2)).toBe(BigInt(225))
+    expect(() => usdPriceToBaseUnits("ten")).toThrow()
+    expect(() => usdPriceToBaseUnits("$0.0000001")).toThrow()
+  })
+})
 
 const PAY_TO = "F8HEGS2wyZhLDXsFXRti74bRiGNUmEFS4SANZBU3p5h"
 const requirement: PaymentRequirements = { scheme: "exact", network: X402_NETWORK, asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", amount: "10000", payTo: PAY_TO, maxTimeoutSeconds: 60, extra: { feePayer: "fee" } }
@@ -86,7 +97,8 @@ describe("requirePayment", () => {
 
     install(fakeServer({ settlePayment: vi.fn().mockRejectedValue(new Error("network down")) }))
     const thrown = await requirePayment(paidRequest({ "payment-signature": encodePaymentSignatureHeader(payload) }), { price: "$0.01", description: "t" })
-    expect(!thrown.ok && (await thrown.response.json()).error).toBe("network down")
+    // Facilitator internals are logged, not returned to the client.
+    expect(!thrown.ok && (await thrown.response.json()).error).toBe("Payment failed")
   })
 
   it("reports a facilitator that cannot start, then retries on the next call", async () => {
@@ -94,6 +106,7 @@ describe("requirePayment", () => {
     install(broken)
     const first = await requirePayment(paidRequest(), { price: "$0.01", description: "t" })
     expect(!first.ok && first.response.status).toBe(502)
+    expect(!first.ok && (await first.response.json()).error).not.toContain("facilitator offline")
     const healthy = fakeServer()
     setResourceServerFactoryForTests(() => healthy as unknown as x402ResourceServer)
     const second = await requirePayment(paidRequest(), { price: "$0.01", description: "t" })

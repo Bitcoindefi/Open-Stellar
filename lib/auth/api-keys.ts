@@ -508,6 +508,12 @@ export const TIER_RATE_LIMITS: Record<ApiKeyTier, number> = {
   admin: Number.POSITIVE_INFINITY,
 };
 
+// TODO(security): this sliding window lives in a per-instance Map, so on serverless each
+// instance counts separately and the effective limit is a multiple of the configured one.
+// Moving it to the shared store (lib/security/kv-store.ts) means making this function and
+// evaluateAuth async and adding a Redis round trip to every request in the Edge middleware;
+// left for a dedicated change. Spend-sensitive routes (8004 register/feedback) already use
+// persistent quotas.
 export function checkTierRateLimit(
   identifier: string,
   tier: ApiKeyTier,

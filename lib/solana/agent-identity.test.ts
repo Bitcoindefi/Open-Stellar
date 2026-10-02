@@ -5,20 +5,50 @@ import {
   addressExplorerUrl,
   agentAssetKeypair,
   buildRegistrationFile,
+  checkPaymentTransaction,
   getIdentityStatus,
   getServerKeypair,
   prepareFeedback,
   registerAgentIdentity,
   registrationUri,
-  resetReviewedPaymentsForTests,
+  tokenBalanceChange,
   type IdentityDeps,
 } from "@/lib/solana/agent-identity"
+import { scopedAgentKey } from "@/lib/solana/agent-owner"
+import { recordAgentPayment } from "@/lib/solana/payment-bindings"
+import { USDC_DEVNET_MINT } from "@/lib/solana/x402"
+import { createMemoryStore, setKvStoreForTests } from "@/lib/security/kv-store"
 
 const server = Keypair.fromSeed(new Uint8Array(32).fill(7))
 const payer = Keypair.fromSeed(new Uint8Array(32).fill(9))
+const facilitator = Keypair.fromSeed(new Uint8Array(32).fill(11))
 const TREASURY = server.publicKey.toBase58()
-const USDC = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+const PAYER = payer.publicKey.toBase58()
+const USDC = USDC_DEVNET_MINT
 const BLOCKHASH = "11111111111111111111111111111111"
+const OWNER_A = "a".repeat(20)
+const OWNER_B = "b".repeat(20)
+const NOW_MS = Date.UTC(2026, 9, 1, 12)
+const NOW_S = NOW_MS / 1000
+
+/** A confirmed x402 payment: payer -> treasury, 0.01 USDC, facilitator pays the fee. */
+function paymentTx(overrides: { signers?: number; blockTime?: number | null; meta?: unknown } = {}) {
+  return {
+    blockTime: overrides.blockTime === undefined ? NOW_S - 60 : overrides.blockTime,
+    meta: overrides.meta !== undefined ? overrides.meta : {
+      err: null,
+      preTokenBalances: [
+        { accountIndex: 2, mint: USDC, owner: PAYER, uiTokenAmount: { amount: "50000" } },
+        { accountIndex: 3, mint: USDC, owner: TREASURY, uiTokenAmount: { amount: "0" } },
+      ],
+      postTokenBalances: [
+        { accountIndex: 2, mint: USDC, owner: PAYER, uiTokenAmount: { amount: "40000" } },
+        { accountIndex: 3, mint: USDC, owner: TREASURY, uiTokenAmount: { amount: "10000" } },
+      ],
+    },
+    transaction: { message: { header: { numRequiredSignatures: overrides.signers ?? 2 }, staticAccountKeys: [facilitator.publicKey, payer.publicKey, server.publicKey] } },
+  }
+}
 
 function unsignedTx(feePayer: PublicKey) {
   const tx = new Transaction({ feePayer, recentBlockhash: BLOCKHASH }).add(SystemProgram.transfer({ fromPubkey: feePayer, toPubkey: payer.publicKey, lamports: 1 }))
@@ -39,12 +69,9 @@ function makeDeps(overrides: { loadAgent?: unknown; getTransaction?: unknown; re
   const connection = {
     sendRawTransaction: vi.fn().mockResolvedValue("register-sig"),
     confirmTransaction: vi.fn().mockResolvedValue({ value: { err: null } }),
-    getTransaction: vi.fn().mockResolvedValue(overrides.getTransaction === undefined ? {
-      meta: { err: null, postTokenBalances: [{ owner: TREASURY, mint: USDC }] },
-      transaction: { message: { staticAccountKeys: [payer.publicKey, server.publicKey] } },
-    } : overrides.getTransaction),
+    getTransaction: vi.fn().mockResolvedValue(overrides.getTransaction === undefined ? paymentTx() : overrides.getTransaction),
   }
-  const deps = { createSdk: vi.fn(() => sdk), connection: () => connection } as unknown as IdentityDeps
+  const deps = { createSdk: vi.fn(() => sdk), connection: () => connection, now: () => NOW_MS } as unknown as IdentityDeps
   return { deps, sdk, connection }
 }
 
@@ -53,7 +80,6 @@ describe("8004 agent identity", () => {
   beforeEach(() => {
     process.env.SOLANA_SERVER_SECRET = JSON.stringify(Array.from(server.secretKey))
     process.env.X402_SOLANA_PAY_TO = TREASURY
-    resetReviewedPaymentsForTests()
   })
   afterEach(() => { process.env = { ...env } })
 
@@ -113,32 +139,136 @@ describe("8004 agent identity", () => {
     await expect(registerAgentIdentity({ id: "a", name: "a", role: "", model: "" }, "https://agentic-city.test", deps)).rejects.toBeInstanceOf(IdentityError)
   })
 
-  it("prepares a review only for a real payment, with the treasury as fee payer", async () => {
+  it("namespaces assets by owner and keeps the legacy derivation without one", () => {
+    const legacy = agentAssetKeypair(server, "worker-1").publicKey
+    const alice = agentAssetKeypair(server, "worker-1", OWNER_A).publicKey
+    const bob = agentAssetKeypair(server, "worker-1", OWNER_B).publicKey
+    expect(alice.equals(legacy)).toBe(false)
+    expect(alice.equals(bob)).toBe(false)
+    expect(agentAssetKeypair(server, "worker-1", "not-a-tag").publicKey.equals(legacy)).toBe(true)
+    const uri = new URL(registrationUri("https://agentic-city.test", { id: "worker-1", name: "R", role: "", model: "m", ownerTag: OWNER_A }))
+    expect(uri.searchParams.get("o")).toBe(OWNER_A)
+  })
+
+  it("registers and reads the owner-scoped asset", async () => {
     const { deps, sdk } = makeDeps({ loadAgent: {} })
-    const result = await prepareFeedback({ agentId: "agent-1", score: 100, paymentSignature: "pay-sig", payer: payer.publicKey.toBase58() }, deps)
+    const status = await getIdentityStatus({ id: "worker-1", ownerTag: OWNER_A }, deps)
+    expect(status.asset).toBe(agentAssetKeypair(server, "worker-1", OWNER_A).publicKey.toBase58())
+    expect((sdk.loadAgent.mock.calls[0][0] as PublicKey).toBase58()).toBe(status.asset)
+    const registered = await registerAgentIdentity({ id: "worker-1", name: "R", role: "", model: "", ownerTag: OWNER_B }, "https://agentic-city.test", makeDeps().deps)
+    expect(registered.asset).toBe(agentAssetKeypair(server, "worker-1", OWNER_B).publicKey.toBase58())
+  })
+})
+
+describe("payment checks for reviews", () => {
+  const meta = (payerPre: string, payerPost: string, treasuryPre: string | null, treasuryPost: string) => ({
+    err: null,
+    preTokenBalances: [
+      { accountIndex: 2, mint: USDC, owner: PAYER, uiTokenAmount: { amount: payerPre } },
+      ...(treasuryPre === null ? [] : [{ accountIndex: 3, mint: USDC, owner: TREASURY, uiTokenAmount: { amount: treasuryPre } }]),
+    ],
+    postTokenBalances: [
+      { accountIndex: 2, mint: USDC, owner: PAYER, uiTokenAmount: { amount: payerPost } },
+      { accountIndex: 3, mint: USDC, owner: TREASURY, uiTokenAmount: { amount: treasuryPost } },
+    ],
+  })
+  const expected = { payer: PAYER, treasury: TREASURY, minAmount: BigInt(10000), nowMs: NOW_MS }
+
+  it("sums balance changes per owner and mint", () => {
+    expect(tokenBalanceChange(meta("50000", "40000", "5", "10005"), TREASURY, USDC)).toBe(BigInt(10000))
+    expect(tokenBalanceChange(meta("50000", "40000", null, "10000"), TREASURY, USDC)).toBe(BigInt(10000))
+    expect(tokenBalanceChange(meta("50000", "40000", "0", "10000"), PAYER, USDC)).toBe(BigInt(-10000))
+    expect(tokenBalanceChange(meta("50000", "40000", "0", "10000"), PAYER, "other-mint")).toBe(BigInt(0))
+    expect(tokenBalanceChange({ postTokenBalances: [{ accountIndex: 1, mint: USDC, owner: PAYER, uiTokenAmount: { amount: "x" } }] }, PAYER, USDC)).toBe(BigInt(0))
+    expect(tokenBalanceChange({}, PAYER, USDC)).toBe(BigInt(0))
+  })
+
+  it("accepts a recent payment of the task price, signed by the payer", () => {
+    expect(checkPaymentTransaction(paymentTx() as never, expected)).toBeNull()
+    // Not a signer, but the owner whose balance decreased: still accepted.
+    expect(checkPaymentTransaction(paymentTx({ signers: 1 }) as never, expected)).toBeNull()
+  })
+
+  it("rejects missing, failed, underpaid, misdirected, unsigned and stale payments", () => {
+    expect(checkPaymentTransaction(null, expected)).toMatch(/not found/)
+    expect(checkPaymentTransaction(paymentTx({ meta: null }) as never, expected)).toMatch(/not found/)
+    expect(checkPaymentTransaction(paymentTx({ meta: { ...meta("50000", "40000", "0", "10000"), err: { InstructionError: [0, "x"] } } }) as never, expected)).toMatch(/failed/)
+    // Treasury only appears in postTokenBalances with no increase (the original bypass).
+    expect(checkPaymentTransaction(paymentTx({ meta: meta("50000", "40000", "10000", "10000") }) as never, expected)).toMatch(/treasury/)
+    expect(checkPaymentTransaction(paymentTx({ meta: meta("50000", "49999", "0", "1") }) as never, expected)).toMatch(/payer did not pay/)
+    expect(checkPaymentTransaction(paymentTx({ meta: meta("50000", "40000", "0", "9999") }) as never, expected)).toMatch(/treasury/)
+    // Payer neither signed nor paid.
+    expect(checkPaymentTransaction(paymentTx({ signers: 1, meta: meta("50000", "50000", "0", "10000") }) as never, expected)).toMatch(/did not sign/)
+    expect(checkPaymentTransaction(paymentTx({ blockTime: NOW_S - 3601 }) as never, expected)).toMatch(/too old/)
+    expect(checkPaymentTransaction(paymentTx({ blockTime: null }) as never, expected)).toMatch(/too old/)
+    expect(checkPaymentTransaction(paymentTx({ blockTime: NOW_S + 3600 }) as never, expected)).toMatch(/too old/)
+  })
+})
+
+describe("prepareFeedback", () => {
+  const env = { ...process.env }
+  const SIG = "5".repeat(88)
+  const base = { agentId: "agent-1", score: 90, paymentSignature: SIG, payer: PAYER }
+
+  beforeEach(async () => {
+    process.env.SOLANA_SERVER_SECRET = JSON.stringify(Array.from(server.secretKey))
+    process.env.X402_SOLANA_PAY_TO = TREASURY
+    setKvStoreForTests(createMemoryStore())
+    await recordAgentPayment(SIG, scopedAgentKey("agent-1", null))
+  })
+  afterEach(() => {
+    process.env = { ...env }
+    setKvStoreForTests(null)
+  })
+
+  it("prepares a review for a bound, real payment, with the treasury as fee payer", async () => {
+    const { deps, sdk, connection } = makeDeps({ loadAgent: {} })
+    const result = await prepareFeedback({ ...base, score: 100 }, deps)
     const tx = Transaction.from(Buffer.from(result.transaction, "base64"))
     expect(tx.feePayer?.equals(server.publicKey)).toBe(true)
     expect(tx.signatures.find((s) => s.publicKey.equals(server.publicKey))?.signature).not.toBeNull()
+    expect(connection.getTransaction.mock.calls[0][0]).toBe(SIG)
     const [, params, options] = sdk.giveFeedback.mock.calls[0] as unknown as [PublicKey, Record<string, unknown>, Record<string, PublicKey | boolean>]
-    expect(params).toMatchObject({ score: 100, tag1: "x402-resource-delivered", tag2: "exact-svm", feedbackUri: "https://explorer.solana.com/tx/pay-sig?cluster=devnet" })
+    expect(params).toMatchObject({ score: 100, tag1: "x402-resource-delivered", tag2: "exact-svm", feedbackUri: `https://explorer.solana.com/tx/${SIG}?cluster=devnet` })
     expect((options.signer as PublicKey).equals(payer.publicKey)).toBe(true)
     expect((options.feePayer as PublicKey).equals(server.publicKey)).toBe(true)
   })
 
-  it("refuses reviews without proof, with bad input, from the owner, or too many times", async () => {
-    const base = { agentId: "agent-1", score: 90, paymentSignature: "pay-sig", payer: payer.publicKey.toBase58() }
+  it("allows one review per payment", async () => {
+    const { deps } = makeDeps({ loadAgent: {} })
+    await prepareFeedback(base, deps)
+    await expect(prepareFeedback(base, deps)).rejects.toMatchObject({ status: 409, message: "This payment was already reviewed." })
+  })
+
+  it("gives the review back when the registry fails to build it", async () => {
+    const { deps, sdk } = makeDeps({ loadAgent: {} })
+    sdk.giveFeedback.mockResolvedValueOnce({ signature: "x", success: true } as never)
+    await expect(prepareFeedback(base, deps)).rejects.toMatchObject({ status: 502 })
+    await expect(prepareFeedback(base, deps)).resolves.toHaveProperty("transaction")
+  })
+
+  it("only accepts payments bound to this agent of this owner", async () => {
+    const { deps, connection } = makeDeps({ loadAgent: {} })
+    await expect(prepareFeedback({ ...base, agentId: "agent-2" }, deps)).rejects.toMatchObject({ status: 403 })
+    await expect(prepareFeedback({ ...base, ownerTag: OWNER_A }, deps)).rejects.toMatchObject({ status: 403 })
+    await expect(prepareFeedback({ ...base, paymentSignature: "6".repeat(88) }, deps)).rejects.toMatchObject({ status: 403 })
+    expect(connection.getTransaction).not.toHaveBeenCalled()
+
+    const owned = "7".repeat(88)
+    await recordAgentPayment(owned, scopedAgentKey("agent-1", OWNER_A))
+    const ok = await prepareFeedback({ ...base, paymentSignature: owned, ownerTag: OWNER_A }, deps)
+    expect(ok.asset).toBe(agentAssetKeypair(server, "agent-1", OWNER_A).publicKey.toBase58())
+  })
+
+  it("refuses reviews without on-chain proof, with bad input, or from the owner", async () => {
     await expect(prepareFeedback(base, makeDeps({ getTransaction: null, loadAgent: {} }).deps)).rejects.toMatchObject({ status: 403 })
-    await expect(prepareFeedback(base, makeDeps({ loadAgent: {}, getTransaction: { meta: { err: null, postTokenBalances: [{ owner: "someone-else", mint: USDC }] }, transaction: { message: { staticAccountKeys: [payer.publicKey] } } } }).deps)).rejects.toMatchObject({ status: 403 })
+    await expect(prepareFeedback(base, makeDeps({ getTransaction: paymentTx({ blockTime: NOW_S - 7200 }), loadAgent: {} }).deps)).rejects.toMatchObject({ status: 403 })
     await expect(prepareFeedback({ ...base, score: 101 }, makeDeps().deps)).rejects.toMatchObject({ status: 400 })
     await expect(prepareFeedback({ ...base, payer: "not-a-key" }, makeDeps().deps)).rejects.toMatchObject({ status: 400 })
     await expect(prepareFeedback({ ...base, payer: TREASURY }, makeDeps().deps)).rejects.toMatchObject({ status: 400 })
+    await expect(prepareFeedback({ ...base, paymentSignature: "not a signature" }, makeDeps().deps)).rejects.toMatchObject({ status: 400 })
     await expect(prepareFeedback(base, makeDeps({ loadAgent: null }).deps)).rejects.toMatchObject({ status: 409 })
     delete process.env.X402_SOLANA_PAY_TO
     await expect(prepareFeedback(base, makeDeps().deps)).rejects.toMatchObject({ status: 503 })
-    process.env.X402_SOLANA_PAY_TO = TREASURY
-
-    const { deps } = makeDeps({ loadAgent: {} })
-    for (let i = 0; i < 3; i += 1) await prepareFeedback({ ...base, paymentSignature: "repeat" }, deps)
-    await expect(prepareFeedback({ ...base, paymentSignature: "repeat" }, deps)).rejects.toMatchObject({ status: 409 })
   })
 })

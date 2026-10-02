@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useConnect, useDisconnect, useWallets } from "@wallet-standard/react"
 import type { UiWallet, UiWalletAccount } from "@wallet-standard/react"
 import { useWalletAccountTransactionSigner } from "@solana/react"
@@ -9,6 +9,7 @@ import { ExactSvmScheme } from "@x402/svm/exact/client"
 import { Activity, CircleAlert, ExternalLink, Wallet } from "lucide-react"
 import { AgentIdentityRow, ReviewAfterPayment } from "./agent-identity"
 import { friendlyProviderError } from "@/lib/ai/friendly-error"
+import { isExpectedAgentPayment, type TreasuryKeys } from "@/lib/solana/client-guards"
 
 // Pay an agent per task with x402 on Solana devnet. The wallet signs a USDC transfer;
 // the facilitator pays the network fee, so the user needs devnet USDC but no SOL.
@@ -108,6 +109,12 @@ function PayForm({ account, wallet, walletName, onDisconnect }: { account: UiWal
   const [error, setError] = useState("")
   const [result, setResult] = useState<{ text: string; receipt: Receipt; agentId: string } | null>(null)
   const [identityKey, setIdentityKey] = useState(0)
+  const [treasury, setTreasury] = useState<TreasuryKeys>({ feePayer: null, payTo: null })
+  const treasuryRef = useRef<TreasuryKeys>(treasury)
+  const onTreasury = useCallback((next: TreasuryKeys) => {
+    treasuryRef.current = next
+    setTreasury(next)
+  }, [])
 
   useEffect(() => {
     const load = () => setAgents(readAgents())
@@ -120,7 +127,10 @@ function PayForm({ account, wallet, walletName, onDisconnect }: { account: UiWal
   }, [agents, agentId])
 
   const payingFetch = useMemo(() => {
-    const client = new x402Client().register(DEVNET_CAIP2, new ExactSvmScheme(signer, { rpcUrl: RPC_URL }))
+    // Only pay the task price, in devnet USDC, to this app's treasury, whatever the server asks.
+    const client = new x402Client()
+      .register(DEVNET_CAIP2, new ExactSvmScheme(signer, { rpcUrl: RPC_URL }))
+      .registerPolicy((_version, requirements) => requirements.filter((requirement) => isExpectedAgentPayment(requirement, treasuryRef.current.payTo)))
     return wrapFetchWithPayment(fetch, client)
   }, [signer])
 
@@ -129,6 +139,10 @@ function PayForm({ account, wallet, walletName, onDisconnect }: { account: UiWal
   const pay = async () => {
     if (!agent || !task.trim()) {
       setError("Elegí un agente y escribí la tarea.")
+      return
+    }
+    if (!treasuryRef.current.payTo) {
+      setError("No pudimos verificar a quién va el pago. Recargá la página y probá de nuevo.")
       return
     }
     setBusy(true)
@@ -164,7 +178,7 @@ function PayForm({ account, wallet, walletName, onDisconnect }: { account: UiWal
         <label className="block space-y-1.5"><span className={labelClass}>Agente</span>
           <select value={agentId} onChange={(event) => setAgentId(event.target.value)} className={inputClass}>{agents.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.connection.model}</option>)}</select>
         </label>
-        {agent ? <AgentIdentityRow agent={{ id: agent.id, name: agent.name, role: agent.role, model: agent.connection.model }} refreshKey={identityKey} /> : null}
+        {agent ? <AgentIdentityRow agent={{ id: agent.id, name: agent.name, role: agent.role, model: agent.connection.model }} refreshKey={identityKey} onTreasury={onTreasury} /> : null}
         <label className="block space-y-1.5"><span className={labelClass}>Tarea</span>
           <textarea value={task} onChange={(event) => setTask(event.target.value)} maxLength={2000} className={`${inputClass} min-h-24 resize-y`} placeholder="Ej.: resumí las ventajas de x402 para cobrar APIs a agentes" />
         </label>
@@ -174,7 +188,7 @@ function PayForm({ account, wallet, walletName, onDisconnect }: { account: UiWal
       {result ? <div className="space-y-2 rounded-lg border border-slate-800 bg-[#050a12] p-3">
         {result.text ? <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{result.text}</p> : null}
         <a href={result.receipt.explorerUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-200 underline">Pago verificado en devnet <ExternalLink className="h-3 w-3" /></a>
-        <ReviewAfterPayment account={account} agentId={result.agentId} paymentSignature={result.receipt.transaction} onReviewed={() => setIdentityKey((value) => value + 1)} />
+        <ReviewAfterPayment account={account} agentId={result.agentId} paymentSignature={result.receipt.transaction} feePayer={treasury.feePayer} onReviewed={() => setIdentityKey((value) => value + 1)} />
       </div> : null}
       <p className="text-[11px] leading-5 text-slate-500">¿Sin USDC de prueba? <a className="underline" href="https://faucet.circle.com/" target="_blank" rel="noreferrer">faucet.circle.com</a> → Solana Devnet.</p>
     </div>

@@ -23,9 +23,20 @@ export function createPkce() {
   return { verifier, challenge, state }
 }
 
-export function safeReturnTo(value: string | null | undefined): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/"
-  return value.slice(0, 300)
+/**
+ * Turns an untrusted return path into a same-origin path. Resolving it with the URL parser
+ * (instead of string checks) catches tricks like "/\t/evil.com" that browsers read as "//evil.com".
+ */
+export function safeReturnTo(value: string | null | undefined, origin: string): string {
+  if (!value || !value.startsWith("/") || value.length > 300) return "/"
+  try {
+    const base = new URL(origin).origin
+    const url = new URL(value, base)
+    if (url.origin !== base) return "/"
+    return `${url.pathname}${url.search}${url.hash}`
+  } catch {
+    return "/"
+  }
 }
 
 export function buildAuthorizeUrl(origin: string, challenge: string, state: string): string {
