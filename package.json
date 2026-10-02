@@ -63,6 +63,7 @@
     "@radix-ui/react-tooltip": "1.2.16",
     "@reown/appkit": "^1.6.8",
     "@reown/appkit-adapter-wagmi": "^1.6.8",
+    "@solana-program/token": "^0.9.0",
     "@solana/kit": "^5.5.1",
     "@solana/react": "^5.5.1",
     "@stellar/freighter-api": "^2.0.0",

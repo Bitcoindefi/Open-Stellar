@@ -16,6 +16,8 @@ const members: RosterAgent[] = [
 ]
 const day = new Date("2026-10-01T12:00:00Z")
 const key = Buffer.alloc(32, 5)
+const OWNER = "e".repeat(32)
+const WALLET = "AgentWa11et1111111111111111111111111111111"
 
 function receipt(n: number) {
   return { transaction: `Sig${n}`, network: "solana:devnet", payer: "Orch", amount: "10000", asset: "USDC", explorerUrl: `https://explorer.solana.com/tx/Sig${n}?cluster=devnet` }
@@ -28,6 +30,8 @@ function setup(models: Record<string, LanguageModel>, overrides: Partial<ChatRun
   const deps: ChatRunDeps = {
     modelFor: (conn) => models[conn.model],
     hire,
+    owner: OWNER,
+    wallet: { address: WALLET },
     store,
     budget: { perRunMicro: 50_000, perDayMicro: 500_000, hardDayMicro: 2_000_000 },
     caps: DEFAULT_HANDOFF_CAPS,
@@ -60,7 +64,7 @@ describe("runChat", () => {
     const events = await collect(input(), deps)
 
     expect(hire).toHaveBeenCalledTimes(2)
-    expect(events[0]).toEqual({ type: "run", runId: "run-1", hiring: true, perRunUsdc: "0.05", perDayUsdc: "0.5" })
+    expect(events[0]).toEqual({ type: "run", runId: "run-1", hiring: true, perRunUsdc: "0.05", perDayUsdc: "0.5", wallet: WALLET })
     expect(events.filter((event) => event.type === "handoff").map((event) => (event as { toName: string }).toName)).toEqual(["Investigador", "Critico"])
     expect(events.filter((event) => event.type === "tool")).toEqual([
       { type: "tool", turnId: "orchestrator-1", callId: "c1", status: "running", label: "Hiring research", detail: "Find options" },
@@ -104,11 +108,21 @@ describe("runChat", () => {
     expect(events.at(-1)?.type).toBe("done")
   })
 
+  it("asks for funds in the chat when the agents' wallet is empty, then keeps going", async () => {
+    const model = scriptedModel([toolStep([{ id: "c1", input: { agent: "research", task: "Find options" } }]), textStep("Fund your wallet and ask again.")])
+    const hire = vi.fn(async (): Promise<HopResult> => ({ ok: false, code: "unfunded", balanceMicro: 0, error: "not enough" }))
+    const { deps } = setup({ "anthropic/claude": model }, { hire })
+    const events = await collect(input(), deps)
+    expect(events).toContainEqual({ type: "wallet", status: "unfunded", address: WALLET, balanceUsdc: "0", neededUsdc: "0.01" })
+    expect(events).toContainEqual(expect.objectContaining({ type: "tool", callId: "c1", status: "refused", detail: expect.stringContaining("Fund button") }))
+    expect(events.at(-1)).toMatchObject({ type: "done", spent: "0", receipts: [] })
+  })
+
   it("tells the agents that hiring is off when there is no wallet, and offers no tool", async () => {
     const model = scriptedModel([textStep("I will do it myself")])
-    const { deps } = setup({ "anthropic/claude": model }, { hire: null })
+    const { deps } = setup({ "anthropic/claude": model }, { hire: null, wallet: null })
     const events = await collect(input(), deps)
-    expect(events[0]).toMatchObject({ hiring: false })
+    expect(events[0]).toMatchObject({ hiring: false, wallet: null })
     expect((model.doStreamCalls[0].prompt[0] as { content: string }).content).toContain("Hiring them is not available right now")
   })
 
@@ -152,7 +166,7 @@ describe("runChat", () => {
 
 describe("runChat approval resume", () => {
   const signer = createApprovalSigner(key)
-  const issue = (runId = "run-1") => signer.issue({ runId, fromId: "orchestrator", fromName: "Supervisor", toId: "research", toName: "Investigador", task: "Find options", amountMicro: 10_000, reason: "run" }, day.getTime())
+  const issue = (runId = "run-1", owner = OWNER) => signer.issue({ runId, owner, fromId: "orchestrator", fromName: "Supervisor", toId: "research", toName: "Investigador", task: "Find options", amountMicro: 10_000, reason: "run" }, day.getTime())
 
   it("pays the approved hire once", async () => {
     const { deps, hire } = setup({})
@@ -179,6 +193,8 @@ describe("runChat approval resume", () => {
     const { deps } = setup({})
     const other = await collect(input({ message: "", approval: { token: issue("run-2").token, runId: "run-1", decision: "approve" } }), deps)
     expect(other).toContainEqual({ type: "error", message: "This approval belongs to a different conversation run." })
+    const stranger = await collect(input({ message: "", approval: { token: issue("run-1", "f".repeat(32)).token, runId: "run-1", decision: "approve" } }), deps)
+    expect(stranger).toContainEqual({ type: "error", message: "This approval belongs to another browser." })
     const forged = await collect(input({ message: "", approval: { token: "abc.def", runId: "run-1", decision: "approve" } }), deps)
     expect(forged).toContainEqual({ type: "error", message: "This approval is not valid." })
     const none = setup({}, { approvals: null })

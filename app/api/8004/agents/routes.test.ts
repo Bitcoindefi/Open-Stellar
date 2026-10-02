@@ -13,11 +13,12 @@ import { POST as feedback } from "@/app/api/8004/agents/[id]/feedback/route"
 import { IdentityError, agentAssetKeypair } from "@/lib/solana/agent-identity"
 import { ownerTagFor } from "@/lib/solana/agent-owner"
 import { REGISTRATION_LIMITS } from "@/lib/solana/registration-quota"
-import { OPENROUTER_COOKIE } from "@/lib/connections/openrouter"
-import { seal } from "@/lib/connections/sealed-cookie"
+import { BROWSER_ID_COOKIE, browserIdCookie } from "@/lib/identity/browser-id"
 import { createMemoryStore, setKvStoreForTests, type KvStore } from "@/lib/security/kv-store"
 
 const ORIGIN = "https://agentic-city.test"
+const UID = "5".repeat(32)
+const browserCookie = (id: string) => `${BROWSER_ID_COOKIE}=${encodeURIComponent(browserIdCookie(id).value)}`
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) })
 const server = Keypair.fromSeed(new Uint8Array(32).fill(3))
 
@@ -38,7 +39,7 @@ describe("8004 routes", () => {
     userAuth.getSessionUser.mockReset().mockResolvedValue(null)
     userAuth.isGoogleConfigured.mockReset().mockReturnValue(false)
     setKvStoreForTests(createMemoryStore())
-    cookie = `${OPENROUTER_COOKIE}=${encodeURIComponent(seal({ key: "sk-or-v1-x", connectedAt: "now" }))}`
+    cookie = browserCookie(UID)
   })
   afterEach(() => {
     process.env = { ...env }
@@ -49,7 +50,7 @@ describe("8004 routes", () => {
     identity.getIdentityStatus.mockResolvedValue({ agentId: "a", asset: "A", registered: true, explorerUrl: "u", reputation: null })
     const ok = await (await status(new Request(ORIGIN, { headers: { cookie } }), ctx("a"))).json()
     expect(ok).toMatchObject({ ok: true, registered: true, treasury: { feePayer: server.publicKey.toBase58(), payTo: "F8HEGS2wyZhLDXsFXRti74bRiGNUmEFS4SANZBU3p5h" } })
-    expect(identity.getIdentityStatus.mock.calls[0][0]).toEqual({ id: "a", ownerTag: ownerTagFor("openrouter:sk-or-v1-x") })
+    expect(identity.getIdentityStatus.mock.calls[0][0]).toEqual({ id: "a", ownerTag: ownerTagFor(`browser:${UID}`) })
     await status(new Request(ORIGIN), ctx("a"))
     expect(identity.getIdentityStatus.mock.calls[1][0]).toEqual({ id: "a", ownerTag: null })
 
@@ -73,36 +74,62 @@ describe("8004 routes", () => {
     expect((await (await registration(new Request(`${ORIGIN}/x`), ctx("a"))).json()).registrations).toEqual([])
   })
 
-  it("register requires a same-origin request (Origin or Sec-Fetch-Site) and a signed-in owner", async () => {
+  it("register requires a same-origin request (Origin or Sec-Fetch-Site) but no sign-in", async () => {
     expect((await register(post("/api/8004/agents/a/register", {}, { origin: "https://evil.test", cookie }), ctx("a"))).status).toBe(403)
     expect((await register(post("/api/8004/agents/a/register", {}, { origin: null, cookie }), ctx("a"))).status).toBe(403)
     expect((await register(post("/api/8004/agents/a/register", {}, { origin: null, "sec-fetch-site": "cross-site", cookie }), ctx("a"))).status).toBe(403)
-    const noCookie = await register(post("/api/8004/agents/a/register", {}), ctx("a"))
-    expect(noCookie.status).toBe(401)
-    expect((await noCookie.json()).error).toContain("OpenRouter")
     expect(identity.registerAgentIdentity).not.toHaveBeenCalled()
 
     identity.registerAgentIdentity.mockResolvedValue({ asset: "A", signature: "s", alreadyRegistered: false })
     expect((await register(post("/api/8004/agents/a/register", {}, { origin: null, "sec-fetch-site": "same-origin", cookie }), ctx("a"))).status).toBe(200)
+
+    // A first-time visitor (no cookie at all) registers too, and gets its browser id cookie.
+    const fresh = await register(post("/api/8004/agents/a/register", { name: "Bot" }), ctx("a"))
+    expect(fresh.status).toBe(200)
+    const setCookie = fresh.headers.getSetCookie()
+    expect(setCookie).toHaveLength(1)
+    expect(setCookie[0]).toMatch(/^ac_uid=.+; Path=\/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure$/)
+    const tag = identity.registerAgentIdentity.mock.calls[1][0].ownerTag
+    expect(tag).toMatch(/^[0-9a-f]{20}$/)
+    expect(tag).not.toBe(ownerTagFor(`browser:${UID}`))
+    // A returning browser keeps its id: no new cookie.
+    expect((await register(post("/api/8004/agents/a/register", {}, { cookie }), ctx("a"))).headers.getSetCookie()).toEqual([])
   })
 
-  it("register needs a Google session when Google sign-in is configured", async () => {
+  it("register is unavailable when the server cannot keep identities", async () => {
+    delete process.env.SOLANA_SERVER_SECRET
+    const res = await register(post("/api/8004/agents/a/register", {}), ctx("a"))
+    expect(res.status).toBe(503)
+    expect((await res.json()).error).toContain("not configured")
+  })
+
+  it("register uses the Google account when the person chose to sign in, and works without it", async () => {
     userAuth.isGoogleConfigured.mockReturnValue(true)
-    const anonymous = await register(post("/api/8004/agents/a/register", {}, { cookie }), ctx("a"))
-    expect(anonymous.status).toBe(401)
-    expect((await anonymous.json()).error).toContain("Google")
+    identity.registerAgentIdentity.mockResolvedValue({ asset: "A", signature: "s", alreadyRegistered: false })
+    expect((await register(post("/api/8004/agents/a/register", {}, { cookie }), ctx("a"))).status).toBe(200)
+    expect(identity.registerAgentIdentity.mock.calls[0][0]).toMatchObject({ ownerTag: ownerTagFor(`browser:${UID}`) })
 
     userAuth.getSessionUser.mockResolvedValue({ name: "Ana", email: "ana@example.com", image: null })
-    identity.registerAgentIdentity.mockResolvedValue({ asset: "A", signature: "s", alreadyRegistered: false })
     expect((await register(post("/api/8004/agents/a/register", { name: "Bot" }), ctx("a"))).status).toBe(200)
-    expect(identity.registerAgentIdentity.mock.calls[0][0]).toMatchObject({ id: "a", name: "Bot", ownerTag: ownerTagFor("google:ana@example.com") })
+    expect(identity.registerAgentIdentity.mock.calls[1][0]).toMatchObject({ id: "a", name: "Bot", ownerTag: ownerTagFor("google:ana@example.com") })
+  })
+
+  it("register caps registrations per client IP", async () => {
+    identity.registerAgentIdentity.mockResolvedValue({ asset: "A", signature: "s", alreadyRegistered: false })
+    const ip = { "x-real-ip": "203.0.113.9" }
+    for (let i = 0; i < REGISTRATION_LIMITS.perIpPerDay; i += 1) {
+      expect((await register(post(`/api/8004/agents/a${i}/register`, {}, { ...ip, cookie: browserCookie(String(i % 10).repeat(32)) }), ctx(`a${i}`))).status).toBe(200)
+    }
+    const limited = await register(post("/api/8004/agents/z/register", {}, ip), ctx("z"))
+    expect(limited.status).toBe(429)
+    expect((await limited.json()).error).toContain(`${REGISTRATION_LIMITS.perIpPerDay} agents per day`)
   })
 
   it("register runs for a connected browser and maps treasury errors", async () => {
     identity.registerAgentIdentity.mockResolvedValue({ asset: "A", signature: "s", alreadyRegistered: false })
     const ok = await register(post("/api/8004/agents/a/register", { name: "Bot", model: "m", role: "r" }, { cookie }), ctx("a"))
     expect(await ok.json()).toMatchObject({ ok: true, asset: "A" })
-    expect(identity.registerAgentIdentity.mock.calls[0][0]).toEqual({ id: "a", name: "Bot", role: "r", model: "m", ownerTag: ownerTagFor("openrouter:sk-or-v1-x") })
+    expect(identity.registerAgentIdentity.mock.calls[0][0]).toEqual({ id: "a", name: "Bot", role: "r", model: "m", ownerTag: ownerTagFor(`browser:${UID}`) })
 
     identity.registerAgentIdentity.mockResolvedValue({ asset: "A", signature: null, alreadyRegistered: true })
     expect((await register(post("/api/8004/agents/a/register", {}, { cookie }), ctx("a"))).status).toBe(200)
@@ -131,7 +158,7 @@ describe("8004 routes", () => {
     expect(limited.status).toBe(429)
     expect((await limited.json()).error).toContain(`${REGISTRATION_LIMITS.perOwnerPerDay} agents per day`)
     // Another owner still has quota.
-    const other = `${OPENROUTER_COOKIE}=${encodeURIComponent(seal({ key: "sk-or-v1-other", connectedAt: "now" }))}`
+    const other = browserCookie("6".repeat(32))
     expect((await register(post("/api/8004/agents/z/register", {}, { cookie: other }), ctx("z"))).status).toBe(200)
   })
 
@@ -158,7 +185,7 @@ describe("8004 routes", () => {
     identity.prepareFeedback.mockResolvedValue({ transaction: "base64", asset: "A" })
     const ok = await feedback(post("/api/8004/agents/a/feedback", { score: 100, paymentSignature: "p", payer: "w" }, { cookie }), ctx("a"))
     expect(await ok.json()).toEqual({ ok: true, transaction: "base64", asset: "A" })
-    expect(identity.prepareFeedback.mock.calls[0][0]).toEqual({ agentId: "a", ownerTag: ownerTagFor("openrouter:sk-or-v1-x"), score: 100, paymentSignature: "p", payer: "w" })
+    expect(identity.prepareFeedback.mock.calls[0][0]).toEqual({ agentId: "a", ownerTag: ownerTagFor(`browser:${UID}`), score: 100, paymentSignature: "p", payer: "w" })
     identity.prepareFeedback.mockRejectedValue(new IdentityError("No x402 payment from this wallet to the agent was found.", 403))
     expect((await feedback(post("/api/8004/agents/a/feedback", { score: 100, paymentSignature: "p", payer: "w" }), ctx("a"))).status).toBe(403)
     identity.prepareFeedback.mockRejectedValue(new Error("rpc"))

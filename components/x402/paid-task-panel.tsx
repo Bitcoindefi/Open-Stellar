@@ -1,13 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useConnect, useDisconnect, useWallets } from "@wallet-standard/react"
+import { useWallets } from "@wallet-standard/react"
 import type { UiWallet, UiWalletAccount } from "@wallet-standard/react"
 import { useWalletAccountTransactionSigner } from "@solana/react"
 import { wrapFetchWithPayment, x402Client } from "@x402/fetch"
 import { ExactSvmScheme } from "@x402/svm/exact/client"
 import { Activity, CircleAlert, ExternalLink, Wallet } from "lucide-react"
 import { AgentIdentityRow, ReviewAfterPayment } from "./agent-identity"
+import { ConnectButton, DisconnectButton, WALLET_CHAIN, supportsDevnetSigning } from "./wallet-connect"
 import { friendlyProviderError } from "@/lib/ai/friendly-error"
 import { isExpectedAgentPayment, type TreasuryKeys } from "@/lib/solana/client-guards"
 
@@ -15,7 +16,6 @@ import { isExpectedAgentPayment, type TreasuryKeys } from "@/lib/solana/client-g
 // the facilitator pays the network fee, so the user needs devnet USDC but no SOL.
 
 const DEVNET_CAIP2 = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
-const WALLET_CHAIN = "solana:devnet"
 const RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.devnet.solana.com"
 const CONNECTIONS_STORAGE_KEY = "agentic-city:connections:v1"
 const CONNECTIONS_UPDATED_EVENT = "agentic-city:connections-updated"
@@ -42,10 +42,6 @@ function readAgents(): Agent[] {
   }
 }
 
-function supportsDevnetSigning(wallet: UiWallet) {
-  return wallet.chains.includes(WALLET_CHAIN) && wallet.features.includes("solana:signTransaction")
-}
-
 export function PaidTaskPanel() {
   const wallets = useWallets().filter(supportsDevnetSigning)
   const [account, setAccount] = useState<UiWalletAccount | null>(null)
@@ -68,36 +64,11 @@ export function PaidTaskPanel() {
         <p className="mt-3 text-xs leading-5 text-amber-100">No encontramos una wallet de Solana compatible. Instalá <a className="underline" href="https://phantom.com/download" target="_blank" rel="noreferrer">Phantom</a> o Solflare y recargá la página.</p>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
-          {wallets.map((wallet) => <ConnectButton key={wallet.name} wallet={wallet} onConnected={(next) => { setAccount(next); setWalletName(wallet.name) }} />)}
+          {wallets.map((wallet) => <ConnectButton key={wallet.name} wallet={wallet} className={buttonClass} onConnected={(next) => { setAccount(next); setWalletName(wallet.name) }} />)}
         </div>
       )}
     </section>
   )
-}
-
-function ConnectButton({ wallet, onConnected }: { wallet: UiWallet; onConnected: (account: UiWalletAccount) => void }) {
-  const [connecting, connect] = useConnect(wallet)
-  const [error, setError] = useState("")
-  return (
-    <div>
-      <button type="button" disabled={connecting} onClick={() => {
-        setError("")
-        connect().then((accounts) => {
-          const first = accounts.find((item) => item.chains.includes(WALLET_CHAIN)) ?? accounts[0]
-          if (first) onConnected(first)
-          else setError("La wallet no compartió ninguna cuenta.")
-        }).catch(() => setError("No se pudo conectar la wallet."))
-      }} className={buttonClass}>
-        {wallet.icon ? <img src={wallet.icon} alt="" className="h-4 w-4" /> : null} {connecting ? "Conectando…" : `Conectar ${wallet.name}`}
-      </button>
-      {error ? <p role="alert" className="mt-2 text-xs text-rose-200">{error}</p> : null}
-    </div>
-  )
-}
-
-function DisconnectButton({ wallet, onDisconnect }: { wallet: UiWallet; onDisconnect: () => void }) {
-  const [busy, disconnect] = useDisconnect(wallet)
-  return <button type="button" disabled={busy} onClick={() => { disconnect().finally(onDisconnect) }} className="text-[11px] text-slate-400 underline">Desconectar</button>
 }
 
 function PayForm({ account, wallet, walletName, onDisconnect }: { account: UiWalletAccount; wallet?: UiWallet; walletName: string; onDisconnect: () => void }) {

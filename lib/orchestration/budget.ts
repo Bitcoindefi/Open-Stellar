@@ -1,6 +1,7 @@
 import type { KvStore } from "@/lib/security/kv-store"
 
-// Spending caps for the orchestrator wallet: what agents may spend hiring each other without asking.
+// Spending caps for each browser's agents' wallet: what its agents may spend hiring each other
+// without asking. The money is the person's own, the caps keep a runaway run from spending it.
 // Amounts are kept in micro-USDC (6 decimals), the unit the x402 requirements use on-chain.
 
 export const USDC_DECIMALS = 6
@@ -48,8 +49,9 @@ export function readCaps(env: Record<string, string | undefined> = process.env):
   return { perRunMicro, perDayMicro, hardDayMicro }
 }
 
-export function dayLedgerKey(now: Date = new Date()): string {
-  return `orchestrator:spend:${now.toISOString().slice(0, 10)}`
+/** One ledger per browser (its agents' wallet) and UTC day. */
+export function dayLedgerKey(owner: string, now: Date = new Date()): string {
+  return `orchestrator:spend:${owner}:${now.toISOString().slice(0, 10)}`
 }
 
 function steps(amountMicro: number): number {
@@ -63,8 +65,8 @@ export type Reservation = { ok: true; key: string; amountMicro: number } | { ok:
  * paying at once cannot both slip under the cap; a reservation that would cross `limitMicro`
  * is undone and refused. Store errors propagate: a ledger that cannot be read refuses to spend.
  */
-export async function reserveDaily(store: KvStore, amountMicro: number, limitMicro: number, now: Date = new Date()): Promise<Reservation> {
-  const key = dayLedgerKey(now)
+export async function reserveDaily(store: KvStore, owner: string, amountMicro: number, limitMicro: number, now: Date = new Date()): Promise<Reservation> {
+  const key = dayLedgerKey(owner, now)
   const count = steps(amountMicro)
   let total = 0
   for (let i = 0; i < count; i++) total = await store.incr(key, 60 * 60 * 26)
@@ -80,7 +82,7 @@ export async function releaseDaily(store: KvStore, reservation: { key: string; a
   for (let i = 0; i < steps(reservation.amountMicro); i++) await store.decr(reservation.key)
 }
 
-export async function spentToday(store: KvStore, now: Date = new Date()): Promise<number> {
-  const value = Number(await store.get(dayLedgerKey(now)))
+export async function spentToday(store: KvStore, owner: string, now: Date = new Date()): Promise<number> {
+  const value = Number(await store.get(dayLedgerKey(owner, now)))
   return Number.isFinite(value) && value > 0 ? value * LEDGER_STEP_MICRO : 0
 }

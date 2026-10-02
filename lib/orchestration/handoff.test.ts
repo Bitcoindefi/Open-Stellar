@@ -26,6 +26,8 @@ const roster: RosterAgent[] = [
 const day = new Date("2026-10-01T12:00:00Z")
 const from = { id: "orchestrator", name: "Supervisor", depth: 0, turnId: "orchestrator-0" }
 const key = Buffer.alloc(32, 3)
+const OWNER = "c".repeat(32)
+const WALLET = "AgentWa11et1111111111111111111111111111111"
 
 function receipt(n: number) {
   return { transaction: `Sig${n}`, network: "solana:devnet", payer: "Orch", amount: "10000", asset: "USDC", explorerUrl: `https://explorer.solana.com/tx/Sig${n}?cluster=devnet` }
@@ -43,6 +45,8 @@ function setup(overrides: Partial<HandoffDeps> = {}) {
     budget: { perRunMicro: 50_000, perDayMicro: 500_000, hardDayMicro: 2_000_000 },
     priceMicro: 10_000,
     store,
+    owner: OWNER,
+    wallet: { address: WALLET },
     hire,
     approvals: createApprovalSigner(key),
     emit: (event) => events.push(event),
@@ -85,7 +89,7 @@ describe("sendHandoff", () => {
       { type: "agent-end", turnId: "research-1" },
     ])
     expect(run).toMatchObject({ hops: 1, spentMicro: 10_000, receipts: [receipt(1)] })
-    expect(await spentToday(store, day)).toBe(10_000)
+    expect(await spentToday(store, OWNER, day)).toBe(10_000)
   })
 
   it("refuses with a sentence, never an exception", async () => {
@@ -104,9 +108,32 @@ describe("sendHandoff", () => {
     expect(await sendHandoff(off.deps, off.run, from, "research", { task: "x" })).toEqual({ ok: false, refusal: "This team does not let one agent hire another." })
   })
 
-  it("says hiring is off when there is no orchestrator wallet", async () => {
+  it("says hiring is off when this server cannot keep agents' wallets", async () => {
     const { deps, run } = setup({ hire: null })
-    expect(await sendHandoff(deps, run, from, "research", { task: "x" })).toMatchObject({ ok: false, refusal: expect.stringContaining("no orchestrator wallet") })
+    expect(await sendHandoff(deps, run, from, "research", { task: "x" })).toMatchObject({ ok: false, refusal: expect.stringContaining("agents' wallets need BETTER_AUTH_SECRET") })
+  })
+
+  it("offers the Fund button instead of failing when the agents' wallet is empty", async () => {
+    const hire = vi.fn(async (): Promise<HopResult> => ({ ok: false, code: "unfunded", balanceMicro: 4_000, error: "not enough" }))
+    const { deps, run, events, store } = setup({ hire })
+    const outcome = await sendHandoff(deps, run, from, "research", { task: "a" })
+    expect(outcome).toMatchObject({ ok: false, refusal: expect.stringContaining("holds 0.004 USDC, so nothing was charged") })
+    expect((outcome as { refusal: string }).refusal).toContain("Fund button")
+    expect(events).toEqual([{ type: "wallet", status: "unfunded", address: WALLET, balanceUsdc: "0.004", neededUsdc: "0.01" }])
+    expect(run).toMatchObject({ hops: 0, spentMicro: 0, walletEmpty: true })
+    expect(await spentToday(store, OWNER, day)).toBe(0)
+
+    // Later hires in the same run are refused at once, without another balance check.
+    expect(await sendHandoff(deps, run, from, "critic", { task: "b" })).toMatchObject({ ok: false, refusal: expect.stringContaining("does not hold enough") })
+    expect(hire).toHaveBeenCalledTimes(1)
+    expect(events).toHaveLength(1)
+  })
+
+  it("explains an empty wallet even when there is no address to show", async () => {
+    const hire = vi.fn(async (): Promise<HopResult> => ({ ok: false, code: "unfunded", error: "not enough" }))
+    const { deps, run, events } = setup({ hire, wallet: null })
+    expect(await sendHandoff(deps, run, from, "research", { task: "a" })).toMatchObject({ ok: false, refusal: expect.stringContaining("holds 0 USDC") })
+    expect(events).toEqual([])
   })
 
   it("does not pay twice for the same ask", async () => {
@@ -143,22 +170,23 @@ describe("sendHandoff", () => {
     expect(run.hops).toBe(2)
     const approval = events.find((event) => event.type === "approval")
     expect(approval).toMatchObject({ type: "approval", runId: "run-1", fromName: "Supervisor", toName: "Redactor", amount: "0.01", reason: "run", capUsdc: "0.02" })
-    expect(deps.approvals?.verify((approval as { token: string }).token, "run-1", day.getTime()).ok).toBe(true)
+    expect(deps.approvals?.verify((approval as { token: string }).token, "run-1", OWNER, day.getTime()).ok).toBe(true)
+    expect(deps.approvals?.verify((approval as { token: string }).token, "run-1", "d".repeat(32), day.getTime()).ok).toBe(false)
   })
 
   it("asks the person when today's budget is spent", async () => {
     const { deps, run, events, store } = setup({ budget: { perRunMicro: 50_000, perDayMicro: 10_000, hardDayMicro: 2_000_000 } })
-    await store.incr("orchestrator:spend:2026-10-01", 60)
+    await store.incr(`orchestrator:spend:${OWNER}:2026-10-01`, 60)
     const outcome = await sendHandoff(deps, run, from, "research", { task: "a" })
     expect(outcome).toMatchObject({ ok: false, approval: { reason: "day" } })
     expect((outcome as { refusal: string }).refusal).toContain("daily spending cap of 0.01 USDC")
     expect(events.at(-1)).toMatchObject({ type: "approval", reason: "day", capUsdc: "0.01" })
-    expect(await spentToday(store, day)).toBe(10_000)
+    expect(await spentToday(store, OWNER, day)).toBe(10_000)
   })
 
   it("refuses over the cap when approvals are unavailable", async () => {
     const { deps, run } = setup({ approvals: null, budget: { perRunMicro: 0, perDayMicro: 500_000, hardDayMicro: 2_000_000 } })
-    expect(await sendHandoff(deps, run, from, "research", { task: "a" })).toEqual({ ok: false, refusal: "Hiring Investigador would go over the orchestrator's per-conversation spending cap of 0 USDC, and approvals are not available here. Answer with what you have." })
+    expect(await sendHandoff(deps, run, from, "research", { task: "a" })).toEqual({ ok: false, refusal: "Hiring Investigador would go over the agents' wallet per-conversation spending cap of 0 USDC, and approvals are not available here. Answer with what you have." })
     expect(run.approvalPending).toBe(false)
   })
 
@@ -175,7 +203,7 @@ describe("sendHandoff", () => {
     const { deps, run, store, events } = setup({ hire })
     const outcome = await sendHandoff(deps, run, from, "research", { task: "a" })
     expect(outcome).toEqual({ ok: false, refusal: "Hiring Investigador did not go through: the agent's endpoint did not accept the payment. Nothing was charged. Answer with what you have, or ask the person." })
-    expect(await spentToday(store, day)).toBe(0)
+    expect(await spentToday(store, OWNER, day)).toBe(0)
     expect(run).toMatchObject({ hops: 0, spentMicro: 0 })
     expect(events).toEqual([])
     // The same ask can be tried again, since nothing was paid.
@@ -199,13 +227,13 @@ describe("sendHandoff", () => {
     })
     expect(events).toEqual([expect.objectContaining({ type: "handoff", receipt: receipt(9) })])
     expect(run.spentMicro).toBe(10_000)
-    expect(await spentToday(store, day)).toBe(10_000)
+    expect(await spentToday(store, OWNER, day)).toBe(10_000)
   })
 })
 
 describe("executeApprovedHandoff", () => {
   const signer = createApprovalSigner(key)
-  const payload = signer.issue({ runId: "run-1", fromId: "orchestrator", fromName: "Supervisor", toId: "writer", toName: "Redactor", task: "Write it", amountMicro: 10_000, reason: "run" }).payload
+  const payload = signer.issue({ runId: "run-1", owner: OWNER, fromId: "orchestrator", fromName: "Supervisor", toId: "writer", toName: "Redactor", task: "Write it", amountMicro: 10_000, reason: "run" }).payload
 
   it("pays past the per-run and daily caps once the person approved", async () => {
     const { deps, run, hire, events } = setup({ budget: { perRunMicro: 0, perDayMicro: 0, hardDayMicro: 2_000_000 } })
@@ -233,7 +261,7 @@ describe("executeApprovedHandoff", () => {
   it("gives the reservation back when the approved payment fails", async () => {
     const { deps, run, store } = setup({ hire: vi.fn(async (): Promise<HopResult> => ({ ok: false, error: "facilitator down" })) })
     expect(await executeApprovedHandoff(deps, run, payload)).toMatchObject({ ok: false, refusal: expect.stringContaining("Nothing was charged") })
-    expect(await spentToday(store, day)).toBe(0)
+    expect(await spentToday(store, OWNER, day)).toBe(0)
     expect(run.hops).toBe(0)
   })
 })

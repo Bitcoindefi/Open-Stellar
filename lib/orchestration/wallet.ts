@@ -1,14 +1,14 @@
-import { createKeyPairSignerFromBytes, type KeyPairSigner } from "@solana/kit"
+import type { KeyPairSigner } from "@solana/kit"
 import { decodePaymentResponseHeader, wrapFetchWithPayment, x402Client, type PaymentPolicy } from "@x402/fetch"
 import { SOLANA_DEVNET_CAIP2, USDC_DEVNET_ADDRESS } from "@x402/svm"
 import { ExactSvmScheme } from "@x402/svm/exact/client"
 import type { ByokModelConnection } from "@/lib/ai/byok-provider"
 import { explorerTxUrl } from "@/lib/solana/x402"
 
-// The orchestrator wallet: a server-side Solana devnet keypair that pays when one agent hires
-// another. Each hire is a standard x402 payment against the target agent's paid task endpoint
-// (/api/x402/agents/<id>/task), signed here and settled by the facilitator. Server-only: the
-// secret comes from ORCHESTRATOR_SOLANA_SECRET and never leaves this module.
+// Paying for a hire: when one agent hires another, the browser's own agents' wallet (see
+// lib/agent-wallet/cookie.ts) pays the target agent's paid task endpoint
+// (/api/x402/agents/<id>/task) with a standard x402 payment, signed here on the server during
+// the chat run and settled by the facilitator, which also pays the network fee.
 
 export type HopReceipt = {
   transaction: string
@@ -23,37 +23,10 @@ export type HireAgent = { id: string; name: string; role: string; connection: By
 
 export type HopResult =
   | { ok: true; answer: string; receipt: HopReceipt }
-  | { ok: false; error: string; receipt?: HopReceipt }
+  /** `unfunded`: the agents' wallet holds less than the price, so nothing was attempted. */
+  | { ok: false; error: string; receipt?: HopReceipt; code?: "unfunded"; balanceMicro?: number }
 
 export type PaidFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
-
-/** Parses a JSON array secret key (64 bytes, the solana-keygen format). Null when missing or malformed. */
-export function parseSecretKey(raw: string | undefined): Uint8Array | null {
-  if (!raw?.trim()) return null
-  try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!Array.isArray(parsed) || parsed.length !== 64) return null
-    if (!parsed.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)) return null
-    return Uint8Array.from(parsed as number[])
-  } catch {
-    return null
-  }
-}
-
-let cachedSigner: Promise<KeyPairSigner | null> | null = null
-
-export function getOrchestratorSigner(env: Record<string, string | undefined> = process.env): Promise<KeyPairSigner | null> {
-  if (!cachedSigner) {
-    const bytes = parseSecretKey(env.ORCHESTRATOR_SOLANA_SECRET)
-    cachedSigner = bytes ? createKeyPairSignerFromBytes(bytes).catch(() => null) : Promise.resolve(null)
-  }
-  return cachedSigner
-}
-
-/** Test seam: forget the cached signer. */
-export function resetOrchestratorSignerForTests() {
-  cachedSigner = null
-}
 
 /**
  * Only pays devnet USDC, and never more than `maxAtomic` per request. A server that asks for

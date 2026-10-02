@@ -19,6 +19,9 @@ vi.mock("@/lib/orchestration/deps", () => ({ createChatRunDeps: vi.fn(async () =
 import { POST } from "@/app/api/connections/chat/route"
 import { POST as testRelay } from "@/app/api/connections/test/route"
 import { POST as runRelay } from "@/app/api/connections/run/route"
+import { createChatRunDeps } from "@/lib/orchestration/deps"
+
+const OWNER = "a".repeat(32)
 
 const connection = { provider: "openrouter", model: "anthropic/claude-opus-5", apiKey: "or-test-key-1234" }
 const members = [
@@ -32,6 +35,8 @@ function useModels(models: Record<string, LanguageModel>, overrides: Partial<Cha
   const deps: ChatRunDeps = {
     modelFor: (conn) => models[conn.model],
     hire,
+    owner: OWNER,
+    wallet: { address: "AgentWa11et1111111111111111111111111111111" },
     store: createMemoryStore(),
     budget: { perRunMicro: 50_000, perDayMicro: 500_000, hardDayMicro: 2_000_000 },
     caps: DEFAULT_HANDOFF_CAPS,
@@ -96,7 +101,7 @@ describe("POST /api/connections/chat", () => {
 
   it("resumes an approved hire with a signed token", async () => {
     const { hire } = useModels({})
-    const { token } = approvals.issue({ runId: "run-9", fromId: "orchestrator", fromName: "Orchestrator", toId: "critic", toName: "Crítico", task: "Find risks", amountMicro: 10_000, reason: "run" })
+    const { token } = approvals.issue({ runId: "run-9", owner: OWNER, fromId: "orchestrator", fromName: "Orchestrator", toId: "critic", toName: "Crítico", task: "Find risks", amountMicro: 10_000, reason: "run" })
     const stream = await events(await post({ approval: { token, runId: "run-9", decision: "approve" }, orchestrator: { connection }, members }))
     expect(hire).toHaveBeenCalledWith(expect.objectContaining({ id: "critic" }), "Find risks")
     expect(stream.at(-1)).toMatchObject({ type: "done", runId: "run-9", spent: "0.01" })
@@ -136,6 +141,35 @@ describe("POST /api/connections/chat", () => {
     const stream = await events(await post({ message: "Hola", orchestrator: { connection }, members }))
     expect(stream.some((event) => event.type === "error")).toBe(true)
     expect(stream.at(-1)?.type).toBe("done")
+  })
+
+  it("gives a same-origin browser its own agents' wallet, in cookies only", async () => {
+    vi.stubEnv("BETTER_AUTH_SECRET", "chat-route-test-secret")
+    try {
+      useModels({ "anthropic/claude-opus-5": scriptedModel([textStep("ok")]) })
+      vi.mocked(createChatRunDeps).mockClear()
+      const res = await POST(new Request("https://agentic-city.test/api/connections/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: "https://agentic-city.test" },
+        body: JSON.stringify({ message: "Hola", orchestrator: { connection }, members }),
+      }))
+      const cookies = res.headers.getSetCookie()
+      expect(cookies.some((cookie) => cookie.startsWith("ac_uid=") && cookie.includes("HttpOnly") && cookie.includes("Secure"))).toBe(true)
+      expect(cookies.some((cookie) => cookie.startsWith("ac_agent_wallet=") && cookie.includes("HttpOnly"))).toBe(true)
+      const browser = vi.mocked(createChatRunDeps).mock.calls[0][1]
+      expect(browser.uid).toMatch(/^[0-9a-f]{32}$/)
+      expect(browser.wallet?.address).toMatch(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)
+      const body = await res.text()
+      expect(body).not.toContain(Buffer.from(browser.wallet!.seed).toString("base64url"))
+
+      // A request that does not prove it came from this site gets no wallet and no cookies.
+      vi.mocked(createChatRunDeps).mockClear()
+      const anonymous = await post({ message: "Hola", orchestrator: { connection }, members })
+      expect(anonymous.headers.getSetCookie()).toEqual([])
+      expect(vi.mocked(createChatRunDeps).mock.calls[0][1]).toEqual({ uid: "anonymous", wallet: null })
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it("handles a non-JSON body", async () => {

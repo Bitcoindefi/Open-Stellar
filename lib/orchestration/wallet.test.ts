@@ -1,23 +1,13 @@
-import { generateKeyPairSync } from "node:crypto"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import { createKeyPairSignerFromPrivateKeyBytes } from "@solana/kit"
 import { encodePaymentResponseHeader } from "@x402/core/http"
 import { SOLANA_DEVNET_CAIP2, USDC_DEVNET_ADDRESS } from "@x402/svm"
 import {
   createOrchestratorFetch,
   devnetUsdcPolicy,
-  getOrchestratorSigner,
-  parseSecretKey,
   payAgentTask,
-  resetOrchestratorSignerForTests,
   type HireAgent,
 } from "@/lib/orchestration/wallet"
-
-function secretKeyJson(): string {
-  const { privateKey, publicKey } = generateKeyPairSync("ed25519")
-  const d = Buffer.from(privateKey.export({ format: "jwk" }).d as string, "base64url")
-  const x = Buffer.from(publicKey.export({ format: "jwk" }).x as string, "base64url")
-  return JSON.stringify(Array.from(Buffer.concat([d, x])))
-}
 
 const agent: HireAgent = { id: "research", name: "Investigador", role: "Relevar opciones", connection: { provider: "openrouter", model: "m", apiKey: "or-test-key-1234" } }
 const receipt = { transaction: "5igSig", network: SOLANA_DEVNET_CAIP2, payer: "Payer", amount: "10000", asset: USDC_DEVNET_ADDRESS }
@@ -26,35 +16,10 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } })
 }
 
-describe("orchestrator secret", () => {
-  afterEach(() => resetOrchestratorSignerForTests())
-
-  it("accepts only a 64-byte JSON array", () => {
-    expect(parseSecretKey(undefined)).toBeNull()
-    expect(parseSecretKey("  ")).toBeNull()
-    expect(parseSecretKey("not json")).toBeNull()
-    expect(parseSecretKey("[1,2,3]")).toBeNull()
-    expect(parseSecretKey(JSON.stringify(Array(64).fill(256)))).toBeNull()
-    expect(parseSecretKey(JSON.stringify(Array(64).fill(1)))).toHaveLength(64)
-  })
-
-  it("loads a signer from the env and caches it", async () => {
-    const env = { ORCHESTRATOR_SOLANA_SECRET: secretKeyJson() }
-    const signer = await getOrchestratorSigner(env)
-    expect(signer?.address).toMatch(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)
-    expect(await getOrchestratorSigner({})).toBe(signer)
-  })
-
-  it("has no signer without a valid secret", async () => {
-    expect(await getOrchestratorSigner({})).toBeNull()
-    resetOrchestratorSignerForTests()
-    // 64 bytes whose public half does not match the private half.
-    expect(await getOrchestratorSigner({ ORCHESTRATOR_SOLANA_SECRET: JSON.stringify(Array(64).fill(1)) })).toBeNull()
-  })
-
-  it("builds a paying fetch for the signer", async () => {
-    const signer = await getOrchestratorSigner({ ORCHESTRATOR_SOLANA_SECRET: secretKeyJson() })
-    const paid = createOrchestratorFetch(signer!, { maxAtomic: BigInt(10_000), rpcUrl: "https://api.devnet.solana.com", fetchImpl: vi.fn(async () => jsonResponse({ ok: true })) })
+describe("createOrchestratorFetch", () => {
+  it("builds a paying fetch for an agents' wallet signer", async () => {
+    const signer = await createKeyPairSignerFromPrivateKeyBytes(new Uint8Array(32).fill(9))
+    const paid = createOrchestratorFetch(signer, { maxAtomic: BigInt(10_000), rpcUrl: "https://api.devnet.solana.com", fetchImpl: vi.fn(async () => jsonResponse({ ok: true })) })
     expect(typeof paid).toBe("function")
     expect((await paid("https://example.test")).status).toBe(200)
   })

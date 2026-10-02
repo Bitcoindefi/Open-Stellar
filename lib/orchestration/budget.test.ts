@@ -42,25 +42,33 @@ describe("daily ledger", () => {
 
   it("reserves until the cap and refuses the hop that would cross it", async () => {
     const store = createMemoryStore()
-    expect(dayLedgerKey(day)).toBe("orchestrator:spend:2026-10-01")
-    expect(await reserveDaily(store, 10_000, 20_000, day)).toMatchObject({ ok: true })
-    expect(await reserveDaily(store, 10_000, 20_000, day)).toMatchObject({ ok: true })
-    expect(await reserveDaily(store, 10_000, 20_000, day)).toEqual({ ok: false, spentMicro: 20_000 })
-    expect(await spentToday(store, day)).toBe(20_000)
+    expect(dayLedgerKey("u1", day)).toBe("orchestrator:spend:u1:2026-10-01")
+    expect(await reserveDaily(store, "u1", 10_000, 20_000, day)).toMatchObject({ ok: true })
+    expect(await reserveDaily(store, "u1", 10_000, 20_000, day)).toMatchObject({ ok: true })
+    expect(await reserveDaily(store, "u1", 10_000, 20_000, day)).toEqual({ ok: false, spentMicro: 20_000 })
+    expect(await spentToday(store, "u1", day)).toBe(20_000)
+  })
+
+  it("keeps one ledger per browser", async () => {
+    const store = createMemoryStore()
+    await reserveDaily(store, "u1", 10_000, 10_000, day)
+    expect(await reserveDaily(store, "u1", 10_000, 10_000, day)).toMatchObject({ ok: false })
+    expect(await reserveDaily(store, "u2", 10_000, 10_000, day)).toMatchObject({ ok: true })
+    expect(await spentToday(store, "u3", day)).toBe(0)
   })
 
   it("gives a reservation back when the payment did not happen", async () => {
     const store = createMemoryStore()
-    const held = await reserveDaily(store, 20_000, 100_000, day)
-    expect(await spentToday(store, day)).toBe(20_000)
+    const held = await reserveDaily(store, "u1", 20_000, 100_000, day)
+    expect(await spentToday(store, "u1", day)).toBe(20_000)
     if (!held.ok) throw new Error("expected a reservation")
     await releaseDaily(store, held)
-    expect(await spentToday(store, day)).toBe(0)
+    expect(await spentToday(store, "u1", day)).toBe(0)
   })
 
   it("starts each UTC day from zero", async () => {
     const store = createMemoryStore()
-    await reserveDaily(store, 10_000, 10_000, day)
-    expect((await reserveDaily(store, 10_000, 10_000, new Date("2026-10-02T00:00:01Z"))).ok).toBe(true)
+    await reserveDaily(store, "u1", 10_000, 10_000, day)
+    expect((await reserveDaily(store, "u1", 10_000, 10_000, new Date("2026-10-02T00:00:01Z"))).ok).toBe(true)
   })
 })

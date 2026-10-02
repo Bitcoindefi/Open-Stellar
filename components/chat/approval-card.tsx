@@ -17,7 +17,7 @@ export type ApprovalCardData = {
 }
 
 /**
- * Asks the person before the orchestrator wallet goes over its spending cap (the ask_person idea
+ * Asks the person before their agents' wallet goes over its spending cap (the ask_person idea
  * from CopilotKit/openbot, MIT, app/src/lib/copilot/escalation-tool.tsx). The decision is sent
  * back with a signed, single-use token; the card itself cannot change what is approved.
  */
@@ -41,7 +41,7 @@ export function ApprovalCard({ data, onDecide }: { data: ApprovalCardData; onDec
         <ShieldAlert size={12} aria-hidden="true" /> Approval needed
       </div>
       <p style={{ margin: 0, fontFamily: "monospace", fontSize: 11, lineHeight: 1.5, color: "#e2e8f0" }}>
-        {data.fromName} wants to hire {data.toName} for {data.amount} USDC (Solana devnet). This goes over the orchestrator&apos;s {capWords} cap of {data.capUsdc} USDC.
+        {data.fromName} wants to hire {data.toName} for {data.amount} USDC (Solana devnet). It is paid from your agents&apos; wallet and goes over its {capWords} cap of {data.capUsdc} USDC.
       </p>
       <p style={{ margin: 0, fontFamily: "monospace", fontSize: 10, lineHeight: 1.5, color: "#94a3b8" }}>Task: {data.task}</p>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -14,6 +14,8 @@ export type ApprovalPayload = {
   /** Single-use id for this approval. */
   id: string
   runId: string
+  /** The browser id whose agents' wallet will pay: another browser cannot use this approval. */
+  owner: string
   fromId: string
   fromName: string
   toId: string
@@ -27,7 +29,7 @@ export type ApprovalPayload = {
 
 export type ApprovalSigner = {
   issue: (input: Omit<ApprovalPayload, "v" | "id" | "exp">, now?: number) => { token: string; payload: ApprovalPayload }
-  verify: (token: string, runId: string, now?: number) => { ok: true; payload: ApprovalPayload } | { ok: false; error: string }
+  verify: (token: string, runId: string, owner: string, now?: number) => { ok: true; payload: ApprovalPayload } | { ok: false; error: string }
 }
 
 function b64url(input: Buffer | string): string {
@@ -35,14 +37,15 @@ function b64url(input: Buffer | string): string {
 }
 
 /**
- * The HMAC key. ORCHESTRATOR_APPROVAL_SECRET when set; otherwise derived from the orchestrator
- * wallet secret (never the secret itself), so a deployment with a wallet always has approvals.
+ * The HMAC key. ORCHESTRATOR_APPROVAL_SECRET when set; otherwise derived (domain-separated, never
+ * the secret itself) from the cookie-sealing secret, which every deployment with agents'
+ * wallets already has.
  */
 export function approvalKeyFromEnv(env: Record<string, string | undefined> = process.env): Buffer | null {
   const explicit = env.ORCHESTRATOR_APPROVAL_SECRET?.trim()
   if (explicit && explicit.length >= 16) return createHash("sha256").update(`agentic-city:approval:${explicit}`).digest()
-  const wallet = env.ORCHESTRATOR_SOLANA_SECRET?.trim()
-  if (wallet) return createHash("sha256").update(`agentic-city:approval-from-wallet:${wallet}`).digest()
+  const sealing = env.CONNECTIONS_SECRET?.trim() || env.BETTER_AUTH_SECRET?.trim()
+  if (sealing) return createHash("sha256").update(`agentic-city:approval-from-sealing:${sealing}`).digest()
   return null
 }
 
@@ -55,7 +58,7 @@ export function createApprovalSigner(key: Buffer, ttlMs: number = APPROVAL_TTL_M
       const body = b64url(JSON.stringify(payload))
       return { token: `${body}.${b64url(sign(body))}`, payload }
     },
-    verify(token, runId, now = Date.now()) {
+    verify(token, runId, owner, now = Date.now()) {
       if (typeof token !== "string" || token.length > 8192) return { ok: false, error: "This approval is not valid." }
       const [body, signature, extra] = token.split(".")
       if (!body || !signature || extra !== undefined) return { ok: false, error: "This approval is not valid." }
@@ -70,6 +73,7 @@ export function createApprovalSigner(key: Buffer, ttlMs: number = APPROVAL_TTL_M
       }
       if (payload.v !== 1 || typeof payload.id !== "string") return { ok: false, error: "This approval is not valid." }
       if (payload.runId !== runId) return { ok: false, error: "This approval belongs to a different conversation run." }
+      if (payload.owner !== owner) return { ok: false, error: "This approval belongs to another browser." }
       if (!(payload.exp > now)) return { ok: false, error: "This approval expired. Ask again to get a new one." }
       return { ok: true, payload }
     },

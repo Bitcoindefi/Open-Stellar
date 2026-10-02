@@ -19,8 +19,12 @@ export type ApprovalRequestEvent = {
   expiresAt: number
 }
 
+/** The agents' wallet holds less than a hire costs: the chat shows the Fund button. */
+export type WalletFundEvent = { type: "wallet"; status: "unfunded"; address: string; balanceUsdc: string; neededUsdc: string }
+
 export type ChatStreamEvent =
-  | { type: "run"; runId: string; hiring: boolean; perRunUsdc: string; perDayUsdc: string }
+  | { type: "run"; runId: string; hiring: boolean; perRunUsdc: string; perDayUsdc: string; wallet?: string | null }
+  | WalletFundEvent
   | { type: "agent-start"; turnId: string; agentId: string; name: string; model: string; depth: number; hiredBy?: string }
   | { type: "text"; turnId: string; delta: string }
   | { type: "agent-end"; turnId: string }

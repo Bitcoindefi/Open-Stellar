@@ -38,6 +38,10 @@ export type ChatRunInput = {
 export type ChatRunDeps = {
   modelFor: (connection: ByokModelConnection) => LanguageModel
   hire: HandoffDeps["hire"]
+  /** The browser id (see lib/identity/browser-id.ts). */
+  owner: string
+  /** The browser's agents' wallet, which pays the hires. */
+  wallet: HandoffDeps["wallet"]
   store: KvStore
   budget: OrchestratorCaps
   caps: HandoffCaps
@@ -58,7 +62,7 @@ function systemFor(agent: RosterAgent, mode: Mode, teammates: RosterAgent[], can
   if (teammates.length > 0 && canHire) {
     lines.push(
       `Your teammates, hired with the ${HANDOFF_TOOL} tool by id or name: ${teammates.map((item) => `${item.name} (id ${item.id}): ${item.role}`).join("; ")}.`,
-      `Each hire pays that teammate ${price} USDC on Solana devnet from the orchestrator wallet. The person sees the payment and the teammate's answer, so do not repeat it.`,
+      `Each hire pays that teammate ${price} USDC on Solana devnet from the person's agents' wallet, which they fund themselves. The person sees the payment and the teammate's answer, so do not repeat it.`,
     )
     lines.push(mode === "team"
       ? "The person addressed the whole team. Decide which teammates' roles this needs, hire each of them once with a specific task, then write a short synthesis."
@@ -81,6 +85,8 @@ export async function runChat(input: ChatRunInput, deps: ChatRunDeps, emit: (eve
     budget: deps.budget,
     priceMicro: deps.priceMicro,
     store: deps.store,
+    owner: deps.owner,
+    wallet: deps.wallet,
     hire: deps.hire,
     approvals: deps.approvals,
     emit,
@@ -88,7 +94,14 @@ export async function runChat(input: ChatRunInput, deps: ChatRunDeps, emit: (eve
     now: deps.now,
   }
 
-  emit({ type: "run", runId, hiring: Boolean(deps.hire), perRunUsdc: microToUsdc(deps.budget.perRunMicro), perDayUsdc: microToUsdc(deps.budget.perDayMicro) })
+  emit({
+    type: "run",
+    runId,
+    hiring: Boolean(deps.hire),
+    perRunUsdc: microToUsdc(deps.budget.perRunMicro),
+    perDayUsdc: microToUsdc(deps.budget.perDayMicro),
+    wallet: deps.wallet?.address ?? null,
+  })
   const finish = () => emit({ type: "done", runId, spent: microToUsdc(run.spentMicro), receipts: run.receipts })
 
   if (input.approval) {
@@ -168,7 +181,7 @@ async function resumeApproval(
     emit({ type: "error", message: "Approvals are not available on this server." })
     return
   }
-  const verified = deps.approvals.verify(approval.token, approval.runId, deps.now?.().getTime())
+  const verified = deps.approvals.verify(approval.token, approval.runId, deps.owner, deps.now?.().getTime())
   if (!verified.ok) {
     emit({ type: "error", message: verified.error })
     return

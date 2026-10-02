@@ -17,6 +17,7 @@ import {
 } from "@/lib/orchestration/transcript"
 import { ToolLine } from "@/components/chat/tool-line"
 import { ApprovalCard } from "@/components/chat/approval-card"
+import { FundCard } from "@/components/chat/fund-card"
 
 const CONNECTIONS_STORAGE_KEY = "agentic-city:connections:v1"
 const CHAT_STORAGE_KEY = "agentic-city:agent-chat:v1"
@@ -243,6 +244,9 @@ export function ChatPanel({ messages }: ChatPanelProps) {
     if (item.kind === "approval") {
       return <ApprovalCard key={item.id} data={item} onDecide={(decision) => void decide(item, decision)} />
     }
+    if (item.kind === "fund") {
+      return <FundCard key={item.id} data={item} />
+    }
     return (
       <article key={item.id} style={{ alignSelf: item.role === "user" ? "flex-end" : "stretch", maxWidth: item.role === "user" ? "88%" : "100%", border: `1px solid ${item.color}33`, borderLeft: `3px solid ${item.color}`, borderRadius: 8, background: item.role === "user" ? "#1f2937" : "#0f172a", padding: "8px 9px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
@@ -300,7 +304,7 @@ export function ChatPanel({ messages }: ChatPanelProps) {
         ) : chat.length === 0 ? (
           <div style={{ margin: "auto 0", border: "1px solid #1e293b", borderRadius: 8, padding: 14, background: "#111827" }}>
             <p style={{ margin: 0, fontFamily: "monospace", fontSize: 11, lineHeight: 1.6, color: "#94a3b8" }}>
-              Tu equipo está listo. Escribí una instrucción, pregunta o misión corta. Si le hablás al equipo completo, el orquestador contrata a cada especialista con un pago x402 en USDC (Solana devnet) y vas a ver cada recibo.
+              Tu equipo está listo. Escribí una instrucción, pregunta o misión corta. Si le hablás al equipo completo, el orquestador contrata a cada especialista con un pago x402 en USDC (Solana devnet) desde la wallet de tus agentes, que cargás vos desde tu wallet, y vas a ver cada recibo. Sin login.
             </p>
           </div>
         ) : null}
