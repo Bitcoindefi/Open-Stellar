@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Bot, BrainCircuit, ExternalLink, Loader2, Send, UsersRound } from "lucide-react"
 import type { ChatMessage } from "@/lib/types"
 import { friendlyProviderError } from "@/lib/ai/friendly-error"
-import { createEventParser, shortSignature, type ChatStreamEvent } from "@/lib/orchestration/events"
+import { createEventParser, receiptLabel, shortSignature, type ChatStreamEvent } from "@/lib/orchestration/events"
 import {
   TRANSCRIPT_COLORS,
   applyChatEvent,
@@ -193,7 +193,7 @@ export function ChatPanel({ messages }: ChatPanelProps) {
     update([...chatRef.current, {
       kind: "message",
       id: makeId(),
-      speaker: "You",
+      speaker: "Vos",
       role: "user",
       target,
       message,
@@ -204,7 +204,7 @@ export function ChatPanel({ messages }: ChatPanelProps) {
     setSending(true)
     setError("")
     try {
-      await runStream({ message, target, history: [...history, { speaker: "You", message }], ...teamPayload() })
+      await runStream({ message, target, history: [...history, { speaker: "Vos", message }], ...teamPayload() })
     } finally {
       setSending(false)
     }
@@ -233,7 +233,7 @@ export function ChatPanel({ messages }: ChatPanelProps) {
     if (item.kind === "receipt") {
       return (
         <div key={item.id} role="status" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", border: "1px solid #14b8a644", borderRadius: 8, background: "#042f2e66", padding: "6px 9px", fontFamily: "monospace", fontSize: 10, color: "#99f6e4" }}>
-          <span>{item.fromName} hired {item.toName}, paid {item.amount} USDC</span>
+          <span>{receiptLabel(item.fromName, item.toName, item.amount)}</span>
           <a href={item.explorerUrl} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "#5eead4" }}>
             tx {shortSignature(item.transaction)} <ExternalLink size={10} aria-hidden="true" />
           </a>
@@ -268,10 +268,10 @@ export function ChatPanel({ messages }: ChatPanelProps) {
         </span>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 800, color: "#dbeafe", textTransform: "uppercase", letterSpacing: 0.8 }}>
-            Agent chat
+            Chat de agentes
           </div>
           <div style={{ fontFamily: "monospace", fontSize: 9, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {canChat ? `${team?.name} · ${members.length} agentes · hires paid in USDC on Solana devnet` : "Configurá Modelos IA > Equipo"}
+            {canChat ? `${team?.name} · ${members.length} agentes · contrataciones en USDC en Solana devnet` : "Configurá Modelos IA > Equipo"}
           </div>
         </div>
         <span style={{ marginLeft: "auto", fontFamily: "monospace", fontSize: 10, color: "#475569" }}>{chat.filter((item) => item.kind === "message").length} msgs</span>

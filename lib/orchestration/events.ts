@@ -78,15 +78,62 @@ function clip(text: string, max = 90): string {
 export function describeToolCall(toolName: string, input: unknown): { label: string; detail?: string } {
   const record = input && typeof input === "object" ? input as Record<string, unknown> : {}
   if (toolName === "message_agent") {
-    const agent = typeof record.agent === "string" && record.agent.trim() ? record.agent.trim() : "an agent"
+    const agent = typeof record.agent === "string" && record.agent.trim() ? record.agent.trim() : "un agente"
     const task = typeof record.task === "string" ? clip(record.task) : ""
-    return { label: `Hiring ${clip(agent, 40)}`, ...(task ? { detail: task } : {}) }
+    return { label: `Contratando a ${clip(agent, 40)}`, ...(task ? { detail: task } : {}) }
   }
-  return { label: `Used ${toolName}` }
+  return { label: `Usó ${toolName}` }
 }
 
+// The transcript sits in a Spanish (rioplatense) panel, so every line a person reads is in Spanish.
+// What the agents read (tool results, refusals for the model) stays in English.
+
 export function hiredLabel(toName: string, amount: string): string {
-  return `Hired ${toName}, paid ${amount} USDC`
+  return `${toName} contratado por ${amount} USDC`
+}
+
+export function paidButFailedLabel(toName: string, amount: string): string {
+  return `${toName} cobró ${amount} USDC`
+}
+
+export function awaitingApprovalLabel(toName: string): string {
+  return `Esperando tu aprobación para contratar a ${toName}`
+}
+
+export const HIRE_REFUSED_LABEL = "Contratación no realizada"
+
+export function receiptLabel(fromName: string, toName: string, amount: string): string {
+  return `${fromName} contrató a ${toName} y pagó ${amount} USDC`
+}
+
+export function hiredByLabel(hiredBy: string, model: string): string {
+  return `contratado por ${hiredBy} · ${model}`
+}
+
+/** The text of a tool line: a failed step says so after its label. */
+export function toolLineText(status: ToolLineStatus, label: string): string {
+  return status === "failed" ? `${label} (falló)` : label
+}
+
+export type ApprovalCardState = "pending" | "working" | "approved" | "rejected" | "expired" | "failed"
+
+const APPROVAL_STATE_WORDS: Record<Exclude<ApprovalCardState, "pending">, string> = {
+  working: "enviando...",
+  approved: "aprobada",
+  rejected: "rechazada",
+  expired: "vencida",
+  failed: "no enviada",
+}
+
+/** The corner of the approval card: a countdown while it waits, then what happened to it. */
+export function approvalStatusLabel(state: ApprovalCardState, secondsLeft: number): string {
+  if (state !== "pending") return APPROVAL_STATE_WORDS[state]
+  const seconds = Math.max(0, Math.floor(secondsLeft))
+  return `vence en ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+}
+
+export function approvalCapWords(reason: "run" | "day"): string {
+  return reason === "run" ? "por conversación" : "diario"
 }
 
 export function shortSignature(signature: string): string {

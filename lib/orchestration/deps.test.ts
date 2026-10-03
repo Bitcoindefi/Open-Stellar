@@ -57,7 +57,7 @@ describe("createChatRunDeps", () => {
     expect(deps.approvals).toBeNull()
     expect(deps.priceMicro).toBe(10_000)
     expect(deps.caps).toEqual({ maxDepth: 2, maxPerRun: 4 })
-    expect(deps.budget).toEqual({ perRunMicro: 50_000, perDayMicro: 500_000, hardDayMicro: 2_000_000 })
+    expect(deps.budget).toEqual({ perRunMicro: 30_000, perDayMicro: 500_000, hardDayMicro: 2_000_000 })
     expect(typeof deps.modelFor({ provider: "groq", model: "llama", apiKey: "gsk-12345678" })).toBe("object")
   })
 

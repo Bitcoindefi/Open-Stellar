@@ -1,4 +1,4 @@
-import type { ChatStreamEvent, ToolLineStatus } from "@/lib/orchestration/events"
+import { hiredByLabel, type ChatStreamEvent, type ToolLineStatus } from "@/lib/orchestration/events"
 
 // Turns the chat stream into the transcript the chat panel renders and keeps in localStorage.
 // Pure functions, so the browser code stays thin and this part is tested in node.
@@ -57,7 +57,7 @@ export function createTranscriptContext(options: Omit<TranscriptContext, "turns"
 }
 
 function systemMessage(ctx: TranscriptContext, message: string): TranscriptMessage {
-  return { kind: "message", id: ctx.makeId(), speaker: "System", role: "system", message, timestamp: ctx.timeLabel(), color: TRANSCRIPT_COLORS.system }
+  return { kind: "message", id: ctx.makeId(), speaker: "Sistema", role: "system", message, timestamp: ctx.timeLabel(), color: TRANSCRIPT_COLORS.system }
 }
 
 export function applyChatEvent(items: TranscriptItem[], event: ChatStreamEvent, ctx: TranscriptContext): TranscriptItem[] {
@@ -72,13 +72,13 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatStreamEvent, 
       if (last && last.kind === "message" && last.turnId === event.turnId) {
         return [...items.slice(0, -1), { ...last, message: last.message + event.delta }]
       }
-      const meta = ctx.turns.get(event.turnId) ?? { speaker: "Agent", model: "", color: TRANSCRIPT_COLORS.member }
+      const meta = ctx.turns.get(event.turnId) ?? { speaker: "Agente", model: "", color: TRANSCRIPT_COLORS.member }
       return [...items, {
         kind: "message",
         id: ctx.makeId(),
         speaker: meta.speaker,
         role: "agent",
-        target: meta.hiredBy ? `hired by ${meta.hiredBy} · ${meta.model}` : meta.model,
+        target: meta.hiredBy ? hiredByLabel(meta.hiredBy, meta.model) : meta.model,
         message: event.delta,
         timestamp: ctx.timeLabel(),
         color: meta.color,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { BYOK_PROVIDERS, generateWithByokProvider, type ByokProviderId } from "@/lib/ai/byok-provider"
 import { withOAuthCredentials } from "@/lib/connections/hydrate"
 import { resolveAgentOwner, scopedAgentKey } from "@/lib/solana/agent-owner"
+import { agentTaskSystemPrompt } from "@/lib/solana/agent-task-prompt"
 import { recordAgentPayment } from "@/lib/solana/payment-bindings"
 import { AGENT_TASK_PRICE, attachPaymentResponse, explorerTxUrl, requirePayment } from "@/lib/solana/x402"
 
@@ -60,7 +61,7 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     const output = await generateWithByokProvider(
       { provider, model, apiKey },
-      `You are ${name}, an AI agent in Agentic City. Your role is: ${role}. The user paid for this task. Complete it concisely and state assumptions. Do not claim tool use, payments or external actions you did not perform.`,
+      agentTaskSystemPrompt(name, role),
       task,
     )
     return attachPaymentResponse(json({ ok: true, agentId, result: output, receipt }), payment.settle)

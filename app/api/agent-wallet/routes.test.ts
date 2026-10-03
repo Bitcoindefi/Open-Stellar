@@ -87,7 +87,7 @@ describe("agents' wallet routes", () => {
       balanceUsdc: "0",
       fundUsdc: "0.1",
       hirePriceUsdc: "0.01",
-      caps: { perRunUsdc: "0.05", perDayUsdc: "0.5" },
+      caps: { perRunUsdc: "0.03", perDayUsdc: "0.5" },
       spentTodayUsdc: "0",
       withdrawAvailable: true,
     })

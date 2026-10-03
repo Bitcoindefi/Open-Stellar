@@ -1,12 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import type { UiWalletAccount } from "@wallet-standard/react"
 import { useSignAndSendTransaction } from "@solana/react"
 import { getBase58Decoder } from "@solana/kit"
 import { BadgeCheck, ExternalLink, Fingerprint } from "lucide-react"
 import { reviewTransactionProblem, type TreasuryKeys } from "@/lib/solana/client-guards"
 import { friendlyProviderError } from "@/lib/ai/friendly-error"
+import { pollUntil } from "@/lib/poll-until"
 
 type Identity = { asset: string; registered: boolean; explorerUrl: string; reputation: { averageScore: number; totalFeedbacks: number } | null }
 
@@ -14,26 +15,60 @@ export function AgentIdentityRow({ agent, refreshKey, onTreasury }: { agent: { i
   const [identity, setIdentity] = useState<Identity | null>(null)
   const [state, setState] = useState<"loading" | "ready" | "registering" | "unavailable">("loading")
   const [error, setError] = useState("")
+  const [refreshing, setRefreshing] = useState(false)
+  const identityRef = useRef<Identity | null>(null)
+  const onTreasuryRef = useRef(onTreasury)
+  useEffect(() => { onTreasuryRef.current = onTreasury }, [onTreasury])
 
-  const load = useCallback(async () => {
-    setState("loading")
+  /** One read of the agent's 8004 identity. Null when it could not be read. */
+  const fetchIdentity = useCallback(async (): Promise<{ identity: Identity } | { error: string } | null> => {
     try {
       const response = await fetch(`/api/8004/agents/${encodeURIComponent(agent.id)}`, { cache: "no-store" })
       const data = await response.json() as Identity & { ok?: boolean; error?: string; treasury?: TreasuryKeys }
-      if (data.treasury) onTreasury?.(data.treasury)
-      if (!response.ok || !data.ok) {
-        setState("unavailable")
-        setError(friendlyProviderError(data.error ?? ""))
-        return
-      }
-      setIdentity(data)
-      setState("ready")
+      if (data.treasury) onTreasuryRef.current?.(data.treasury)
+      if (!response.ok || !data.ok) return { error: data.error ?? "" }
+      return { identity: data }
     } catch {
-      setState("unavailable")
+      return null
     }
-  }, [agent.id, onTreasury])
+  }, [agent.id])
 
-  useEffect(() => { void load() }, [load, refreshKey])
+  const showIdentity = useCallback((next: Identity) => {
+    identityRef.current = next
+    setIdentity(next)
+  }, [])
+
+  const load = useCallback(async () => {
+    setState("loading")
+    const result = await fetchIdentity()
+    if (result && "identity" in result) {
+      showIdentity(result.identity)
+      setState("ready")
+      return
+    }
+    setState("unavailable")
+    if (result) setError(friendlyProviderError(result.error))
+  }, [fetchIdentity, showIdentity])
+
+  useEffect(() => { void load() }, [load])
+
+  // After a review, the 8004 indexer takes some seconds (about 30) to count it: keep asking every
+  // 5 seconds for up to a minute until the review count goes up, instead of reading once too early.
+  useEffect(() => {
+    if (refreshKey === 0) return
+    let cancelled = false
+    const before = identityRef.current?.reputation?.totalFeedbacks ?? 0
+    setRefreshing(true)
+    void pollUntil(async () => {
+      const result = await fetchIdentity()
+      if (!result || !("identity" in result) || cancelled) return null
+      showIdentity(result.identity)
+      return (result.identity.reputation?.totalFeedbacks ?? 0) > before ? result.identity : null
+    }, { intervalMs: 5_000, timeoutMs: 60_000, isCancelled: () => cancelled }).finally(() => {
+      if (!cancelled) setRefreshing(false)
+    })
+    return () => { cancelled = true }
+  }, [refreshKey, fetchIdentity, showIdentity])
 
   const register = async () => {
     setState("registering")
@@ -63,6 +98,7 @@ export function AgentIdentityRow({ agent, refreshKey, onTreasury }: { agent: { i
           : <button type="button" onClick={() => void register()} disabled={state === "registering"} className="rounded-lg border border-cyan-300/30 px-2.5 py-1.5 text-[10px] uppercase tracking-wider text-cyan-100 disabled:opacity-50">{state === "registering" ? "Registrando…" : "Registrar"}</button>}
       </div>
       {identity?.registered ? <p className="mt-1 font-mono text-[11px] text-slate-500">{identity.reputation && identity.reputation.totalFeedbacks > 0 ? `Reputación ${Math.round(identity.reputation.averageScore)}/100 · ${identity.reputation.totalFeedbacks} reseña${identity.reputation.totalFeedbacks === 1 ? "" : "s"}` : "Sin reseñas todavía"}</p> : null}
+      {refreshing ? <p role="status" className="mt-1 font-mono text-[11px] text-cyan-200/80">Actualizando reputación…</p> : null}
       {error ? <p role="alert" className="mt-1 text-[11px] text-rose-200">{error}</p> : null}
     </div>
   )

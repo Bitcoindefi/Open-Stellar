@@ -9,7 +9,7 @@ const MICRO_PER_USDC = 10 ** USDC_DECIMALS
 /** The ledger counts in steps of 0.01 USDC so it can use an atomic INCR (one step per agent task). */
 export const LEDGER_STEP_MICRO = 10_000
 
-export const DEFAULT_MAX_USDC_PER_RUN = "0.05"
+export const DEFAULT_MAX_USDC_PER_RUN = "0.03"
 export const DEFAULT_MAX_USDC_PER_DAY = "0.5"
 /** Even an approved hire stops here: a person clicking approve is not a blank cheque. */
 export const DEFAULT_HARD_MAX_USDC_PER_DAY = "2"

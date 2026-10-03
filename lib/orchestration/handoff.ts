@@ -3,7 +3,7 @@ import { z } from "zod"
 import type { KvStore } from "@/lib/security/kv-store"
 import { microToUsdc, releaseDaily, reserveDaily, type OrchestratorCaps } from "@/lib/orchestration/budget"
 import type { ApprovalPayload, ApprovalReason, ApprovalSigner } from "@/lib/orchestration/approval"
-import { hiredLabel, shortSignature, type ChatStreamEvent } from "@/lib/orchestration/events"
+import { shortSignature, type ChatStreamEvent } from "@/lib/orchestration/events"
 import type { HireAgent, HopReceipt, HopResult } from "@/lib/orchestration/wallet"
 
 // One agent hiring another, paid from the browser's own agents' wallet.
@@ -139,7 +139,7 @@ async function payAndRun(deps: HandoffDeps, run: RunState, from: Hirer, agent: R
     return {
       ok: false,
       paid: { toName: agent.name, receipt: result.receipt },
-      refusal: `${hiredLabel(agent.name, amount)} (tx ${shortSignature(result.receipt.transaction)}) but it could not finish: ${result.error.replace(/\.+$/, "")}. Tell the person, and answer with what you have.`,
+      refusal: `Hired ${agent.name}, paid ${amount} USDC (tx ${shortSignature(result.receipt.transaction)}) but it could not finish: ${result.error.replace(/\.+$/, "")}. Tell the person, and answer with what you have.`,
     }
   }
 

@@ -67,10 +67,10 @@ describe("runChat", () => {
     expect(events[0]).toEqual({ type: "run", runId: "run-1", hiring: true, perRunUsdc: "0.05", perDayUsdc: "0.5", wallet: WALLET })
     expect(events.filter((event) => event.type === "handoff").map((event) => (event as { toName: string }).toName)).toEqual(["Investigador", "Critico"])
     expect(events.filter((event) => event.type === "tool")).toEqual([
-      { type: "tool", turnId: "orchestrator-1", callId: "c1", status: "running", label: "Hiring research", detail: "Find options" },
-      { type: "tool", turnId: "orchestrator-1", callId: "c2", status: "running", label: "Hiring Critico", detail: "Find risks" },
-      { type: "tool", turnId: "orchestrator-1", callId: "c1", status: "done", label: "Hired Investigador, paid 0.01 USDC", detail: "Sig1" },
-      { type: "tool", turnId: "orchestrator-1", callId: "c2", status: "done", label: "Hired Critico, paid 0.01 USDC", detail: "Sig2" },
+      { type: "tool", turnId: "orchestrator-1", callId: "c1", status: "running", label: "Contratando a research", detail: "Find options" },
+      { type: "tool", turnId: "orchestrator-1", callId: "c2", status: "running", label: "Contratando a Critico", detail: "Find risks" },
+      { type: "tool", turnId: "orchestrator-1", callId: "c1", status: "done", label: "Investigador contratado por 0.01 USDC", detail: "Sig1" },
+      { type: "tool", turnId: "orchestrator-1", callId: "c2", status: "done", label: "Critico contratado por 0.01 USDC", detail: "Sig2" },
     ])
     const text = events.filter((event) => event.type === "text" && event.turnId === "orchestrator-1").map((event) => (event as { delta: string }).delta).join("")
     expect(text).toBe("Hiring two. Summary: go.")
@@ -104,7 +104,7 @@ describe("runChat", () => {
   it("reports an unknown member as an error event", async () => {
     const { deps } = setup({})
     const events = await collect(input({ target: "member:ghost" }), deps)
-    expect(events).toContainEqual({ type: "error", message: "Selected agent is not in the saved team." })
+    expect(events).toContainEqual({ type: "error", message: "El agente elegido no está en el equipo guardado." })
     expect(events.at(-1)?.type).toBe("done")
   })
 
@@ -134,7 +134,7 @@ describe("runChat", () => {
     expect(hire).not.toHaveBeenCalled()
     expect(model.doStreamCalls).toHaveLength(1)
     expect(events).toContainEqual(expect.objectContaining({ type: "approval", runId: "run-1", toName: "Investigador", reason: "run" }))
-    expect(events).toContainEqual({ type: "tool", turnId: "orchestrator-1", callId: "c1", status: "approval", label: "Waiting for your approval to hire Investigador" })
+    expect(events).toContainEqual({ type: "tool", turnId: "orchestrator-1", callId: "c1", status: "approval", label: "Esperando tu aprobación para contratar a Investigador" })
   })
 
   it("shows a refused hire and a failed tool call as readable lines", async () => {
@@ -144,15 +144,15 @@ describe("runChat", () => {
     ])
     const { deps } = setup({ "anthropic/claude": model })
     const events = await collect(input(), deps)
-    expect(events).toContainEqual({ type: "tool", turnId: "orchestrator-1", callId: "c1", status: "refused", label: "Hire not made", detail: 'There is no agent called "ghost" on this team.' })
-    expect(events).toContainEqual(expect.objectContaining({ type: "tool", callId: "c2", status: "failed", label: "Hiring an agent" }))
+    expect(events).toContainEqual({ type: "tool", turnId: "orchestrator-1", callId: "c1", status: "refused", label: "Contratación no realizada", detail: 'There is no agent called "ghost" on this team.' })
+    expect(events).toContainEqual(expect.objectContaining({ type: "tool", callId: "c2", status: "failed", label: "Contratando a un agente" }))
   })
 
   it("marks a hire that was paid but could not finish as failed, keeping the receipt", async () => {
     const model = scriptedModel([toolStep([{ id: "c1", input: { agent: "research", task: "x" } }]), textStep("ok")])
     const { deps } = setup({ "anthropic/claude": model }, { hire: vi.fn(async (): Promise<HopResult> => ({ ok: false, error: "OpenRouter rejected the request (HTTP 401).", receipt: receipt(7) })) })
     const events = await collect(input(), deps)
-    expect(events).toContainEqual(expect.objectContaining({ type: "tool", callId: "c1", status: "failed", label: "Investigador was paid 0.01 USDC" }))
+    expect(events).toContainEqual(expect.objectContaining({ type: "tool", callId: "c1", status: "failed", label: "Investigador cobró 0.01 USDC" }))
     expect(events.at(-1)).toMatchObject({ type: "done", spent: "0.01", receipts: [receipt(7)] })
   })
 
@@ -173,32 +173,32 @@ describe("runChat approval resume", () => {
     const { token } = issue()
     const events = await collect(input({ message: "", approval: { token, runId: "run-1", decision: "approve" } }), deps)
     expect(hire).toHaveBeenCalledWith(members[0], "Find options")
-    expect(events).toContainEqual({ type: "notice", message: "Approved. Supervisor is hiring Investigador for 0.01 USDC." })
+    expect(events).toContainEqual({ type: "notice", message: "Aprobado. Supervisor está contratando a Investigador por 0.01 USDC." })
     expect(events).toContainEqual(expect.objectContaining({ type: "handoff", toName: "Investigador" }))
     expect(events.at(-1)).toMatchObject({ type: "done", runId: "run-1", spent: "0.01" })
 
     const replay = await collect(input({ message: "", approval: { token, runId: "run-1", decision: "approve" } }), deps)
-    expect(replay).toContainEqual({ type: "error", message: "This approval was already used." })
+    expect(replay).toContainEqual({ type: "error", message: "Esta aprobación ya se usó." })
     expect(hire).toHaveBeenCalledTimes(1)
   })
 
   it("records a rejection and pays nothing", async () => {
     const { deps, hire } = setup({})
     const events = await collect(input({ message: "", approval: { token: issue().token, runId: "run-1", decision: "reject" } }), deps)
-    expect(events).toContainEqual({ type: "notice", message: "You declined. Supervisor did not hire Investigador and nothing was paid." })
+    expect(events).toContainEqual({ type: "notice", message: "Rechazaste. Supervisor no contrató a Investigador y no se pagó nada." })
     expect(hire).not.toHaveBeenCalled()
   })
 
   it("refuses a token for another run, a forged one, and works only with approvals configured", async () => {
     const { deps } = setup({})
     const other = await collect(input({ message: "", approval: { token: issue("run-2").token, runId: "run-1", decision: "approve" } }), deps)
-    expect(other).toContainEqual({ type: "error", message: "This approval belongs to a different conversation run." })
+    expect(other).toContainEqual({ type: "error", message: "Esta aprobación es de otra conversación." })
     const stranger = await collect(input({ message: "", approval: { token: issue("run-1", "f".repeat(32)).token, runId: "run-1", decision: "approve" } }), deps)
-    expect(stranger).toContainEqual({ type: "error", message: "This approval belongs to another browser." })
+    expect(stranger).toContainEqual({ type: "error", message: "Esta aprobación es de otro navegador." })
     const forged = await collect(input({ message: "", approval: { token: "abc.def", runId: "run-1", decision: "approve" } }), deps)
-    expect(forged).toContainEqual({ type: "error", message: "This approval is not valid." })
+    expect(forged).toContainEqual({ type: "error", message: "Esta aprobación no es válida." })
     const none = setup({}, { approvals: null })
-    expect(await collect(input({ message: "", approval: { token: issue().token, runId: "run-1", decision: "approve" } }), none.deps)).toContainEqual({ type: "error", message: "Approvals are not available on this server." })
+    expect(await collect(input({ message: "", approval: { token: issue().token, runId: "run-1", decision: "approve" } }), none.deps)).toContainEqual({ type: "error", message: "Las aprobaciones no están disponibles en este servidor." })
   })
 
   it("reports an approved hire that could not be paid, and a store that is down", async () => {
@@ -209,6 +209,6 @@ describe("runChat approval resume", () => {
     const broken: KvStore = { ...createMemoryStore(), set: async () => { throw new Error("down") } }
     const down = setup({}, { store: broken })
     expect(await collect(input({ message: "", approval: { token: issue().token, runId: "run-1", decision: "approve" } }), down.deps))
-      .toContainEqual({ type: "error", message: "The approval could not be recorded just now, so nothing was paid. Try again." })
+      .toContainEqual({ type: "error", message: "No se pudo registrar la aprobación en este momento, así que no se pagó nada. Probá de nuevo." })
   })
 })

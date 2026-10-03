@@ -19,9 +19,9 @@ describe("approval tokens", () => {
   it("refuses a token from another run, another browser, an expired one, or a tampered one", () => {
     const signer = createApprovalSigner(key, 1_000)
     const { token } = signer.issue(request, 0)
-    expect(signer.verify(token, "run-2", OWNER, 10)).toEqual({ ok: false, error: "This approval belongs to a different conversation run." })
-    expect(signer.verify(token, "run-1", "b".repeat(32), 10)).toEqual({ ok: false, error: "This approval belongs to another browser." })
-    expect(signer.verify(token, "run-1", OWNER, 1_000)).toEqual({ ok: false, error: "This approval expired. Ask again to get a new one." })
+    expect(signer.verify(token, "run-2", OWNER, 10)).toEqual({ ok: false, error: "Esta aprobación es de otra conversación." })
+    expect(signer.verify(token, "run-1", "b".repeat(32), 10)).toEqual({ ok: false, error: "Esta aprobación es de otro navegador." })
+    expect(signer.verify(token, "run-1", OWNER, 1_000)).toEqual({ ok: false, error: "Esta aprobación venció. Pedí la contratación de nuevo para recibir otra." })
 
     const [body, signature] = token.split(".")
     const forged = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(body, "base64url").toString()), amountMicro: 1 })).toString("base64url")

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react"
 import { Check, ShieldAlert, X } from "lucide-react"
+import { approvalCapWords, approvalStatusLabel, type ApprovalCardState } from "@/lib/orchestration/events"
 
-export type ApprovalState = "pending" | "working" | "approved" | "rejected" | "expired" | "failed"
+export type ApprovalState = ApprovalCardState
 
 export type ApprovalCardData = {
   fromName: string
@@ -32,18 +33,18 @@ export function ApprovalCard({ data, onDecide }: { data: ApprovalCardData; onDec
   const expired = data.state === "pending" && now >= data.expiresAt
   const state: ApprovalState = expired ? "expired" : data.state
   const secondsLeft = Math.max(0, Math.round((data.expiresAt - now) / 1000))
-  const capWords = data.reason === "run" ? "per-conversation" : "daily"
+  const capWords = approvalCapWords(data.reason)
   const disabled = state !== "pending"
 
   return (
-    <section aria-label="Approval needed" style={{ border: "1px solid #a78bfa66", borderRadius: 8, background: "#1e1b4b55", padding: "9px 10px", display: "grid", gap: 7 }}>
+    <section aria-label="Aprobación necesaria" style={{ border: "1px solid #a78bfa66", borderRadius: 8, background: "#1e1b4b55", padding: "9px 10px", display: "grid", gap: 7 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "monospace", fontSize: 10, fontWeight: 800, color: "#c4b5fd", textTransform: "uppercase", letterSpacing: 0.8 }}>
-        <ShieldAlert size={12} aria-hidden="true" /> Approval needed
+        <ShieldAlert size={12} aria-hidden="true" /> Aprobación necesaria
       </div>
       <p style={{ margin: 0, fontFamily: "monospace", fontSize: 11, lineHeight: 1.5, color: "#e2e8f0" }}>
-        {data.fromName} wants to hire {data.toName} for {data.amount} USDC (Solana devnet). It is paid from your agents&apos; wallet and goes over its {capWords} cap of {data.capUsdc} USDC.
+        {data.fromName} quiere contratar a {data.toName} por {data.amount} USDC (Solana devnet). Se paga desde la wallet de tus agentes y supera su tope {capWords} de {data.capUsdc} USDC.
       </p>
-      <p style={{ margin: 0, fontFamily: "monospace", fontSize: 10, lineHeight: 1.5, color: "#94a3b8" }}>Task: {data.task}</p>
+      <p style={{ margin: 0, fontFamily: "monospace", fontSize: 10, lineHeight: 1.5, color: "#94a3b8" }}>Tarea: {data.task}</p>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <button
           type="button"
@@ -51,7 +52,7 @@ export function ApprovalCard({ data, onDecide }: { data: ApprovalCardData; onDec
           onClick={() => onDecide("approve")}
           style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid #5eead455", borderRadius: 6, background: disabled ? "#111827" : "#14b8a622", color: disabled ? "#475569" : "#5eead4", padding: "6px 10px", fontFamily: "monospace", fontSize: 11, cursor: disabled ? "not-allowed" : "pointer" }}
         >
-          <Check size={12} aria-hidden="true" /> Approve
+          <Check size={12} aria-hidden="true" /> Aprobar
         </button>
         <button
           type="button"
@@ -59,10 +60,10 @@ export function ApprovalCard({ data, onDecide }: { data: ApprovalCardData; onDec
           onClick={() => onDecide("reject")}
           style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid #f8717155", borderRadius: 6, background: disabled ? "#111827" : "#ef444422", color: disabled ? "#475569" : "#fca5a5", padding: "6px 10px", fontFamily: "monospace", fontSize: 11, cursor: disabled ? "not-allowed" : "pointer" }}
         >
-          <X size={12} aria-hidden="true" /> Reject
+          <X size={12} aria-hidden="true" /> Rechazar
         </button>
         <span style={{ marginLeft: "auto", fontFamily: "monospace", fontSize: 9, color: "#64748b" }}>
-          {state === "pending" ? `expires in ${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, "0")}` : state === "working" ? "sending..." : state === "failed" ? "not sent" : state}
+          {approvalStatusLabel(state, secondsLeft)}
         </span>
       </div>
     </section>
