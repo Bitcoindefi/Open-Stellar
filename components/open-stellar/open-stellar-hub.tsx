@@ -12,6 +12,8 @@ import { MOCK_OFFERS } from "@/components/task-board"
 import { CityAudioEngine } from "@/lib/audio/city-audio"
 import { DISTRICTS, createAgents, generateChatMessage, getRandomTask } from "@/lib/data"
 import { LEGAL_LINKS } from "@/lib/legal-links"
+import { fetchCloudAgentsForAdmin } from "@/lib/admin-cloud-agents"
+import { ThemeToggleNavbar } from "@/components/theme-toggle-navbar"
 import { formatAssetAmount } from "@/lib/config/chains"
 import type { PublishedSystemEvent } from "@/lib/events/system-events"
 import { XP_AWARDS } from "@/lib/gamification/constants"
@@ -69,6 +71,10 @@ const MOBILE_NAV_ICONS: Record<SidebarTabId, ComponentType<{ size?: number; "ari
 // The mobile nav: a 3-column grid of the tabs plus the Admin link, 56px rows, 6px gaps, 18px padding.
 const MOBILE_NAV_ROWS = Math.ceil((SIDEBAR_TABS.length + 1) / 3)
 const MOBILE_NAV_HEIGHT = MOBILE_NAV_ROWS * 56 + (MOBILE_NAV_ROWS - 1) * 6 + 18
+// Challenge card (12 + 280px) plus the widest top-right overlay (city status, about 220px) and gaps.
+const NARROW_MAP_WIDTH = 540
+// Below the top-right column: the map controls end near 160px.
+const CHALLENGE_TOP_NARROW = 168
 
 interface AgentHealthApiSnapshot {
   agentId: string
@@ -282,6 +288,20 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
   useEffect(() => {
     return () => audioEngine.dispose()
   }, [audioEngine])
+
+  // Width of the map area. On a narrow map (a phone, or a tablet with the sidebar open) the
+  // challenge card at the top left would run into the top-right column (admin link, theme toggle,
+  // city status, map controls), so it moves below that column.
+  const canvasAreaRef = useRef<HTMLDivElement>(null)
+  const [canvasWidth, setCanvasWidth] = useState<number | null>(null)
+  useEffect(() => {
+    const element = canvasAreaRef.current
+    if (!element || typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(([entry]) => setCanvasWidth(Math.round(entry.contentRect.width)))
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+  const challengeTop = canvasWidth !== null && canvasWidth < NARROW_MAP_WIDTH ? CHALLENGE_TOP_NARROW : 12
 
   // Show onboarding once on first visit
   useEffect(() => {
@@ -750,24 +770,20 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
     let stopped = false
 
     const syncCloudAgents = async () => {
-      try {
-        const res = await fetch("/api/admin/agents", { cache: "no-store" })
-        if (res.status === 401 || res.status === 403) {
-          // Visitors have no admin session: stop polling so it does not burn the anonymous rate limit.
-          window.clearInterval(interval)
-          return
-        }
-        if (!res.ok) return
-        const data = await res.json() as { agents?: MoltbotAgent[] }
-        if (stopped || !Array.isArray(data.agents) || data.agents.length === 0) return
-        setAgents((prev) => {
-          const existing = new Set(prev.map((agent) => agent.id))
-          const nextCloudAgents = data.agents!.filter((agent) => !existing.has(agent.id))
-          return nextCloudAgents.length > 0 ? [...prev, ...nextCloudAgents] : prev
-        })
-      } catch {
-        // Cloud agent provisioning is optional for the local simulation.
+      // Cloud agent provisioning is optional for the local simulation, and only admins have it.
+      const result = await fetchCloudAgentsForAdmin()
+      if (result.kind === "not-admin") {
+        // Visitors have no admin session: stop polling so it does not burn the anonymous rate limit.
+        window.clearInterval(interval)
+        return
       }
+      if (stopped || result.kind !== "agents" || result.agents.length === 0) return
+      const cloudAgents = result.agents
+      setAgents((prev) => {
+        const existing = new Set(prev.map((agent) => agent.id))
+        const nextCloudAgents = cloudAgents.filter((agent) => !existing.has(agent.id))
+        return nextCloudAgents.length > 0 ? [...prev, ...nextCloudAgents] : prev
+      })
     }
 
     // The first sync awaits its fetch before it can clear the interval, so `interval` is set by then.
@@ -1044,35 +1060,38 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
       {showOnboarding && <OnboardingModal onDone={handleDoneOnboarding} />}
 
       {/* Canvas area */}
-      <div style={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
-        <a
-          href="/admin"
-          aria-label="Open Agentic City admin console"
-          style={{
-            position: "absolute",
-            top: 14,
-            right: 14,
-            zIndex: 12,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "8px 11px",
-            border: "1px solid #22d3ee88",
-            borderRadius: 6,
-            background: "rgba(3,7,18,0.88)",
-            color: "#67e8f9",
-            fontFamily: "monospace",
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: 1,
-            textDecoration: "none",
-            textTransform: "uppercase",
-            boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
-          }}
-        >
-          <Bot size={14} aria-hidden="true" />
-          Arena Admin
-        </a>
+      <div ref={canvasAreaRef} style={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
+        {/* Top-right group: the admin link and the theme toggle share one row so neither covers
+            the other. On a phone the admin link lives in the bottom nav, so only the toggle shows. */}
+        <div style={{ position: "absolute", top: 14, right: 14, zIndex: 12, display: "flex", alignItems: "center", gap: 8 }}>
+          {isMobile === false && (
+            <a
+              href="/admin"
+              aria-label="Open Agentic City admin console"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "8px 11px",
+                border: "1px solid #22d3ee88",
+                borderRadius: 6,
+                background: "rgba(3,7,18,0.88)",
+                color: "#67e8f9",
+                fontFamily: "monospace",
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 1,
+                textDecoration: "none",
+                textTransform: "uppercase",
+                boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+              }}
+            >
+              <Bot size={14} aria-hidden="true" />
+              Arena Admin
+            </a>
+          )}
+          <ThemeToggleNavbar />
+        </div>
         <PixelCity
           agents={agents}
           districts={DISTRICTS}
@@ -1088,7 +1107,7 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
           districtStandings={districtStandings}
         />
 
-        <DistrictEventOverlay event={activeDistrictEvent} standings={districtStandings} />
+        <DistrictEventOverlay event={activeDistrictEvent} standings={districtStandings} top={challengeTop} />
 
         <AudioControls
           engine={audioEngine}
@@ -1314,7 +1333,9 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
             <DrawerContent
               aria-describedby={undefined}
               style={{
-                height: "min(84dvh, 720px)",
+                // Starts below the top overlays (city card and map controls end near 160px), so the
+                // open sheet does not cut them in half on a 390px phone.
+                height: "min(84dvh, calc(100dvh - 168px), 720px)",
                 maxWidth: "100vw",
                 boxSizing: "border-box",
                 background: "#111827",

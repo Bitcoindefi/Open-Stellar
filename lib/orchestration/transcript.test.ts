@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest"
-import { createEventParser, describeToolCall, encodeEvent, hiredLabel, shortSignature, type ChatStreamEvent } from "@/lib/orchestration/events"
+import {
+  HIRE_REFUSED_LABEL,
+  approvalCapWords,
+  approvalStatusLabel,
+  awaitingApprovalLabel,
+  createEventParser,
+  describeToolCall,
+  encodeEvent,
+  hiredByLabel,
+  hiredLabel,
+  paidButFailedLabel,
+  receiptLabel,
+  shortSignature,
+  toolLineText,
+  type ChatStreamEvent,
+} from "@/lib/orchestration/events"
 import {
   TRANSCRIPT_COLORS,
   applyChatEvent,
@@ -36,13 +51,32 @@ describe("events", () => {
   })
 
   it("words tool lines for people", () => {
-    expect(describeToolCall("message_agent", { agent: "Investigador", task: "Find   three\noptions" })).toEqual({ label: "Hiring Investigador", detail: "Find three options" })
+    expect(describeToolCall("message_agent", { agent: "Investigador", task: "Find   three\noptions" })).toEqual({ label: "Contratando a Investigador", detail: "Find three options" })
     expect(describeToolCall("message_agent", { task: "x".repeat(200) }).detail).toHaveLength(90)
-    expect(describeToolCall("message_agent", undefined)).toEqual({ label: "Hiring an agent" })
-    expect(describeToolCall("search", {})).toEqual({ label: "Used search" })
-    expect(hiredLabel("Investigador", "0.01")).toBe("Hired Investigador, paid 0.01 USDC")
+    expect(describeToolCall("message_agent", undefined)).toEqual({ label: "Contratando a un agente" })
+    expect(describeToolCall("search", {})).toEqual({ label: "Usó search" })
+    expect(hiredLabel("Investigador", "0.01")).toBe("Investigador contratado por 0.01 USDC")
     expect(shortSignature("5igSignatureLong")).toBe("5igSig...reLong")
     expect(shortSignature("short")).toBe("short")
+  })
+
+  it("words receipts, tool states and the approval card in Spanish", () => {
+    expect(paidButFailedLabel("Investigador", "0.01")).toBe("Investigador cobró 0.01 USDC")
+    expect(awaitingApprovalLabel("Critico")).toBe("Esperando tu aprobación para contratar a Critico")
+    expect(HIRE_REFUSED_LABEL).toBe("Contratación no realizada")
+    expect(receiptLabel("Supervisor", "Critico", "0.01")).toBe("Supervisor contrató a Critico y pagó 0.01 USDC")
+    expect(hiredByLabel("Supervisor", "grok")).toBe("contratado por Supervisor · grok")
+    expect(toolLineText("failed", "Critico cobró 0.01 USDC")).toBe("Critico cobró 0.01 USDC (falló)")
+    expect(toolLineText("done", "ok")).toBe("ok")
+    expect(approvalStatusLabel("pending", 125)).toBe("vence en 2:05")
+    expect(approvalStatusLabel("pending", -3)).toBe("vence en 0:00")
+    expect(approvalStatusLabel("working", 10)).toBe("enviando...")
+    expect(approvalStatusLabel("approved", 0)).toBe("aprobada")
+    expect(approvalStatusLabel("rejected", 0)).toBe("rechazada")
+    expect(approvalStatusLabel("expired", 0)).toBe("vencida")
+    expect(approvalStatusLabel("failed", 0)).toBe("no enviada")
+    expect(approvalCapWords("run")).toBe("por conversación")
+    expect(approvalCapWords("day")).toBe("diario")
   })
 })
 
@@ -70,7 +104,7 @@ describe("transcript", () => {
     expect(items[0]).toMatchObject({ speaker: "Supervisor", message: "Hiring one.", color: TRANSCRIPT_COLORS.orchestrator, target: "claude" })
     expect(items[1]).toEqual({ kind: "tool", id: "c1", turnId: "o-1", status: "done", label: "Hired Investigador, paid 0.01 USDC", detail: "5igSignatureLong" })
     expect(items[2]).toMatchObject({ kind: "receipt", fromName: "Supervisor", toName: "Investigador", amount: "0.01", explorerUrl: receipt.explorerUrl })
-    expect(items[3]).toMatchObject({ speaker: "Investigador", message: "Options", color: TRANSCRIPT_COLORS.hired, target: "hired by Supervisor · grok", hiredBy: "Supervisor" })
+    expect(items[3]).toMatchObject({ speaker: "Investigador", message: "Options", color: TRANSCRIPT_COLORS.hired, target: "contratado por Supervisor · grok", hiredBy: "Supervisor" })
     expect(items[4]).toMatchObject({ speaker: "Supervisor", message: "Summary" })
     expect(items[5]).toMatchObject({ kind: "approval", token: "tok", state: "pending" })
     expect(items[7]).toMatchObject({ role: "system", message: "friendly: boom" })
@@ -83,7 +117,7 @@ describe("transcript", () => {
       { type: "text", turnId: "zzz", delta: "b" },
     ])
     expect(items[0]).toMatchObject({ color: TRANSCRIPT_COLORS.member })
-    expect(items[1]).toMatchObject({ speaker: "Agent", message: "b" })
+    expect(items[1]).toMatchObject({ speaker: "Agente", message: "b" })
   })
 
   it("updates approval state and builds history from messages only", () => {

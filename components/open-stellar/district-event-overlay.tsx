@@ -8,6 +8,8 @@ import type { ActiveDistrictEvent, DistrictStanding } from "@/lib/gamification/e
 interface DistrictEventOverlayProps {
   event: ActiveDistrictEvent | null
   standings: DistrictStanding[]
+  /** Distance from the top of the map; a narrow map moves the card below the top-right controls. */
+  top?: number
 }
 
 function formatCountdown(seconds: number): string {
@@ -18,7 +20,7 @@ function formatCountdown(seconds: number): string {
   return `${hours}h ${minutes}m`
 }
 
-export function DistrictEventOverlay({ event, standings }: DistrictEventOverlayProps) {
+export function DistrictEventOverlay({ event, standings, top = 12 }: DistrictEventOverlayProps) {
   const [expanded, setExpanded] = useState(false)
   if (!event) return null
 
@@ -29,7 +31,7 @@ export function DistrictEventOverlay({ event, standings }: DistrictEventOverlayP
       aria-label="Active district competition"
       style={{
         position: "absolute",
-        top: 12,
+        top,
         left: 12,
         right: 12,
         zIndex: 6,

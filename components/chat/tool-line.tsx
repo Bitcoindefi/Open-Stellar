@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react"
 import { Loader2 } from "lucide-react"
-import type { ToolLineStatus } from "@/lib/orchestration/events"
+import { toolLineText, type ToolLineStatus } from "@/lib/orchestration/events"
 
 /**
  * One line for one thing an agent did, so a hire, a refusal and a pending approval read as the
@@ -24,7 +24,7 @@ export function ToolLine({ status, label, detail, children }: { status: ToolLine
   const text = (
     <span style={{ display: "inline-flex", minWidth: 0, maxWidth: "100%", alignItems: "baseline", gap: 6, fontFamily: "monospace", fontSize: 10, color }}>
       {status === "running" ? <Loader2 size={10} className="animate-spin" aria-hidden="true" style={{ flexShrink: 0, alignSelf: "center" }} /> : null}
-      <span style={{ flexShrink: 0 }}>{status === "failed" ? `${label}, didn't work` : label}</span>
+      <span style={{ flexShrink: 0 }}>{toolLineText(status, label)}</span>
       {detail && !children ? <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: 0.7 }}>{detail}</span> : null}
     </span>
   )

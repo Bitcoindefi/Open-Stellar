@@ -59,22 +59,22 @@ export function createApprovalSigner(key: Buffer, ttlMs: number = APPROVAL_TTL_M
       return { token: `${body}.${b64url(sign(body))}`, payload }
     },
     verify(token, runId, owner, now = Date.now()) {
-      if (typeof token !== "string" || token.length > 8192) return { ok: false, error: "This approval is not valid." }
+      if (typeof token !== "string" || token.length > 8192) return { ok: false, error: "Esta aprobación no es válida." }
       const [body, signature, extra] = token.split(".")
-      if (!body || !signature || extra !== undefined) return { ok: false, error: "This approval is not valid." }
+      if (!body || !signature || extra !== undefined) return { ok: false, error: "Esta aprobación no es válida." }
       const expected = sign(body)
       const given = Buffer.from(signature, "base64url")
-      if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { ok: false, error: "This approval is not valid." }
+      if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { ok: false, error: "Esta aprobación no es válida." }
       let payload: ApprovalPayload
       try {
         payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as ApprovalPayload
       } catch {
-        return { ok: false, error: "This approval is not valid." }
+        return { ok: false, error: "Esta aprobación no es válida." }
       }
-      if (payload.v !== 1 || typeof payload.id !== "string") return { ok: false, error: "This approval is not valid." }
-      if (payload.runId !== runId) return { ok: false, error: "This approval belongs to a different conversation run." }
-      if (payload.owner !== owner) return { ok: false, error: "This approval belongs to another browser." }
-      if (!(payload.exp > now)) return { ok: false, error: "This approval expired. Ask again to get a new one." }
+      if (payload.v !== 1 || typeof payload.id !== "string") return { ok: false, error: "Esta aprobación no es válida." }
+      if (payload.runId !== runId) return { ok: false, error: "Esta aprobación es de otra conversación." }
+      if (payload.owner !== owner) return { ok: false, error: "Esta aprobación es de otro navegador." }
+      if (!(payload.exp > now)) return { ok: false, error: "Esta aprobación venció. Pedí la contratación de nuevo para recibir otra." }
       return { ok: true, payload }
     },
   }

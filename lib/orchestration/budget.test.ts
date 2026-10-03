@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { createMemoryStore } from "@/lib/security/kv-store"
-import { dayLedgerKey, microToUsdc, readCaps, releaseDaily, reserveDaily, spentToday, usdcToMicro } from "@/lib/orchestration/budget"
+import { LEDGER_STEP_MICRO, dayLedgerKey, microToUsdc, readCaps, releaseDaily, reserveDaily, spentToday, usdcToMicro } from "@/lib/orchestration/budget"
+import { DEFAULT_HANDOFF_CAPS } from "@/lib/orchestration/handoff"
 
 describe("usdc amounts", () => {
   it("parses prices and caps into micro-USDC", () => {
@@ -23,13 +24,18 @@ describe("usdc amounts", () => {
 
 describe("readCaps", () => {
   it("uses the defaults the owner chose", () => {
-    expect(readCaps({})).toEqual({ perRunMicro: 50_000, perDayMicro: 500_000, hardDayMicro: 2_000_000 })
+    expect(readCaps({})).toEqual({ perRunMicro: 30_000, perDayMicro: 500_000, hardDayMicro: 2_000_000 })
+  })
+
+  it("keeps the approval reachable with the defaults: the last hire a run allows goes over the per-run cap", () => {
+    const fullRunMicro = DEFAULT_HANDOFF_CAPS.maxPerRun * LEDGER_STEP_MICRO
+    expect(readCaps({}).perRunMicro).toBeLessThan(fullRunMicro)
   })
 
   it("reads env overrides and ignores invalid ones", () => {
     expect(readCaps({ ORCHESTRATOR_MAX_USDC_PER_RUN: "0.02", ORCHESTRATOR_MAX_USDC_PER_DAY: "1", ORCHESTRATOR_HARD_MAX_USDC_PER_DAY: "3" }))
       .toEqual({ perRunMicro: 20_000, perDayMicro: 1_000_000, hardDayMicro: 3_000_000 })
-    expect(readCaps({ ORCHESTRATOR_MAX_USDC_PER_RUN: "lots" }).perRunMicro).toBe(50_000)
+    expect(readCaps({ ORCHESTRATOR_MAX_USDC_PER_RUN: "lots" }).perRunMicro).toBe(30_000)
   })
 
   it("never lets the hard ceiling sit below the daily cap", () => {

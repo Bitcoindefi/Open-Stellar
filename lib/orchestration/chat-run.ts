@@ -4,7 +4,14 @@ import { BYOK_PROVIDERS, type ByokModelConnection } from "@/lib/ai/byok-provider
 import { streamAgentTurn } from "@/lib/ai/stream"
 import { consumeApproval, type ApprovalSigner } from "@/lib/orchestration/approval"
 import { microToUsdc, type OrchestratorCaps } from "@/lib/orchestration/budget"
-import { describeToolCall, hiredLabel, type ChatStreamEvent } from "@/lib/orchestration/events"
+import {
+  HIRE_REFUSED_LABEL,
+  awaitingApprovalLabel,
+  describeToolCall,
+  hiredLabel,
+  paidButFailedLabel,
+  type ChatStreamEvent,
+} from "@/lib/orchestration/events"
 import {
   HANDOFF_TOOL,
   createRunState,
@@ -138,11 +145,11 @@ export async function runChat(input: ChatRunInput, deps: ChatRunDeps, emit: (eve
             if (outcome?.ok) {
               emit({ type: "tool", turnId, callId: event.toolCallId, status: "done", label: hiredLabel(outcome.toName, price), detail: outcome.receipt.transaction })
             } else if (outcome?.paid) {
-              emit({ type: "tool", turnId, callId: event.toolCallId, status: "failed", label: `${outcome.paid.toName} was paid ${price} USDC`, detail: outcome.refusal })
+              emit({ type: "tool", turnId, callId: event.toolCallId, status: "failed", label: paidButFailedLabel(outcome.paid.toName, price), detail: outcome.refusal })
             } else if (outcome && outcome.approval) {
-              emit({ type: "tool", turnId, callId: event.toolCallId, status: "approval", label: `Waiting for your approval to hire ${outcome.approval.toName}` })
+              emit({ type: "tool", turnId, callId: event.toolCallId, status: "approval", label: awaitingApprovalLabel(outcome.approval.toName) })
             } else {
-              emit({ type: "tool", turnId, callId: event.toolCallId, status: "refused", label: "Hire not made", detail: outcome?.refusal ?? String(event.output) })
+              emit({ type: "tool", turnId, callId: event.toolCallId, status: "refused", label: HIRE_REFUSED_LABEL, detail: outcome?.refusal ?? String(event.output) })
             }
           } else {
             emit({ type: "tool", turnId, callId: event.toolCallId, status: "failed", label: describeToolCall(event.toolName, undefined).label, detail: event.error.slice(0, 200) })
@@ -159,13 +166,13 @@ export async function runChat(input: ChatRunInput, deps: ChatRunDeps, emit: (eve
       await runTurn(input.orchestrator, "team")
     } else if (input.target.startsWith("member:")) {
       const member = input.members.find((item) => `member:${item.id}` === input.target)
-      if (!member) throw new Error("Selected agent is not in the saved team.")
+      if (!member) throw new Error("El agente elegido no está en el equipo guardado.")
       await runTurn(member, "member")
     } else {
       await runTurn(input.orchestrator, "orchestrator")
     }
   } catch (error) {
-    emit({ type: "error", message: error instanceof Error ? error.message : "Could not send the chat message." })
+    emit({ type: "error", message: error instanceof Error ? error.message : "No se pudo enviar el mensaje del chat." })
   }
   finish()
 }
@@ -178,7 +185,7 @@ async function resumeApproval(
   emit: (event: ChatStreamEvent) => void,
 ) {
   if (!deps.approvals) {
-    emit({ type: "error", message: "Approvals are not available on this server." })
+    emit({ type: "error", message: "Las aprobaciones no están disponibles en este servidor." })
     return
   }
   const verified = deps.approvals.verify(approval.token, approval.runId, deps.owner, deps.now?.().getTime())
@@ -191,18 +198,18 @@ async function resumeApproval(
   try {
     fresh = await consumeApproval(deps.store, payload, deps.now?.().getTime())
   } catch {
-    emit({ type: "error", message: "The approval could not be recorded just now, so nothing was paid. Try again." })
+    emit({ type: "error", message: "No se pudo registrar la aprobación en este momento, así que no se pagó nada. Probá de nuevo." })
     return
   }
   if (!fresh) {
-    emit({ type: "error", message: "This approval was already used." })
+    emit({ type: "error", message: "Esta aprobación ya se usó." })
     return
   }
   if (approval.decision === "reject") {
-    emit({ type: "notice", message: `You declined. ${payload.fromName} did not hire ${payload.toName} and nothing was paid.` })
+    emit({ type: "notice", message: `Rechazaste. ${payload.fromName} no contrató a ${payload.toName} y no se pagó nada.` })
     return
   }
-  emit({ type: "notice", message: `Approved. ${payload.fromName} is hiring ${payload.toName} for ${microToUsdc(payload.amountMicro)} USDC.` })
+  emit({ type: "notice", message: `Aprobado. ${payload.fromName} está contratando a ${payload.toName} por ${microToUsdc(payload.amountMicro)} USDC.` })
   const outcome = await executeApprovedHandoff(handoffDeps, run, payload)
   if (!outcome.ok) emit({ type: "notice", message: outcome.refusal })
 }

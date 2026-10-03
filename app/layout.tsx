@@ -78,7 +78,7 @@ export const viewport: Viewport = {
 };
 
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggleNavbar } from "@/components/theme-toggle-navbar";
+import { FloatingThemeToggle } from "@/components/floating-theme-toggle";
 
 export default function RootLayout({
   children,
@@ -100,9 +100,7 @@ export default function RootLayout({
           storageKey="theme"
           disableTransitionOnChange
         >
-          <div style={{ position: "fixed", top: 12, right: 12, zIndex: 50 }}>
-            <ThemeToggleNavbar />
-          </div>
+          <FloatingThemeToggle />
           <WalletProvider>{children}</WalletProvider>
         </ThemeProvider>
 
