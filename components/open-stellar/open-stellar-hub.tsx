@@ -66,6 +66,10 @@ const MOBILE_NAV_ICONS: Record<SidebarTabId, ComponentType<{ size?: number; "ari
   appearance: Palette,
 }
 
+// The mobile nav: a 3-column grid of the tabs plus the Admin link, 56px rows, 6px gaps, 18px padding.
+const MOBILE_NAV_ROWS = Math.ceil((SIDEBAR_TABS.length + 1) / 3)
+const MOBILE_NAV_HEIGHT = MOBILE_NAV_ROWS * 56 + (MOBILE_NAV_ROWS - 1) * 6 + 18
+
 interface AgentHealthApiSnapshot {
   agentId: string
   status: "healthy" | "stale" | "offline"
@@ -744,7 +748,6 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
 
   useEffect(() => {
     let stopped = false
-    let interval: number | undefined
 
     const syncCloudAgents = async () => {
       try {
@@ -767,8 +770,9 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
       }
     }
 
-    syncCloudAgents()
-    interval = window.setInterval(syncCloudAgents, 15_000)
+    // The first sync awaits its fetch before it can clear the interval, so `interval` is set by then.
+    const interval = window.setInterval(syncCloudAgents, 15_000)
+    void syncCloudAgents()
     return () => {
       stopped = true
       window.clearInterval(interval)
@@ -1180,8 +1184,10 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
             aria-label="Open agent controls"
             style={{
               position: "fixed",
-              right: 16,
-              bottom: "calc(144px + env(safe-area-inset-bottom))",
+              // Above the nav grid, not on it: at 144px it covered the Skills tab on a 390px phone.
+              // Left side, because the audio controls sit on the right at that height.
+              left: 16,
+              bottom: `calc(${MOBILE_NAV_HEIGHT + 12}px + env(safe-area-inset-bottom))`,
               zIndex: 30,
               width: 48,
               height: 48,
@@ -1319,6 +1325,9 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
               }}
             >
               <DrawerTitle className="sr-only">Agent controls</DrawerTitle>
+              {/* The panel fills what the drag handle leaves: at height 100% it ran past the drawer's
+                  bottom and clipped the chat composer and its send button on a 390px phone. */}
+              <div style={{ flex: 1, minHeight: 0 }}>
               <SidebarPanel
                 agents={agents}
                 selectedAgent={selectedAgent}
@@ -1337,6 +1346,7 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
                 variant="mobile"
                 showTabBar={false}
               />
+              </div>
             </DrawerContent>
           </Drawer>
         </>

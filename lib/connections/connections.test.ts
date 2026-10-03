@@ -263,4 +263,45 @@ describe("rate limit exemptions", () => {
     expect(isRateLimitExempt("/api/connections/chat", "POST")).toBe(false)
     expect(isRateLimitExempt("/api/feed", "GET")).toBe(false)
   })
+
+  it("lists the no-login wallet, identity, paid task and chat routes as the browser flow", async () => {
+    const { isBrowserFlowRoute } = await import("@/lib/auth/middleware")
+    expect(isBrowserFlowRoute("/api/agent-wallet", "GET")).toBe(true)
+    expect(isBrowserFlowRoute("/api/agent-wallet/fund", "POST")).toBe(true)
+    expect(isBrowserFlowRoute("/api/agent-wallet/withdraw", "POST")).toBe(true)
+    expect(isBrowserFlowRoute("/api/connections/chat", "POST")).toBe(true)
+    expect(isBrowserFlowRoute("/api/x402/agents/worker-1/task", "POST")).toBe(true)
+    expect(isBrowserFlowRoute("/api/8004/agents/worker-1", "GET")).toBe(true)
+    expect(isBrowserFlowRoute("/api/8004/agents/worker-1/register", "POST")).toBe(true)
+    expect(isBrowserFlowRoute("/api/8004/agents/worker-1/feedback", "POST")).toBe(true)
+    expect(isBrowserFlowRoute("/api/agent-wallet", "POST")).toBe(false)
+    expect(isBrowserFlowRoute("/api/8004/agents/worker-1/registration.json", "GET")).toBe(false)
+    expect(isBrowserFlowRoute("/api/admin/agents", "GET")).toBe(false)
+    expect(isBrowserFlowRoute("/api/connections/run", "POST")).toBe(false)
+  })
+
+  it("lets one visitor fund, chat and pay in the same minute without burning the anonymous API budget", async () => {
+    const { evaluateAuth } = await import("@/lib/auth/middleware")
+    const call = (path: string, method: string, ip: string) => evaluateAuth(new Request(`${ORIGIN}${path}`, { method, headers: { "x-real-ip": ip } }))
+
+    // A page load, a fund with its four balance refreshes, a chat, a paid task (402 + retry) and a review.
+    const flow: Array<[string, string]> = [
+      ["/api/agent-wallet", "GET"], ["/api/agent-wallet/fund", "POST"],
+      ["/api/agent-wallet", "GET"], ["/api/agent-wallet", "GET"], ["/api/agent-wallet", "GET"], ["/api/agent-wallet", "GET"],
+      ["/api/connections/chat", "POST"], ["/api/8004/agents/a", "GET"], ["/api/8004/agents/a/register", "POST"], ["/api/8004/agents/a", "GET"],
+      ["/api/x402/agents/a/task", "POST"], ["/api/x402/agents/a/task", "POST"], ["/api/8004/agents/a/feedback", "POST"], ["/api/8004/agents/a", "GET"],
+    ]
+    for (const [path, method] of flow) expect((await call(path, method, "203.0.113.51")).status).not.toBe(429)
+
+    // Other anonymous API calls keep the 10-a-minute budget, unaffected by the flow above.
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) statuses.push((await call("/api/prices", "GET", "203.0.113.51")).status)
+    expect(statuses.slice(0, 10).every((status) => status !== 429)).toBe(true)
+    expect(statuses[10]).toBe(429)
+
+    // The browser flow has a ceiling of its own.
+    let limited = false
+    for (let i = 0; i < 70 && !limited; i++) limited = (await call("/api/agent-wallet", "GET", "203.0.113.52")).status === 429
+    expect(limited).toBe(true)
+  })
 })

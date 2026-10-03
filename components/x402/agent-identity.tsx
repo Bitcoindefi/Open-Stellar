@@ -6,6 +6,7 @@ import { useSignAndSendTransaction } from "@solana/react"
 import { getBase58Decoder } from "@solana/kit"
 import { BadgeCheck, ExternalLink, Fingerprint } from "lucide-react"
 import { reviewTransactionProblem, type TreasuryKeys } from "@/lib/solana/client-guards"
+import { friendlyProviderError } from "@/lib/ai/friendly-error"
 
 type Identity = { asset: string; registered: boolean; explorerUrl: string; reputation: { averageScore: number; totalFeedbacks: number } | null }
 
@@ -22,7 +23,7 @@ export function AgentIdentityRow({ agent, refreshKey, onTreasury }: { agent: { i
       if (data.treasury) onTreasury?.(data.treasury)
       if (!response.ok || !data.ok) {
         setState("unavailable")
-        setError(data.error ?? "")
+        setError(friendlyProviderError(data.error ?? ""))
         return
       }
       setIdentity(data)
@@ -47,7 +48,7 @@ export function AgentIdentityRow({ agent, refreshKey, onTreasury }: { agent: { i
       if (!response.ok || !data.ok) throw new Error(data.error || "No se pudo registrar.")
       await load()
     } catch (registerError) {
-      setError(registerError instanceof Error ? registerError.message : "No se pudo registrar.")
+      setError(registerError instanceof Error ? friendlyProviderError(registerError.message) : "No se pudo registrar.")
       setState("ready")
     }
   }
@@ -92,7 +93,7 @@ export function ReviewAfterPayment({ account, agentId, paymentSignature, feePaye
       setDone(getBase58Decoder().decode(signature))
       onReviewed()
     } catch (reviewError) {
-      setError(reviewError instanceof Error ? reviewError.message : "No se pudo enviar la reseña.")
+      setError(reviewError instanceof Error ? friendlyProviderError(reviewError.message) : "No se pudo enviar la reseña.")
     } finally {
       setBusy(false)
     }

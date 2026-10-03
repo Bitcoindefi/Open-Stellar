@@ -16,6 +16,8 @@ describe("friendlyProviderError", () => {
     expect(friendlyProviderError("Connect OpenRouter first.")).toContain("Modelos IA")
     expect(friendlyProviderError("Cross-site requests cannot use your connected accounts.")).toContain("directamente")
     expect(friendlyProviderError("OpenRouter returned an empty response.")).toContain("respondió vacío")
+    expect(friendlyProviderError("rate_limit_exceeded")).toBe("Demasiados pedidos seguidos. Esperá un minuto y probá de nuevo.")
+    expect(friendlyProviderError("Too many funding requests. Try again later.")).toContain("Esperá un minuto")
     expect(friendlyProviderError("Algo distinto")).toBe("Algo distinto")
   })
 })
