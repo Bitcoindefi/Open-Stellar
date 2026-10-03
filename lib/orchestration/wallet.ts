@@ -88,21 +88,33 @@ function receiptFromHeader(response: Response): HopReceipt | null {
  * Never throws: every failure comes back as a sentence, with the receipt when money did move.
  */
 export async function payAgentTask(
-  input: { baseUrl: string; agent: HireAgent; task: string; timeoutMs?: number },
+  input: {
+    baseUrl: string
+    /** Without a connection the task runs on the server's hosted model; then `hosted` must carry its signed header. */
+    agent: Omit<HireAgent, "connection"> & { connection?: ByokModelConnection }
+    task: string
+    timeoutMs?: number
+    hosted?: { header: string; value: string }
+  },
   paidFetch: PaidFetch,
 ): Promise<HopResult> {
   const url = `${input.baseUrl.replace(/\/+$/, "")}/api/x402/agents/${encodeURIComponent(input.agent.id)}/task`
+  const connection = input.agent.connection
+  const headers: Record<string, string> = { "content-type": "application/json" }
+  if (input.hosted) headers[input.hosted.header] = input.hosted.value
   let response: Response
   try {
     response = await paidFetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers,
       body: JSON.stringify({
         task: input.task.slice(0, 2000),
         agent: {
           name: input.agent.name,
           role: input.agent.role,
-          connection: { provider: input.agent.connection.provider, model: input.agent.connection.model, apiKey: input.agent.connection.apiKey },
+          ...(connection
+            ? { connection: { provider: connection.provider, model: connection.model, apiKey: connection.apiKey } }
+            : { hosted: true }),
         },
       }),
       signal: AbortSignal.timeout(input.timeoutMs ?? 75_000),

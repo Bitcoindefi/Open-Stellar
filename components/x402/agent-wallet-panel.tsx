@@ -9,6 +9,7 @@ import { Activity, Bot, CircleAlert, Copy, ExternalLink, RefreshCw } from "lucid
 import { FUND_AMOUNT_MICRO, buildFundTransaction, fundTransactionProblem } from "@/lib/agent-wallet/fund-tx"
 import { mayHoldUsdc, usdcLabel } from "@/lib/agent-wallet/format"
 import { friendlyProviderError } from "@/lib/ai/friendly-error"
+import { McpClientsPanel } from "@/components/mcp/mcp-clients-panel"
 import { ConnectButton, DisconnectButton, WALLET_CHAIN, supportsDevnetSigning } from "./wallet-connect"
 
 // "La wallet de tus agentes": a Solana devnet wallet that belongs to this browser (its key lives
@@ -108,6 +109,7 @@ export function AgentWalletPanel({ compact = false }: { compact?: boolean }) {
       </> : loading ? <p className="mt-3 text-xs text-slate-400">Abriendo la wallet…</p> : null}
 
       {error ? <p role="alert" className="mt-2 flex items-start gap-2 text-xs leading-5 text-rose-200"><CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />{error}</p> : null}
+      {compact ? null : <div className="mt-3"><McpClientsPanel /></div>}
     </section>
   )
 }

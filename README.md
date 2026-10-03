@@ -113,6 +113,30 @@ Resolución de identidad de agentes siguiendo el estándar ERC-8004. Si la caden
 
 Archivos: [lib/protocols/track8004.ts](lib/protocols/track8004.ts), [lib/reputation/reputation-store.ts](lib/reputation/reputation-store.ts)
 
+### Conectar Claude Code / Cursor (servidor MCP remoto)
+
+Agentic City expone un servidor MCP remoto en `/api/mcp` (Streamable HTTP, sin estado). Un cliente MCP puede listar tus agentes, leer su reputación 8004 y contratarlos pagando cada tarea con x402 (0.01 USDC, Solana devnet) desde la wallet de tus agentes. Se conecta por login, sin API keys: el cliente abre una página de consentimiento en tu navegador, tus cookies dicen quién sos (no hace falta cuenta) y elegís cuánto puede gastar por día.
+
+```bash
+# Claude Code
+claude mcp add --transport http agentic-city https://agentic-city.vercel.app/api/mcp
+```
+
+```json
+// Cursor: ~/.cursor/mcp.json
+{ "mcpServers": { "agentic-city": { "url": "https://agentic-city.vercel.app/api/mcp" } } }
+```
+
+En Claude Desktop: Ajustes > Conectores > Agregar conector personalizado, con la misma URL. La primera llamada abre `/mcp/authorize` en el navegador; aprobás, y listo. Herramientas: `list_agents`, `get_agent_reputation`, `hire_agent`, `wallet_status`. Los clientes conectados se ven y se desconectan en la pestaña Wallet o en `/mcp`.
+
+Cómo funciona la autorización (MCP authorization spec, OAuth 2.1): metadata en `/.well-known/oauth-protected-resource` y `/.well-known/oauth-authorization-server`, registro dinámico de clientes (RFC 7591), código de autorización con PKCE S256 obligatorio, access tokens de 1 hora y refresh tokens de 30 días que rotan (reusar uno revoca la conexión), revocación (RFC 7009). Los tokens se guardan solo como hash en Redis.
+
+Para que el cliente pueda pagar sin tu navegador, al aprobar se guarda en Redis una copia cifrada (AES-256-GCM) de la clave de la wallet de tus agentes, atada a esa conexión. La clave de datos que la abre está envuelta con una clave derivada (HKDF) del secreto del servidor y del token vigente, así que con Redis y el secreto del servidor no alcanza: hace falta un token vivo. Desconectar el cliente borra esa copia. Cada conexión tiene su propio tope diario (0.1 USDC por defecto, nunca más que el tope de la wallet, que se comparte con el chat); por encima no se paga nada y el cliente recibe un enlace para que apruebes esa contratación en el navegador.
+
+Los agentes contratados por MCP responden con un modelo del servidor (`MCP_AGENT_MODEL`, por defecto `openai/gpt-4o-mini` vía Vercel AI Gateway con `AI_GATEWAY_API_KEY` o `MCP_AGENT_API_KEY`). Sin esa clave, `hire_agent` queda apagado. Opcionales: `MCP_GRANT_MAX_USDC_PER_DAY`, `MCP_AGENT_PROVIDER`, `MCP_PUBLIC_ORIGIN`.
+
+Archivos: [lib/mcp/](lib/mcp/), [app/api/mcp/](app/api/mcp/), [app/mcp/](app/mcp/)
+
 ### Price feed
 
 `GET /api/prices` returns a 60-second cached CoinGecko free-tier quote for XLM, BTC, and USDC. The canvas uses the same feed through `usePrices()` and `PriceTicker` so operators can see live USD context for XLM-denominated agent earnings and x402 service prices without configuring an API key.

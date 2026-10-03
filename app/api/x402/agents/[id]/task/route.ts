@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { BYOK_PROVIDERS, generateWithByokProvider, type ByokProviderId } from "@/lib/ai/byok-provider"
 import { withOAuthCredentials } from "@/lib/connections/hydrate"
+import { HOSTED_HEADER, verifyHostedTask } from "@/lib/mcp/crypto"
+import { hostedConnection } from "@/lib/mcp/roster"
 import { resolveAgentOwner, scopedAgentKey } from "@/lib/solana/agent-owner"
 import { agentTaskSystemPrompt } from "@/lib/solana/agent-task-prompt"
 import { recordAgentPayment } from "@/lib/solana/payment-bindings"
@@ -28,7 +30,17 @@ export async function POST(request: Request, context: RouteContext) {
   const task = typeof body?.task === "string" ? body.task.trim() : ""
   if (!task || task.length > 2000) return json({ ok: false, error: "Describe the task in 1 to 2000 characters." }, 400)
   const agent = (body?.agent ?? {}) as Record<string, unknown>
-  const connection = (agent.connection ?? {}) as Record<string, unknown>
+  // A hire made from an MCP client runs on the server's hosted model; only this server's MCP
+  // hire can ask for that, with a signed, short-lived header bound to the agent and the task.
+  let hostedOwner: { ownerTag: string | null } | null = null
+  let connection = (agent.connection ?? {}) as Record<string, unknown>
+  if (agent.hosted === true) {
+    hostedOwner = verifyHostedTask(req.headers.get(HOSTED_HEADER), { agentId, task })
+    if (!hostedOwner) return json({ ok: false, error: "This hosted task is not signed by this server." }, 403)
+    const hosted = hostedConnection()
+    if (!hosted) return json({ ok: false, error: "The hosted model is not configured on this server." }, 503)
+    connection = hosted
+  }
   const provider = connection.provider as ByokProviderId
   const model = typeof connection.model === "string" ? connection.model.trim() : ""
   const apiKey = typeof connection.apiKey === "string" ? connection.apiKey.trim() : ""
@@ -43,8 +55,8 @@ export async function POST(request: Request, context: RouteContext) {
 
   // Remember which agent (of which owner) this payment was for: a review needs that binding.
   try {
-    const owner = await resolveAgentOwner(req)
-    await recordAgentPayment(payment.settle.transaction, scopedAgentKey(agentId, owner?.tag ?? null))
+    const ownerTag = hostedOwner ? hostedOwner.ownerTag : (await resolveAgentOwner(req))?.tag ?? null
+    await recordAgentPayment(payment.settle.transaction, scopedAgentKey(agentId, ownerTag))
   } catch (error) {
     console.error("[x402] could not record the payment binding:", error instanceof Error ? error.message : error)
   }
