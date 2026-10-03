@@ -394,6 +394,16 @@ export function isBrowserFlowRoute(pathname: string, method: string): boolean {
   );
 }
 
+/**
+ * The remote MCP server (/api/mcp) and its OAuth and browser endpoints (/api/mcp/*). They
+ * authenticate their own callers (OAuth bearer tokens from this server, or this browser's
+ * cookies with a same-origin check), so they need no API key. A Bearer header here is an MCP
+ * access token, not an API key, so it is not looked up as one. They get their own per-IP bucket.
+ */
+export function isMcpRoute(pathname: string): boolean {
+  return pathname === "/api/mcp" || pathname.startsWith("/api/mcp/");
+}
+
 function evaluateRateLimit(
   authResult: VerificationResult,
   clientIp: string,
@@ -520,6 +530,12 @@ export async function evaluateAuth(
   const url = new URL(req.url);
   const pathname = url.pathname;
   const method = req.method.toUpperCase();
+
+  if (isMcpRoute(pathname)) {
+    const anonymous = { valid: false, tier: "free" as ApiKeyTier, scopes: [] as string[], isAdmin: false };
+    const limit = evaluateRateLimit(anonymous, `mcp:${getClientIp(req)}`);
+    return { allowed: limit.allowed, status: limit.status, error: limit.error, tier: "no_key", scopes: [], isAdmin: false, headers: limit.headers };
+  }
 
   const isAdminLogin = pathname === "/admin/login";
   const isAdminSessionEndpoint = pathname === "/api/admin/session";

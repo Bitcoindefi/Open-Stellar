@@ -8,6 +8,7 @@ vi.mock("@/lib/solana/x402", async (importOriginal) => ({ ...(await importOrigin
 import { POST } from "@/app/api/x402/agents/[id]/task/route"
 import { createMemoryStore, setKvStoreForTests } from "@/lib/security/kv-store"
 import { getPaymentAgent } from "@/lib/solana/payment-bindings"
+import { HOSTED_HEADER, signHostedTask } from "@/lib/mcp/crypto"
 
 const settle = { success: true, transaction: "settle-sig", network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1", payer: "payer" }
 const paid = { ok: true, settle, payer: "payer", requirements: { amount: "10000", asset: "usdc-mint" } }
@@ -84,5 +85,48 @@ describe("POST /api/x402/agents/[id]/task", () => {
     }), { params: Promise.resolve({ id: "a" }) })
     expect(res.status).toBe(401)
     expect(requirePayment).not.toHaveBeenCalled()
+  })
+
+  describe("hosted tasks (hired from an MCP client)", () => {
+    const env = { ...process.env }
+    beforeEach(() => {
+      process.env.BETTER_AUTH_SECRET = "hosted-task-secret"
+      process.env.AI_GATEWAY_API_KEY = "gw-key-12345678"
+      delete process.env.MCP_AGENT_API_KEY
+      delete process.env.MCP_AGENT_MODEL
+      delete process.env.MCP_AGENT_PROVIDER
+    })
+    afterEach(() => {
+      process.env = { ...env }
+    })
+
+    function hosted(body: unknown, header: string | null, id = "researcher") {
+      const headers: Record<string, string> = { "content-type": "application/json" }
+      if (header) headers[HOSTED_HEADER] = header
+      return POST(new Request(`https://agentic-city.test/api/x402/agents/${id}/task`, { method: "POST", headers, body: JSON.stringify(body) }), { params: Promise.resolve({ id }) })
+    }
+
+    it("runs on the server's hosted model when signed by this server, binding the payment to the owner", async () => {
+      setKvStoreForTests(createMemoryStore())
+      try {
+        const header = signHostedTask({ agentId: "researcher", task: "hola", ownerTag: "0123456789abcdef0123" })
+        const res = await hosted({ task: "hola", agent: { name: "Investigadora", role: "Research", hosted: true } }, header)
+        expect(res.status).toBe(200)
+        expect(generate.mock.calls[0][0]).toEqual({ provider: "vercel-ai-gateway", model: "openai/gpt-4o-mini", apiKey: "gw-key-12345678" })
+        expect(await getPaymentAgent("settle-sig")).toBe("0123456789abcdef0123/researcher")
+      } finally {
+        setKvStoreForTests(null)
+      }
+    })
+
+    it("refuses unsigned or mismatched hosted tasks before charging", async () => {
+      expect((await hosted({ task: "hola", agent: { hosted: true } }, null)).status).toBe(403)
+      const forOther = signHostedTask({ agentId: "writer", task: "hola", ownerTag: null })
+      expect((await hosted({ task: "hola", agent: { hosted: true } }, forOther)).status).toBe(403)
+      delete process.env.AI_GATEWAY_API_KEY
+      const ok = signHostedTask({ agentId: "researcher", task: "hola", ownerTag: null })
+      expect((await hosted({ task: "hola", agent: { hosted: true } }, ok)).status).toBe(503)
+      expect(requirePayment).not.toHaveBeenCalled()
+    })
   })
 })
