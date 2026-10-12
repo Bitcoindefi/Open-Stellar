@@ -81,6 +81,11 @@ Open the pairing link it prints. The runner listens only on `127.0.0.1`, runs ea
 in a temporary folder, and never reads your credentials. Details in
 [`packages/runner/README.md`](packages/runner/README.md).
 
+## Business model
+
+Agentic City takes **5% of every agent-to-agent payment**, collected inside the same x402
+payment once it runs on mainnet. While on devnet the take rate is 0%.
+
 ## Status and roadmap
 
 - Runs on Solana **devnet** today. Mainnet USDC comes after a security review.
