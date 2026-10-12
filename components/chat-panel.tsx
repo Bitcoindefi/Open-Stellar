@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Bot, BrainCircuit, ExternalLink, Loader2, Send, UsersRound } from "lucide-react"
 import type { ChatMessage } from "@/lib/types"
 import { friendlyProviderError } from "@/lib/ai/friendly-error"
-import { createEventParser, receiptLabel, shortSignature, type ChatStreamEvent } from "@/lib/orchestration/events"
+import { createEventParser, looksLikeSignature, receiptLabel, shortSignature, type ChatStreamEvent } from "@/lib/orchestration/events"
 import {
   TRANSCRIPT_COLORS,
   applyChatEvent,
@@ -18,6 +18,10 @@ import {
 import { ToolLine } from "@/components/chat/tool-line"
 import { ApprovalCard } from "@/components/chat/approval-card"
 import { FundCard } from "@/components/chat/fund-card"
+import { useRunner } from "@/components/runner/use-runner"
+import { streamRunner } from "@/lib/runner/client"
+import type { RunnerPairing } from "@/lib/runner/pairing"
+import { createRunnerEventMapper, isRunnerTarget, runnerRequestFor, runnerTargetOptions, usableRunnerAgents } from "@/lib/runner/events"
 
 const CONNECTIONS_STORAGE_KEY = "agentic-city:connections:v1"
 const CHAT_STORAGE_KEY = "agentic-city:agent-chat:v1"
@@ -28,7 +32,8 @@ type ProviderConnection = { id: string; provider: ProviderId; name: string; mode
 type TeamMember = { id: string; name: string; role: string; connectionId: string }
 type TeamConfig = { name: string; orchestratorId: string; members: TeamMember[] }
 type SavedConnections = { providers: ProviderConnection[]; team: TeamConfig | null }
-type ChatTarget = "orchestrator" | "team" | `member:${string}`
+// runner:* targets go to the person's own CLIs through the local runner (Mi PC).
+type ChatTarget = "orchestrator" | "team" | `member:${string}` | `runner:${string}`
 
 interface ChatPanelProps {
   messages: ChatMessage[]
@@ -130,13 +135,21 @@ export function ChatPanel({ messages }: ChatPanelProps) {
     })
   }, [generativeModels, team])
   const canChat = Boolean(team && orchestrator && members.length > 0)
+  const runner = useRunner()
+  const runnerAgents = useMemo(() => (runner.status.state === "ready" ? usableRunnerAgents(runner.status.agents) : []), [runner.status])
+  const runnerOptions = useMemo(() => runnerTargetOptions(runnerAgents), [runnerAgents])
+  const runnerReady = Boolean(runner.pairing) && runnerOptions.length > 0
+  const onRunner = isRunnerTarget(target)
+  const canSend = onRunner ? runnerReady : canChat
 
   useEffect(() => {
+    if (isRunnerTarget(target) && runnerReady && runnerOptions.some((option) => option.value === target)) return
     if (target === "orchestrator" && orchestrator) return
     if (target === "team" && members.length > 0) return
     if (target.startsWith("member:") && members.some((member) => `member:${member.id}` === target)) return
-    setTarget(orchestrator ? "orchestrator" : members[0] ? `member:${members[0].id}` : "orchestrator")
-  }, [members, orchestrator, target])
+    const fallback = orchestrator ? "orchestrator" : members[0] ? `member:${members[0].id}` : runnerReady ? runnerOptions[0].value : "orchestrator"
+    setTarget(fallback as ChatTarget)
+  }, [members, orchestrator, target, runnerReady, runnerOptions])
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -185,9 +198,33 @@ export function ChatPanel({ messages }: ChatPanelProps) {
     return ok
   }
 
+  /** Sends a task straight from this browser to the local runner on 127.0.0.1 (no payments: own tools). */
+  const runOnRunner = async (pairing: RunnerPairing, request: { path: "/run" | "/orchestrate"; body: Record<string, unknown> }) => {
+    const ctx = createTranscriptContext({ makeId, timeLabel: nowLabel, friendlyError: (text) => text })
+    const mapper = createRunnerEventMapper(makeId(), request.path === "/run" ? "run" : "orchestrate")
+    const apply = (events: ChatStreamEvent[]) => {
+      for (const event of events) {
+        if (event.type === "error") setError(event.message)
+        update(applyChatEvent(chatRef.current, event, ctx))
+      }
+    }
+    try {
+      await streamRunner(pairing, request.path, request.body, (event) => apply(mapper.map(event)))
+    } catch (runError) {
+      const messageText = runError instanceof Error ? runError.message : "Falló el runner de tu PC."
+      setError(messageText)
+      apply([{ type: "notice", message: messageText }])
+    } finally {
+      apply(mapper.finish())
+      writeChat(chatRef.current)
+    }
+  }
+
   const sendMessage = async () => {
     const message = draft.trim()
-    if (!message || !team || !orchestrator || members.length === 0 || sending) return
+    if (!message || sending) return
+    const runnerRequest = onRunner ? runnerRequestFor(target, message, runnerAgents) : null
+    if (onRunner ? !runnerRequest || !runner.pairing : !team || !orchestrator || members.length === 0) return
 
     const history = historyFrom(chatRef.current)
     update([...chatRef.current, {
@@ -195,7 +232,7 @@ export function ChatPanel({ messages }: ChatPanelProps) {
       id: makeId(),
       speaker: "Vos",
       role: "user",
-      target,
+      target: onRunner ? runnerOptions.find((option) => option.value === target)?.label ?? target : target,
       message,
       timestamp: nowLabel(),
       color: TRANSCRIPT_COLORS.user,
@@ -204,7 +241,8 @@ export function ChatPanel({ messages }: ChatPanelProps) {
     setSending(true)
     setError("")
     try {
-      await runStream({ message, target, history: [...history, { speaker: "Vos", message }], ...teamPayload() })
+      if (runnerRequest && runner.pairing) await runOnRunner(runner.pairing, runnerRequest)
+      else await runStream({ message, target, history: [...history, { speaker: "Vos", message }], ...teamPayload() })
     } finally {
       setSending(false)
     }
@@ -225,7 +263,7 @@ export function ChatPanel({ messages }: ChatPanelProps) {
 
   const renderItem = (item: TranscriptItem) => {
     if (item.kind === "tool") {
-      const isTx = item.status === "done" && item.detail
+      const isTx = item.status === "done" && item.detail && looksLikeSignature(item.detail)
       return (
         <ToolLine key={item.id} status={item.status} label={item.label} detail={isTx ? `tx ${shortSignature(item.detail as string)}` : item.detail} />
       )
@@ -274,7 +312,9 @@ export function ChatPanel({ messages }: ChatPanelProps) {
             Chat de agentes
           </div>
           <div style={{ fontFamily: "monospace", fontSize: 9, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {canChat ? `${team?.name} · ${members.length} agentes · contrataciones en USDC en Solana devnet` : "Configurá Modelos IA > Equipo"}
+            {onRunner
+              ? `Mi PC · ${runnerAgents.length} ${runnerAgents.length === 1 ? "agente local" : "agentes locales"} · sin pagos`
+              : canChat ? `${team?.name} · ${members.length} agentes · contrataciones en USDC en Solana devnet` : "Configurá Modelos IA > Equipo"}
           </div>
         </div>
         <span style={{ marginLeft: "auto", fontFamily: "monospace", fontSize: 10, color: "#475569" }}>{chat.filter((item) => item.kind === "message").length} msgs</span>
@@ -286,22 +326,37 @@ export function ChatPanel({ messages }: ChatPanelProps) {
           <select
             value={target}
             onChange={(event) => setTarget(event.target.value as ChatTarget)}
-            disabled={!canChat || sending}
+            disabled={(!canChat && !runnerReady) || sending}
             style={{ width: "100%", border: "1px solid #263449", borderRadius: 7, background: "#050a12", color: "#dbeafe", padding: "9px 10px", fontFamily: "monospace", fontSize: 11, outline: "none" }}
           >
-            <option value="orchestrator">Orquestador</option>
-            <option value="team">Equipo completo</option>
-            {members.map((member) => <option key={member.id} value={`member:${member.id}`}>{member.name} · {member.role}</option>)}
+            {canChat || !runnerReady ? (
+              <>
+                <option value="orchestrator">Orquestador</option>
+                <option value="team">Equipo completo</option>
+                {members.map((member) => <option key={member.id} value={`member:${member.id}`}>{member.name} · {member.role}</option>)}
+              </>
+            ) : null}
+            {runnerReady ? (
+              <optgroup label="Mi PC · tus CLIs">
+                {runnerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </optgroup>
+            ) : null}
           </select>
         </label>
       </div>
 
       <div ref={scrollRef} aria-live="polite" style={{ flex: 1, overflowY: "auto", padding: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-        {!canChat ? (
+        {!canSend ? (
           <div style={{ margin: "auto 0", border: "1px dashed #334155", borderRadius: 8, padding: 16, textAlign: "center", background: "#11182766" }}>
             <Bot size={22} style={{ margin: "0 auto 10px", color: "#64748b" }} aria-hidden="true" />
             <p style={{ margin: 0, fontFamily: "monospace", fontSize: 11, lineHeight: 1.6, color: "#94a3b8" }}>
-              Primero conectá un modelo generativo en Modelos IA, armá el equipo en Equipo y volvé a Chat para hablar con el orquestador o cada agente.
+              Primero conectá un modelo generativo en Modelos IA, armá el equipo en Equipo y volvé a Chat para hablar con el orquestador o cada agente. O conectá tu PC en Modelos IA para usar Claude Code, Codex, Gemini CLI u Ollama.
+            </p>
+          </div>
+        ) : chat.length === 0 && onRunner ? (
+          <div style={{ margin: "auto 0", border: "1px solid #1e293b", borderRadius: 8, padding: 14, background: "#111827" }}>
+            <p style={{ margin: 0, fontFamily: "monospace", fontSize: 11, lineHeight: 1.6, color: "#94a3b8" }}>
+              Tus agentes locales trabajan en tu compu, en modo lectura y con tu propio login. Elegí orquestar para que uno planifique y reparta la tarea, o hablale a uno solo. Sin pagos: son tus herramientas.
             </p>
           </div>
         ) : chat.length === 0 ? (
@@ -338,18 +393,18 @@ export function ChatPanel({ messages }: ChatPanelProps) {
                 void sendMessage()
               }
             }}
-            disabled={!canChat || sending}
+            disabled={!canSend || sending}
             maxLength={3000}
-            placeholder={canChat ? "Escribí al orquestador o agente..." : "Configurá Modelos IA > Equipo para habilitar chat"}
+            placeholder={!canSend ? "Configurá Modelos IA > Equipo o conectá tu PC para habilitar chat" : onRunner ? "Escribí una tarea para tus agentes locales..." : "Escribí al orquestador o agente..."}
             style={{ flex: 1, minHeight: 44, maxHeight: 120, resize: "vertical", border: "1px solid #263449", borderRadius: 8, background: "#0a0f1a", color: "#e2e8f0", padding: "10px 11px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.45, outline: "none" }}
           />
           <button
             type="button"
             onClick={() => void sendMessage()}
-            disabled={!canChat || !draft.trim() || sending}
+            disabled={!canSend || !draft.trim() || sending}
             aria-label="Enviar mensaje al agente"
             title="Enviar mensaje"
-            style={{ width: 44, height: 44, borderRadius: 8, border: "1px solid #22d3ee55", background: canChat && draft.trim() && !sending ? "#22d3ee22" : "#111827", color: canChat && draft.trim() && !sending ? "#67e8f9" : "#475569", display: "grid", placeItems: "center", cursor: canChat && draft.trim() && !sending ? "pointer" : "not-allowed" }}
+            style={{ width: 44, height: 44, borderRadius: 8, border: "1px solid #22d3ee55", background: canSend && draft.trim() && !sending ? "#22d3ee22" : "#111827", color: canSend && draft.trim() && !sending ? "#67e8f9" : "#475569", display: "grid", placeItems: "center", cursor: canSend && draft.trim() && !sending ? "pointer" : "not-allowed" }}
           >
             {sending ? <Loader2 size={16} aria-hidden="true" className="animate-spin" /> : <Send size={16} aria-hidden="true" />}
           </button>

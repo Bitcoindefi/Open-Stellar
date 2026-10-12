@@ -1,0 +1,32 @@
+{
+  "name": "agentic-city-runner",
+  "version": "0.1.0",
+  "description": "Local runner that lets Agentic City orchestrate the AI CLIs you already use (Claude Code, Codex, Gemini CLI, Ollama) on your own machine.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "agentic-city-runner": "./bin.mjs"
+  },
+  "files": [
+    "bin.mjs",
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "agentic-city",
+    "claude-code",
+    "codex",
+    "gemini-cli",
+    "ollama",
+    "orchestration",
+    "local"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bitcoindefi/agentic-city.git",
+    "directory": "packages/runner"
+  }
+}
