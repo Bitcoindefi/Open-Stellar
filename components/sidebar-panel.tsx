@@ -985,7 +985,7 @@ export function SidebarPanel({
           />
         )}
         {activeTab === "chat" && (
-          <ChatPanel messages={chatMessages} />
+          <ChatPanel messages={chatMessages} onOpenModels={() => setActiveTab("models")} />
         )}
         {activeTab === "models" && (
           <div style={{ height: "100%", overflowY: "auto", overflowX: "hidden" }}>

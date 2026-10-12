@@ -37,6 +37,8 @@ type ChatTarget = "orchestrator" | "team" | `member:${string}` | `runner:${strin
 
 interface ChatPanelProps {
   messages: ChatMessage[]
+  /** Opens the Modelos IA tab from the empty state, so a first-time visitor has a next step. */
+  onOpenModels?: () => void
 }
 
 function readConnections(): SavedConnections {
@@ -100,7 +102,7 @@ async function streamChat(body: Record<string, unknown>, onEvent: (event: ChatSt
   parser.end()
 }
 
-export function ChatPanel({ messages }: ChatPanelProps) {
+export function ChatPanel({ messages, onOpenModels }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<TranscriptItem[]>([])
   const [connections, setConnections] = useState<SavedConnections>({ providers: [], team: null })
@@ -352,6 +354,11 @@ export function ChatPanel({ messages }: ChatPanelProps) {
             <p style={{ margin: 0, fontFamily: "monospace", fontSize: 11, lineHeight: 1.6, color: "#94a3b8" }}>
               Primero conectá un modelo generativo en Modelos IA, armá el equipo en Equipo y volvé a Chat para hablar con el orquestador o cada agente. O conectá tu PC en Modelos IA para usar Claude Code, Codex, Gemini CLI u Ollama.
             </p>
+            {onOpenModels ? (
+              <button type="button" onClick={onOpenModels} data-testid="chat-open-models" style={{ marginTop: 12, minHeight: 36, padding: "0 14px", borderRadius: 6, border: "1px solid #22d3ee66", background: "#22d3ee1a", color: "#a5f3fc", fontFamily: "monospace", fontSize: 11, cursor: "pointer" }}>
+                Conectar un modelo
+              </button>
+            ) : null}
           </div>
         ) : chat.length === 0 && onRunner ? (
           <div style={{ margin: "auto 0", border: "1px solid #1e293b", borderRadius: 8, padding: 14, background: "#111827" }}>
