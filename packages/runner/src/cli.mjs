@@ -9,6 +9,7 @@ const HELP = `agentic-city-runner: conecta tus CLIs de IA (Claude Code, Codex, G
 
 Uso:
   npx agentic-city-runner [opciones]
+  node packages/runner/bin.mjs [opciones]   (desde un clon del repo, mientras no esté en npm)
 
 Opciones:
   --port <n>            Puerto local (por defecto ${DEFAULT_PORT})

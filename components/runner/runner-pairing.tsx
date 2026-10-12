@@ -62,7 +62,8 @@ export function RunnerPairing() {
                 ? "Este link no trae una clave válida. Copiá el link completo que muestra la terminal del runner."
                 : "Tu navegador bloquea el almacenamiento local (modo privado o datos del sitio desactivados), así que no podemos guardar la vinculación."}
             </p>
-            <p>Si todavía no lo corriste: <code className="text-cyan-200">{RUNNER_COMMAND}</code></p>
+            <p>Si todavía no lo corriste:</p>
+            <code className="block whitespace-pre-wrap break-all text-cyan-200">{RUNNER_COMMAND}</code>
             <Link href="/" className="inline-flex min-h-10 items-center rounded-xl border border-cyan-300/30 bg-cyan-300/10 px-4 text-[11px] uppercase tracking-[.14em] text-cyan-100">Volver a la ciudad</Link>
           </div>
         )}

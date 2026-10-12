@@ -97,7 +97,7 @@ export function RunnerCard({ compact = false }: { compact?: boolean }) {
       </p>
 
       <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-800 bg-[#050a12] p-2 pl-3">
-        <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-cyan-100">{RUNNER_COMMAND}</code>
+        <code className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-[11px] leading-5 text-cyan-100">{RUNNER_COMMAND}</code>
         <button type="button" onClick={() => void copy()} aria-label="Copiar comando" title="Copiar comando" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-300/20 text-cyan-100 transition hover:bg-cyan-300/10">
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
         </button>

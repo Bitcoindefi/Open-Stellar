@@ -44,7 +44,7 @@ export class RunnerRequestError extends Error {
 }
 
 export function offlineMessage(port: number): string {
-  return `No encontramos el runner en 127.0.0.1:${port}. Abrilo con npx agentic-city-runner y volvé a probar.`
+  return `No encontramos el runner en 127.0.0.1:${port}. Volvé a correr el comando de Modelos IA > Conectá tu PC y probá de nuevo.`
 }
 
 export function messageForStatus(status: number, body: { error?: string; message?: string } | null): string {
