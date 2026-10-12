@@ -23,8 +23,8 @@ test.describe('onboarding modal', () => {
     const nextButton = page.getByRole('button', { name: 'Next', exact: true });
     await nextButton.click();
 
-    await expect(page.locator('text=Sidebar Controls')).toBeVisible();
-    await expect(page.getByText('Fund the agents' wallet once', { exact: false })).toBeVisible();
+    await expect(page.locator('text=You keep control')).toBeVisible();
+    await expect(page.getByText("Fund the agents' wallet once", { exact: false })).toBeVisible();
     await nextButton.click();
 
     await expect(page.locator('text=Bring Your Own AI')).toBeVisible();
