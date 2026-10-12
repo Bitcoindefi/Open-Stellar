@@ -42,18 +42,18 @@ function secureRandom(): number {
 const ONBOARDING_STEPS = [
   {
     title: "Agentic City",
-    body: "The city starts with a simulated roster. Register API-connected agents in Admin to monitor their live status here.",
+    body: "Every robot is an AI agent. Ask for a task in plain words: an orchestrator splits it, hires specialist agents and pays each one per call in USDC on Solana devnet.",
     hint: "← try clicking a bot",
   },
   {
-    title: "Sidebar Controls",
-    body: "The sidebar has tabs for AI models, connectors, team orchestration, chat, offers, skills, quests, appearance, and a Solana wallet to pay agents per task with x402.",
-    hint: "→ explore the tabs",
+    title: "You keep control",
+    body: "No sign-up. Fund the agents' wallet once from the Wallet tab. A per-conversation and daily cap limit spending, anything above asks for one click, and every hire leaves a receipt in Recibos.",
+    hint: "→ Wallet, then Chat",
   },
   {
-    title: "Bring Your Own AI",
-    body: "Open Modelos IA or Complementos from the sidebar to connect your own paid providers and tools, then build the agent team that runs missions.",
-    hint: "connect models first",
+    title: "Bring your own AI",
+    body: "Open Modelos IA to connect your models with an OpenRouter login, or Conectá tu PC to use the Claude Code, Codex, Gemini CLI or Ollama you already have.",
+    hint: "connect a model first",
   },
 ]
 
