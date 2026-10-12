@@ -6,8 +6,10 @@ export const RUNNER_DEFAULT_PORT = 7421
 export const RUNNER_STORAGE_KEY = "agentic-city:runner:v1"
 // Until agentic-city-runner is published to npm, run it from a shallow clone. Two lines instead of `&&`
 // so the same paste works in bash, zsh, cmd and Windows PowerShell 5.1.
-export const RUNNER_COMMAND = "git clone --depth 1 https://github.com/Bitcoindefi/agentic-city
-node agentic-city/packages/runner/bin.mjs"
+export const RUNNER_COMMAND = [
+  "git clone --depth 1 https://github.com/Bitcoindefi/agentic-city",
+  "node agentic-city/packages/runner/bin.mjs",
+].join("\n")
 
 export type RunnerPairing = { token: string; port: number; pairedAt: string }
 
