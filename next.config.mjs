@@ -2,7 +2,20 @@ import webpack from 'webpack'
 import { withLogtail } from '@logtail/next'
 
 /** @type {import('next').NextConfig} */
+const securityHeaders = [
+  // Nobody may frame the app (clickjacking). frame-ancestors is the modern form; X-Frame-Options covers old browsers.
+  { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), geolocation=()' },
+]
+
 const nextConfig = {
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: '/(.*)', headers: securityHeaders }]
+  },
   async rewrites() {
     return [
       { source: "/agents/:id(cloud-[^/]+)", destination: "/agent-functions/:id" },

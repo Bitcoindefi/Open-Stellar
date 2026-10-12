@@ -443,7 +443,7 @@ function AgentRow({
       onClick={onClick}
       role="option"
       aria-selected={isSelected}
-      aria-label={`${agent.name}, ${agent.status}, CPU ${agent.cpu} percent, ${agent.currentTask || "no active task"}`}
+      aria-label={`${agent.name}, ${agent.status}, CPU ${Math.round(agent.cpu)} percent, ${agent.currentTask || "no active task"}`}
       style={{
         position: "relative",
         zIndex: isSelected ? 2 : 1,
@@ -492,7 +492,7 @@ function AgentRow({
           {agent.currentTask || agent.status}
         </div>
       </div>
-      <div suppressHydrationWarning style={{ fontSize: 10, color: "#64748b", fontFamily: "monospace" }}>{agent.cpu}%</div>
+      <div suppressHydrationWarning style={{ fontSize: 10, color: "#64748b", fontFamily: "monospace" }}>{Math.round(agent.cpu)}%</div>
     </button>
   )
 }
@@ -985,7 +985,7 @@ export function SidebarPanel({
           />
         )}
         {activeTab === "chat" && (
-          <ChatPanel messages={chatMessages} />
+          <ChatPanel messages={chatMessages} onOpenModels={() => setActiveTab("models")} />
         )}
         {activeTab === "models" && (
           <div style={{ height: "100%", overflowY: "auto", overflowX: "hidden" }}>

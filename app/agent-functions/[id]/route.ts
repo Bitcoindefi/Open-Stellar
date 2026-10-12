@@ -89,11 +89,14 @@ export async function POST(req: Request, context: RouteContext) {
   }
 }
 
+const MAX_STREAM_MS = 5 * 60_000
+
 export async function GET(req: Request, context: RouteContext) {
   const { id } = await context.params
   const config = getConfig(decodeURIComponent(id), req)
   const encoder = new TextEncoder()
   let interval: ReturnType<typeof setInterval>
+  let closeTimer: ReturnType<typeof setTimeout>
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const send = () => {
@@ -102,9 +105,19 @@ export async function GET(req: Request, context: RouteContext) {
       }
       send()
       interval = setInterval(send, HEARTBEAT_INTERVAL_MS)
+      // Close idle streams so an anonymous client cannot hold a function open forever; EventSource reconnects.
+      closeTimer = setTimeout(() => {
+        clearInterval(interval)
+        try {
+          controller.close()
+        } catch {
+          // Already closed by the client.
+        }
+      }, MAX_STREAM_MS)
     },
     cancel() {
       clearInterval(interval)
+      clearTimeout(closeTimer)
     },
   })
   return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" } })

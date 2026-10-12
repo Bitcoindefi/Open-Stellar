@@ -1,0 +1,11 @@
+# The vercel CLI uploads gitignored files unless they are listed here. Local state must never
+# reach production: .data/ holds file-backed stores (receipts, API keys) written by tests.
+/.data
+/.env
+/.env.local
+/.env.*.local
+/test-results
+/playwright-report
+/tsconfig.tsbuildinfo
+/.wrangler
+/dist
