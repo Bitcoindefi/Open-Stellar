@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Activity, Check, CircleAlert, PlugZap, Plus, Save, Server, ShieldCheck, Trash2, X } from "lucide-react"
 import { AccountConnections, useAccount } from "@/components/account/account-connections"
+import { RunnerCard } from "@/components/runner/runner-card"
 import { friendlyProviderError } from "@/lib/ai/friendly-error"
 
 const STORAGE_KEY = "agentic-city:connections:v1"
@@ -280,6 +281,7 @@ export function ConnectionsPanel({
         <div className={compact ? "grid gap-3 px-3 pb-3" : "grid gap-5 xl:grid-cols-[.85fr_1.15fr]"}>
           <div className={compact ? "space-y-3" : "space-y-5"}>
           <AccountConnections compact={compact} />
+          <RunnerCard compact={compact} />
           <div className={compact ? "rounded-lg border border-slate-800 bg-[#080e18]/95 p-3" : "rounded-[26px] border border-slate-800 bg-[#080e18]/95 p-5 sm:p-6"}>
             <SectionHeading icon={<Server className="h-4 w-4" />} eyebrow="Con tu cuenta de OpenRouter" title="Agregar modelo" />
             {account.openrouter.connected ? <>

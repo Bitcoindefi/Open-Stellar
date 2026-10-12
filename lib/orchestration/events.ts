@@ -136,6 +136,11 @@ export function approvalCapWords(reason: "run" | "day"): string {
   return reason === "run" ? "por conversación" : "diario"
 }
 
+/** A Solana transaction signature (base58). Tool lines from the local runner carry plain text details instead. */
+export function looksLikeSignature(value: string): boolean {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,100}$/.test(value)
+}
+
 export function shortSignature(signature: string): string {
   return signature.length > 14 ? `${signature.slice(0, 6)}...${signature.slice(-6)}` : signature
 }
