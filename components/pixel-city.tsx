@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useCallback, useState, useMemo } from "react"
+import { useRef, useEffect, useCallback, useState, useMemo, type ReactNode } from "react"
 import NextImage from "next/image"
 import { LocateFixed, Map as MapIcon, Minus, Plus } from "lucide-react"
 import type { MoltbotAgent, District } from "@/lib/types"
@@ -141,7 +141,7 @@ function drawMinimap(
   ctx.restore()
 }
 
-interface PixelCityProps {
+export interface PixelCityProps {
   agents: MoltbotAgent[]
   districts: District[]
   selectedAgentId: string | null
@@ -154,6 +154,8 @@ interface PixelCityProps {
   particleTriggers?: ParticleTrigger[]
   audioEngine?: CityAudioEngine
   districtStandings?: DistrictStanding[]
+  /** Extra buttons appended to the map control bar (the 2D / 3D view switch). */
+  extraControls?: ReactNode
 }
 
 const statusSymbols: Record<string, string> = {
@@ -197,6 +199,7 @@ export function PixelCity({
   particleTriggers = [],
   audioEngine,
   districtStandings = [],
+  extraControls,
 }: PixelCityProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const particleCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -926,6 +929,7 @@ export function PixelCity({
             <Icon size={16} aria-hidden="true" />
           </button>
         ))}
+        {extraControls}
       </div>
       <canvas
         ref={particleCanvasRef}
