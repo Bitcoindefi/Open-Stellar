@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react"
 import { Activity, Bot, BriefcaseBusiness, MessageSquare, PanelBottomOpen, Palette, ScrollText, WalletCards, Wrench } from "lucide-react"
 import { toast } from "sonner"
-import { PixelCity, type FloatingOverlay, type ParticleTrigger, type TxAnimation } from "@/components/pixel-city"
+import type { FloatingOverlay, ParticleTrigger, TxAnimation } from "@/components/pixel-city"
+import { CityMap } from "@/components/city-map"
 import { SidebarPanel, SIDEBAR_TABS, type SidebarTabId } from "@/components/sidebar-panel"
 import { AudioControls } from "@/components/audio-controls"
 import { DistrictEventOverlay } from "@/components/open-stellar/district-event-overlay"
@@ -1118,7 +1119,7 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
           )}
           <ThemeToggleNavbar />
         </div>
-        <PixelCity
+        <CityMap
           agents={agents}
           districts={DISTRICTS}
           selectedAgentId={selectedAgentId}
