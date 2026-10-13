@@ -104,6 +104,8 @@ describe("sameRobotLook", () => {
     expect(sameRobotLook(agent, { ...agent, name: "Cipher-4" }, false)).toBe(false)
     expect(sameRobotLook(agent, { ...agent, district: "research" }, false)).toBe(false)
     expect(sameRobotLook(agent, { ...agent, id: "bot-2" }, false)).toBe(false)
+    expect(sameRobotLook(agent, { ...agent, appearance: { skin: "neon" } }, false)).toBe(false)
+    expect(sameRobotLook({ ...agent, appearance: { skin: "gold" } }, { ...agent, appearance: { skin: "gold" } }, false)).toBe(true)
   })
 
   it("tracks rounded CPU and the task while the label is expanded", () => {

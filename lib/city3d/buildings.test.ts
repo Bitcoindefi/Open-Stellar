@@ -78,10 +78,20 @@ describe("getWindowStrips", () => {
 describe("buildCityBlocks", () => {
   const blocks = buildCityBlocks(islands)
 
-  it("creates a platform and a plaza per island, and four rims", () => {
-    expect(blocks.platforms).toHaveLength(islands.length * 2)
+  it("creates one platform per island (the district art is the top), and four rims", () => {
+    expect(blocks.platforms).toHaveLength(islands.length)
     expect(blocks.rims).toHaveLength(islands.length * 4)
     expect(blocks.rims.filter((rim) => rim.color === "#22d3ee")).toHaveLength(4)
+    for (const platform of blocks.platforms) expect(platform.y + platform.sy / 2).toBeCloseTo(0)
+  })
+
+  it("lifts the platform sides and facades out of the near-black night palette", () => {
+    const luminance = (hex: string) => {
+      const n = parseInt(hex.slice(1), 16)
+      return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)
+    }
+    for (const platform of blocks.platforms) expect(luminance(platform.color)).toBeGreaterThan(70)
+    for (const building of blocks.buildings) expect(luminance(building.color)).toBeGreaterThan(55)
   })
 
   it("lights windows and tops tall buildings with masts and beacons", () => {

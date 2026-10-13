@@ -90,6 +90,8 @@ export interface RobotLookFields {
   district: string
   cpu: number
   currentTask: string | null
+  /** Skins (neon, chrome, gold) change the robot art, like the 2D map. */
+  appearance?: { skin?: string | null } | null
 }
 
 /**
@@ -100,7 +102,12 @@ export interface RobotLookFields {
 export function sameRobotLook(a: RobotLookFields, b: RobotLookFields, expanded: boolean): boolean {
   if (a === b) return true
   const base =
-    a.id === b.id && a.name === b.name && a.status === b.status && a.color === b.color && a.district === b.district
+    a.id === b.id &&
+    a.name === b.name &&
+    a.status === b.status &&
+    a.color === b.color &&
+    a.district === b.district &&
+    a.appearance?.skin === b.appearance?.skin
   if (!base || !expanded) return base
   return Math.round(a.cpu) === Math.round(b.cpu) && a.currentTask === b.currentTask
 }
