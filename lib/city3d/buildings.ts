@@ -1,5 +1,5 @@
 import type { DistrictId } from "@/lib/types"
-import { ISLAND_HEIGHT, PLAZA_HEIGHT, isInsideRect, type IslandLayout } from "./layout"
+import { ISLAND_HEIGHT, isInsideRect, type IslandLayout } from "./layout"
 import { createRng, hashString } from "./paths"
 import { mixHex } from "./colors"
 
@@ -145,14 +145,25 @@ export interface CityBlocks {
   beacons: BoxInstance[]
 }
 
-const BUILDING_SHADES = ["#0f172a", "#111c33", "#14213b", "#172340"]
+/** Mid-tone facades: dark enough for the neon windows to pop, light enough to read under daylight. */
+const BUILDING_SHADES = ["#3b4a6b", "#435477", "#4a5d82", "#364563"]
+const PLATFORM_SIDE_BASE = "#94a3b8"
 const RIM_THICKNESS = 0.09
 
+/** Island side color: the district base tone lifted toward slate, tinted with the district color. */
+export function getPlatformColor(island: Pick<IslandLayout, "baseColor" | "color">): string {
+  return mixHex(mixHex(island.baseColor, PLATFORM_SIDE_BASE, 0.45), island.color, 0.25)
+}
+
+/**
+ * Platforms (one per island; the district art covers the top, see
+ * components/city3d/city-ground.tsx), rims, buildings, windows, masts, beacons.
+ */
 export function buildCityBlocks(islands: readonly IslandLayout[]): CityBlocks {
   const blocks: CityBlocks = { platforms: [], rims: [], buildings: [], windows: [], masts: [], beacons: [] }
 
   for (const island of islands) {
-    const { bounds, walkArea, color } = island
+    const { bounds, color } = island
     const rng = createRng(hashString(`windows:${island.id}`))
 
     blocks.platforms.push({
@@ -162,16 +173,7 @@ export function buildCityBlocks(islands: readonly IslandLayout[]): CityBlocks {
       sx: island.width,
       sy: ISLAND_HEIGHT,
       sz: island.depth,
-      color: mixHex(island.baseColor, color, 0.12),
-    })
-    blocks.platforms.push({
-      x: (walkArea.minX + walkArea.maxX) / 2,
-      y: PLAZA_HEIGHT / 2,
-      z: (walkArea.minZ + walkArea.maxZ) / 2,
-      sx: walkArea.maxX - walkArea.minX,
-      sy: PLAZA_HEIGHT,
-      sz: walkArea.maxZ - walkArea.minZ,
-      color: mixHex(island.baseColor, color, 0.28),
+      color: getPlatformColor(island),
     })
 
     // Glowing edge around the platform top.
@@ -192,7 +194,7 @@ export function buildCityBlocks(islands: readonly IslandLayout[]): CityBlocks {
         sx: building.width,
         sy: building.height,
         sz: building.depth,
-        color: mixHex(BUILDING_SHADES[index % BUILDING_SHADES.length], color, 0.06),
+        color: mixHex(BUILDING_SHADES[index % BUILDING_SHADES.length], color, 0.2),
       })
       // Some buildings glow dimmer so the windows do not read as one flat pattern.
       const windowColor = rng() < 0.35 ? mixHex(color, "#0f172a", 0.45) : color

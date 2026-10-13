@@ -27,7 +27,8 @@ interface CameraRigProps {
 
 type OrbitControlsHandle = ComponentRef<typeof OrbitControls>
 
-const SKY = "#020617"
+/** Dusk haze close to the skyline backdrop's lower tones, so far water melts into it. */
+const HAZE = "#2b2d66"
 
 /**
  * Orbit camera over the city: limited tilt so it never goes flat or under the
@@ -99,8 +100,8 @@ export function CameraRig({ frame, reduceMotion, apiRef }: CameraRigProps) {
 
   return (
     <>
-      {/* Night haze that scales with the framing so far districts fade a little, never vanish. */}
-      <fog attach="fog" args={[SKY, view.distance * 0.95, view.distance * 2.6]} />
+      {/* Light haze that scales with the framing: only the far water fades, never a district. */}
+      <fog attach="fog" args={[HAZE, view.distance * 1.3, view.distance * 3.4]} />
       <OrbitControls
         ref={controlsRef}
         makeDefault

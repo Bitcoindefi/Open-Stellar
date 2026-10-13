@@ -1,14 +1,15 @@
 "use client"
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import NextImage from "next/image"
 import { Canvas } from "@react-three/fiber"
-import { Html, PerformanceMonitor, Stars } from "@react-three/drei"
+import { Html, PerformanceMonitor } from "@react-three/drei"
 import { LocateFixed, Minus, Plus } from "lucide-react"
 import type { PixelCityProps } from "@/components/pixel-city"
+import { CITY_BACKGROUND } from "@/lib/district-backgrounds"
 import { buildCityBlocks } from "@/lib/city3d/buildings"
 import {
   CAMERA_FOV,
-  ISLAND_HEIGHT,
   buildIslandLayouts,
   findIsland,
   getCityFrame,
@@ -18,17 +19,19 @@ import {
 } from "@/lib/city3d/layout"
 import { getInitialDpr, shouldAntialias, stepDpr } from "@/lib/city3d/quality"
 import { computeDistrictFocus, getLabelLifts } from "@/lib/city3d/robot-state"
-import { disposeRobotGeometries } from "@/lib/city3d/voxel-geometry"
 import { CameraRig, type CameraApi } from "./camera-rig"
 import { CityBlocks } from "./city-blocks"
-import { VoxelRobot } from "./voxel-robot"
+import { CityGround } from "./city-ground"
+import { SpriteRobot, disposeRobotResources } from "./sprite-robot"
+import { disposeCityTextures } from "./textures"
 
 export interface City3DViewProps extends PixelCityProps {
   /** The 2D / 3D switch, rendered at the end of the control bar. */
   viewToggle?: ReactNode
 }
 
-const SKY = "#020617"
+/** Shown behind the transparent canvas until the skyline image has loaded. */
+const BACKDROP_FALLBACK = "#1b1a44"
 const ZOOM_STEP = 1.25
 
 /**
@@ -69,7 +72,13 @@ export default function City3DView({
     return start
   }
 
-  useEffect(() => () => disposeRobotGeometries(), [])
+  useEffect(
+    () => () => {
+      disposeRobotResources()
+      disposeCityTextures()
+    },
+    [],
+  )
 
   // District ambience follows agent presence, like the 2D map does.
   useEffect(() => {
@@ -98,21 +107,40 @@ export default function City3DView({
         height: "100%",
         position: "relative",
         overflow: "hidden",
-        background: SKY,
+        background: BACKDROP_FALLBACK,
         isolation: "isolate",
         cursor: hoveredId ? "pointer" : "grab",
       }}
     >
+      {/* The 2D map's skyline art behind a transparent canvas: same slow drift and
+          window twinkle (CSS, off under reduced motion), already in the browser cache. */}
+      <NextImage
+        src={CITY_BACKGROUND}
+        alt=""
+        aria-hidden="true"
+        unoptimized
+        fill
+        sizes="100vw"
+        className="city-bg-drift"
+        style={{
+          objectFit: "cover",
+          objectPosition: "50% 70%",
+          zIndex: 0,
+          pointerEvents: "none",
+          filter: "brightness(1.2) saturate(1.1)",
+        }}
+      />
+      <div aria-hidden="true" className="city-bg-twinkle" />
       <div
         role="img"
         aria-label={`Agentic City in 3D with ${agents.length} agents. Drag to orbit, pinch or scroll to zoom. Switch to the 2D map for keyboard agent selection.`}
-        style={{ position: "absolute", inset: 0 }}
+        style={{ position: "absolute", inset: 0, zIndex: 1 }}
       >
         <Canvas
           dpr={dpr}
           frameloop={reduceMotion ? "demand" : "always"}
           camera={{ fov: CAMERA_FOV, near: 0.5, far: 600, position: [0, 40, 60] }}
-          gl={{ antialias: shouldAntialias(deviceDpr), powerPreference: "high-performance" }}
+          gl={{ alpha: true, antialias: shouldAntialias(deviceDpr), powerPreference: "high-performance" }}
           onPointerMissed={() => onSelectAgent(null)}
         >
           {/* Slow GPU: drop the pixel ratio a step at a time (skipped when rendering on demand). */}
@@ -123,19 +151,13 @@ export default function City3DView({
               onIncline={() => setDpr((current) => stepDpr(current, 1, getInitialDpr(deviceDpr)))}
             />
           )}
-          <color attach="background" args={[SKY]} />
-          <hemisphereLight args={["#1e3a8a", SKY, 0.9]} />
-          <ambientLight intensity={0.25} />
-          <directionalLight position={[-18, 36, 22]} intensity={1.3} color="#c7d2fe" />
-          <Stars radius={150} depth={50} count={1400} factor={4} saturation={0} fade speed={reduceMotion ? 0 : 0.4} />
+          {/* Daylight over the neon city: a bright sky fill, a warm key light and a cool rim from behind. */}
+          <hemisphereLight args={["#e0f2fe", "#3b4a6b", 2.2]} />
+          <ambientLight intensity={0.6} />
+          <directionalLight position={[-18, 36, 22]} intensity={3.2} color="#fff7ed" />
+          <directionalLight position={[24, 16, -20]} intensity={1.1} color="#a5b4fc" />
 
-          {/* Unlit ground and a plain line grid: the cheapest full-screen layers there are. */}
-          <mesh rotation-x={-Math.PI / 2} position-y={-ISLAND_HEIGHT - 0.02}>
-            <planeGeometry args={[400, 400]} />
-            <meshBasicMaterial color="#030a1c" />
-          </mesh>
-          <gridHelper args={[240, 120, "#334155", "#172033"]} position-y={-ISLAND_HEIGHT} />
-
+          <CityGround islands={islands} />
           <CityBlocks blocks={blocks} reduceMotion={reduceMotion} />
 
           {islands.map((island) => {
@@ -147,7 +169,7 @@ export default function City3DView({
             const island = findIsland(islands, agent.district)
             if (!island) return null
             return (
-              <VoxelRobot
+              <SpriteRobot
                 key={agent.id}
                 agent={agent}
                 island={island}
