@@ -41,7 +41,12 @@ import {
   resolveRobotAccent,
   sameRobotLook,
 } from "@/lib/city3d/robot-state"
-import { loadRobotModel, type RobotModel } from "./robot-models"
+import { clipPhase, getRobotAnimMode, walkTimeScale } from "@/lib/city3d/robot-animation"
+import { RobotAnimator, type RobotAnimatorSet } from "./robot-animator"
+import { createRobotInstance, loadRobotModel, type RobotModel } from "./robot-models"
+
+/** Walk cycle speed that matches the plaza walk, so the feet do not slide. */
+const WALK_TIME_SCALE = walkTimeScale(WALK_SPEED, ROBOT_WORLD_HEIGHT)
 
 interface SharedRobotResources {
   hit: BoxGeometry
@@ -174,6 +179,8 @@ export interface LowPolyRobotProps {
   labelLift: number
   reduceMotion: boolean
   colorBlindMode: boolean
+  /** Where a rigged robot registers its mixer; the robot layer advances them all in one frame callback. */
+  animators: RobotAnimatorSet
   onHoverStart: (id: string) => void
   onHoverEnd: (id: string) => void
   onSelect: (id: string) => void
@@ -189,6 +196,7 @@ function robotPropsEqual(prev: LowPolyRobotProps, next: LowPolyRobotProps): bool
     prev.labelLift === next.labelLift &&
     prev.reduceMotion === next.reduceMotion &&
     prev.colorBlindMode === next.colorBlindMode &&
+    prev.animators === next.animators &&
     prev.onHoverStart === next.onHoverStart &&
     prev.onHoverEnd === next.onHoverEnd &&
     prev.onSelect === next.onSelect &&
@@ -197,10 +205,12 @@ function robotPropsEqual(prev: LowPolyRobotProps, next: LowPolyRobotProps): bool
 }
 
 /**
- * An agent as its district's low-poly robot (unrigged): working robots walk
- * their plaza loop with a bob and turn smoothly, idle ones sway, offline ones
- * are grayed, errors flash red. The agent's own color is the glowing ring at
- * its feet.
+ * An agent as its district's low-poly robot. Rigged models play their skinned
+ * clips: working robots walk their plaza loop with the Walk cycle (the tank
+ * rolls its treads and scans with turret and periscope), standing ones play
+ * Idle, offline ones freeze grayed, errors flash red. Unrigged models fall
+ * back to a procedural bob and sway. The agent's own color is the glowing ring
+ * at its feet.
  */
 export const LowPolyRobot = memo(LowPolyRobotView, robotPropsEqual)
 
@@ -213,6 +223,7 @@ function LowPolyRobotView({
   labelLift,
   reduceMotion,
   colorBlindMode,
+  animators,
   onHoverStart,
   onHoverEnd,
   onSelect,
@@ -243,6 +254,33 @@ function LowPolyRobotView({
   }, [motion.alert, bodyBase])
   useEffect(() => () => alertBody?.dispose(), [alertBody])
 
+  // Rigged model: this robot's own skinned copy (shared geometry and materials, own bones) and mixer.
+  const rig = useMemo(() => (model?.kind === "rigged" ? createRobotInstance(model) : null), [model])
+  const animatorRef = useRef<RobotAnimator | null>(null)
+  const animMode = getRobotAnimMode(motion, reduceMotion)
+  useLayoutEffect(() => {
+    if (!rig || model?.kind !== "rigged") return
+    const animator = new RobotAnimator(rig.root, model, clipPhase(phase))
+    animatorRef.current = animator
+    animators.add(animator)
+    return () => {
+      animators.delete(animator)
+      animator.dispose()
+      if (animatorRef.current === animator) animatorRef.current = null
+    }
+  }, [rig, model, phase, animators])
+  // Runs after the effect above (same dependencies plus the mode), so a new animator gets its mode at once.
+  useLayoutEffect(() => {
+    animatorRef.current?.setMode(animMode, WALK_TIME_SCALE)
+  }, [rig, model, phase, animators, animMode])
+
+  // The skinned meshes follow the robot's status: lit, offline gray or its own red flash.
+  const rigMaterial = model ? (motion.dim ? model.dim : (alertBody ?? model.lit)) : null
+  useLayoutEffect(() => {
+    if (!rig || !rigMaterial) return
+    for (const mesh of rig.meshes) mesh.material = rigMaterial
+  }, [rig, rigMaterial])
+
   // Place the robot at the start of its loop: walkers face the next waypoint,
   // the others turn roughly toward the viewer.
   useLayoutEffect(() => {
@@ -272,9 +310,12 @@ function LowPolyRobotView({
       group.position.z = sample.z
       walk.heading = lerpAngle(walk.heading, sample.heading, dt * 6)
     }
-    const bob = motion.bob ? bobOffset(t, motion.walk, phase) : 0
+    // Skinned robots get their bounce and sway from the clips; only unrigged ones fake it.
+    const bob = motion.bob && !rig ? bobOffset(t, motion.walk, phase) : 0
     body.position.y = PLAZA_HEIGHT + bob
-    if (motion.walk) {
+    if (rig) {
+      body.rotation.set(0, walk.heading, 0)
+    } else if (motion.walk) {
       body.rotation.set(WALK_LEAN, walk.heading, walkWaddle(t, phase))
     } else if (motion.bob) {
       const sway = idleSway(t, phase)
@@ -308,7 +349,9 @@ function LowPolyRobotView({
   return (
     <group ref={groupRef}>
       <group ref={bodyRef} position-y={PLAZA_HEIGHT} scale={ROBOT_WORLD_HEIGHT} rotation-order="YXZ">
-        {model ? (
+        {rig ? (
+          <primitive object={rig.root} />
+        ) : model?.kind === "static" ? (
           <mesh geometry={model.geometry} material={motion.dim ? model.dim : (alertBody ?? model.lit)} />
         ) : (
             <>
