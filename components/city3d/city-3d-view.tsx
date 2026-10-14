@@ -1,28 +1,27 @@
 "use client"
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import NextImage from "next/image"
 import { Canvas } from "@react-three/fiber"
 import { Html, PerformanceMonitor } from "@react-three/drei"
 import { LocateFixed, Minus, Plus } from "lucide-react"
 import type { PixelCityProps } from "@/components/pixel-city"
-import { CITY_BACKGROUND } from "@/lib/district-backgrounds"
 import { buildCityBlocks } from "@/lib/city3d/buildings"
+import { FOG_COLOR, LIGHTS } from "@/lib/city3d/palette"
+import { buildDistrictProps } from "@/lib/city3d/props"
 import {
   CAMERA_FOV,
   buildIslandLayouts,
-  findIsland,
   getCityFrame,
-  mapToWorld,
   type IslandLayout,
-  type WorldPoint,
 } from "@/lib/city3d/layout"
 import { getInitialDpr, shouldAntialias, stepDpr } from "@/lib/city3d/quality"
-import { computeDistrictFocus, getLabelLifts } from "@/lib/city3d/robot-state"
+import { computeDistrictFocus } from "@/lib/city3d/robot-state"
 import { CameraRig, type CameraApi } from "./camera-rig"
 import { CityBlocks } from "./city-blocks"
 import { CityGround } from "./city-ground"
-import { SpriteRobot, disposeRobotResources } from "./sprite-robot"
+import { SkyDome, SkylineRing } from "./city-horizon"
+import { disposePartGeometries } from "./instanced-parts"
+import { RobotLayer } from "./robot-layer"
 import { disposeCityTextures } from "./textures"
 
 export interface City3DViewProps extends PixelCityProps {
@@ -30,8 +29,8 @@ export interface City3DViewProps extends PixelCityProps {
   viewToggle?: ReactNode
 }
 
-/** Shown behind the transparent canvas until the skyline image has loaded. */
-const BACKDROP_FALLBACK = "#1b1a44"
+/** Shown until the first frame is drawn: the haze color, so the switch never flashes. */
+const BACKDROP_FALLBACK = FOG_COLOR
 const ZOOM_STEP = 1.25
 
 /**
@@ -59,23 +58,12 @@ export default function City3DView({
   const frame = useMemo(() => getCityFrame(districts), [districts])
   const islands = useMemo(() => buildIslandLayouts(districts, frame), [districts, frame])
   const blocks = useMemo(() => buildCityBlocks(islands), [islands])
-  const lifts = getLabelLifts(agents)
-
-  // Each robot starts where the 2D map first saw it; kept stable so loops do not reset on updates.
-  const startsRef = useRef(new Map<string, WorldPoint>())
-  const startFor = (id: string, px: number, py: number): WorldPoint => {
-    let start = startsRef.current.get(id)
-    if (!start) {
-      start = mapToWorld(px, py, frame)
-      startsRef.current.set(id, start)
-    }
-    return start
-  }
+  const props = useMemo(() => buildDistrictProps(islands), [islands])
 
   useEffect(
     () => () => {
-      disposeRobotResources()
       disposeCityTextures()
+      disposePartGeometries()
     },
     [],
   )
@@ -112,25 +100,6 @@ export default function City3DView({
         cursor: hoveredId ? "pointer" : "grab",
       }}
     >
-      {/* The 2D map's skyline art behind a transparent canvas: same slow drift and
-          window twinkle (CSS, off under reduced motion), already in the browser cache. */}
-      <NextImage
-        src={CITY_BACKGROUND}
-        alt=""
-        aria-hidden="true"
-        unoptimized
-        fill
-        sizes="100vw"
-        className="city-bg-drift"
-        style={{
-          objectFit: "cover",
-          objectPosition: "50% 70%",
-          zIndex: 0,
-          pointerEvents: "none",
-          filter: "brightness(1.2) saturate(1.1)",
-        }}
-      />
-      <div aria-hidden="true" className="city-bg-twinkle" />
       <div
         role="img"
         aria-label={`Agentic City in 3D with ${agents.length} agents. Drag to orbit, pinch or scroll to zoom. Switch to the 2D map for keyboard agent selection.`}
@@ -140,7 +109,7 @@ export default function City3DView({
           dpr={dpr}
           frameloop={reduceMotion ? "demand" : "always"}
           camera={{ fov: CAMERA_FOV, near: 0.5, far: 600, position: [0, 40, 60] }}
-          gl={{ alpha: true, antialias: shouldAntialias(deviceDpr), powerPreference: "high-performance" }}
+          gl={{ alpha: false, antialias: shouldAntialias(deviceDpr), powerPreference: "high-performance" }}
           onPointerMissed={() => onSelectAgent(null)}
         >
           {/* Slow GPU: drop the pixel ratio a step at a time (skipped when rendering on demand). */}
@@ -151,40 +120,35 @@ export default function City3DView({
               onIncline={() => setDpr((current) => stepDpr(current, 1, getInitialDpr(deviceDpr)))}
             />
           )}
-          {/* Daylight over the neon city: a bright sky fill, a warm key light and a cool rim from behind. */}
-          <hemisphereLight args={["#e0f2fe", "#3b4a6b", 2.2]} />
-          <ambientLight intensity={0.6} />
-          <directionalLight position={[-18, 36, 22]} intensity={3.2} color="#fff7ed" />
-          <directionalLight position={[24, 16, -20]} intensity={1.1} color="#a5b4fc" />
+          {/* Dusk over the neon city: a sky and ground fill, a warm key light and a cool rim from behind. */}
+          <color attach="background" args={[FOG_COLOR]} />
+          <hemisphereLight args={[LIGHTS.hemisphereSky, LIGHTS.hemisphereGround, LIGHTS.hemisphereIntensity]} />
+          <ambientLight intensity={LIGHTS.ambientIntensity} />
+          <directionalLight position={[...LIGHTS.keyPosition]} intensity={LIGHTS.keyIntensity} color={LIGHTS.key} />
+          <directionalLight position={[...LIGHTS.rimPosition]} intensity={LIGHTS.rimIntensity} color={LIGHTS.rim} />
 
-          <CityGround islands={islands} />
-          <CityBlocks blocks={blocks} reduceMotion={reduceMotion} />
+          <SkyDome />
+          <CityGround islands={islands} reduceMotion={reduceMotion} />
+          <SkylineRing islands={islands} reduceMotion={reduceMotion} />
+          <CityBlocks blocks={blocks} props={props} reduceMotion={reduceMotion} />
 
           {islands.map((island) => {
             const standing = districtStandings.find((s) => s.districtId === island.id)
             return <DistrictLabel key={island.id} island={island} rank={standing?.rank} score={standing?.formattedScore} />
           })}
 
-          {agents.map((agent) => {
-            const island = findIsland(islands, agent.district)
-            if (!island) return null
-            return (
-              <SpriteRobot
-                key={agent.id}
-                agent={agent}
-                island={island}
-                start={startFor(agent.id, agent.pixelX, agent.pixelY)}
-                selected={agent.id === selectedAgentId}
-                hovered={agent.id === hoveredId}
-                labelLift={lifts.get(agent.id) ?? 0}
-                reduceMotion={reduceMotion}
-                colorBlindMode={colorBlindMode}
-                onHoverStart={handleHoverStart}
-                onHoverEnd={handleHoverEnd}
-                onSelect={handleSelect}
-              />
-            )
-          })}
+          <RobotLayer
+            agents={agents}
+            islands={islands}
+            frame={frame}
+            selectedAgentId={selectedAgentId}
+            hoveredId={hoveredId}
+            reduceMotion={reduceMotion}
+            colorBlindMode={colorBlindMode}
+            onHoverStart={handleHoverStart}
+            onHoverEnd={handleHoverEnd}
+            onSelect={handleSelect}
+          />
 
           <CameraRig frame={frame} reduceMotion={reduceMotion} apiRef={cameraApi} />
         </Canvas>

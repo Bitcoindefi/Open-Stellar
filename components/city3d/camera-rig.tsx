@@ -11,6 +11,7 @@ import {
   scaleCameraDistance,
   type CityFrame,
 } from "@/lib/city3d/layout"
+import { FOG_COLOR } from "@/lib/city3d/palette"
 
 export interface CameraApi {
   /** Multiplies the camera distance (below 1 zooms in). */
@@ -27,8 +28,8 @@ interface CameraRigProps {
 
 type OrbitControlsHandle = ComponentRef<typeof OrbitControls>
 
-/** Dusk haze close to the skyline backdrop's lower tones, so far water melts into it. */
-const HAZE = "#2b2d66"
+/** Dusk haze, the sky's horizon tone, so far water, shore and towers melt into it. */
+const HAZE = FOG_COLOR
 
 /**
  * Orbit camera over the city: limited tilt so it never goes flat or under the
@@ -100,8 +101,8 @@ export function CameraRig({ frame, reduceMotion, apiRef }: CameraRigProps) {
 
   return (
     <>
-      {/* Light haze that scales with the framing: only the far water fades, never a district. */}
-      <fog attach="fog" args={[HAZE, view.distance * 1.3, view.distance * 3.4]} />
+      {/* Light haze that scales with the framing: the far shore and skyline ring fade, never a district. */}
+      <fog attach="fog" args={[HAZE, view.distance * 1.15, view.distance * 2.9]} />
       <OrbitControls
         ref={controlsRef}
         makeDefault
