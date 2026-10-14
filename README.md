@@ -68,6 +68,16 @@ Solana settings in `.env.local` (see `.env.local.example` for the full list):
 | `ORCHESTRATOR_APPROVAL_SECRET` | Signs one-click approvals above the cap |
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Upstash Redis (added by the Vercel integration) |
 
+Arc testnet rail (optional, off by default). With `NEXT_PUBLIC_ENABLE_ARC=true` the Wallet tab shows "Red de pago: Solana | Arc"; each browser chooses, and Arc hires are paid in USDC on Arc testnet through Circle's Facilitator Service:
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_ENABLE_ARC` | Shows the network selector (build time; default off) |
+| `X402_ARC_PAY_TO` | Treasury EVM address that receives Arc testnet USDC |
+| `ARC_SELLER_PROOF_KEY` | Key that controls `X402_ARC_PAY_TO`; signs Circle's keyless-trial seller proof (never commit it) |
+| `CIRCLE_API_KEY` | Optional Bearer key once the keyless trial runs out |
+| `X402_ARC_FACILITATOR_URL`, `ARC_RPC_URL`, `NEXT_PUBLIC_ARC_RPC_URL`, `NEXT_PUBLIC_ARC_EXPLORER_URL` | Optional overrides (defaults: Circle, `rpc.testnet.arc.io`, `explorer.testnet.arc.io`) |
+
 ## Local runner (beta)
 
 Use the AI command-line tools you are already logged into, orchestrated from the web app:

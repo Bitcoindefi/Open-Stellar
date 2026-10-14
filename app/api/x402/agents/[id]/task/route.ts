@@ -4,7 +4,9 @@ import { withOAuthCredentials } from "@/lib/connections/hydrate"
 import { recordReceipt } from "@/lib/receipts/log"
 import { resolveAgentOwner, scopedAgentKey } from "@/lib/solana/agent-owner"
 import { agentTaskSystemPrompt } from "@/lib/solana/agent-task-prompt"
-import { recordAgentPayment } from "@/lib/solana/payment-bindings"
+import { railFor, requestedRailFromUrl } from "@/lib/rails"
+import { requireArcPayment } from "@/lib/rails/arc/x402"
+import { recordAgentPayment, recordArcAgentPayment } from "@/lib/solana/payment-bindings"
 import { AGENT_TASK_PRICE, attachPaymentResponse, explorerTxUrl, requirePayment } from "@/lib/solana/x402"
 
 export const runtime = "nodejs"
@@ -39,13 +41,24 @@ export async function POST(request: Request, context: RouteContext) {
   const name = typeof agent.name === "string" && agent.name.trim() ? agent.name.trim().slice(0, 80) : agentId
   const role = typeof agent.role === "string" && agent.role.trim() ? agent.role.trim().slice(0, 180) : "General assistant"
 
-  const payment = await requirePayment(req, { price: AGENT_TASK_PRICE, description: `Task for agent ${name} in Agentic City` })
+  // `?network=arc` pays on Arc testnet (only while NEXT_PUBLIC_ENABLE_ARC is on); default Solana.
+  const chosen = requestedRailFromUrl(req.url)
+  if (!chosen.ok) return json({ ok: false, error: chosen.error }, 400)
+  const rail = railFor(chosen.rail)
+  const arc = rail.id === "arc"
+
+  const description = `Task for agent ${name} in Agentic City`
+  const payment = arc
+    ? await requireArcPayment(req, { price: AGENT_TASK_PRICE, description })
+    : await requirePayment(req, { price: AGENT_TASK_PRICE, description })
   if (!payment.ok) return payment.response
 
   // Remember which agent (of which owner) this payment was for: a review needs that binding.
   try {
     const owner = await resolveAgentOwner(req)
-    await recordAgentPayment(payment.settle.transaction, scopedAgentKey(agentId, owner?.tag ?? null))
+    const agentKey = scopedAgentKey(agentId, owner?.tag ?? null)
+    if (arc) await recordArcAgentPayment(payment.settle.transaction, agentKey)
+    else await recordAgentPayment(payment.settle.transaction, agentKey)
   } catch (error) {
     console.error("[x402] could not record the payment binding:", error instanceof Error ? error.message : error)
   }
@@ -59,6 +72,7 @@ export async function POST(request: Request, context: RouteContext) {
     agentId,
     agentName: name,
     payer: payment.payer,
+    ...(arc ? { network: rail.receiptNetwork } : {}),
   })
 
   const receipt = {
@@ -67,13 +81,13 @@ export async function POST(request: Request, context: RouteContext) {
     payer: payment.payer,
     amount: payment.requirements.amount,
     asset: payment.requirements.asset,
-    explorerUrl: explorerTxUrl(payment.settle.transaction),
+    explorerUrl: arc ? rail.explorerTx(payment.settle.transaction) : explorerTxUrl(payment.settle.transaction),
   }
 
   try {
     const output = await generateWithByokProvider(
       { provider, model, apiKey },
-      agentTaskSystemPrompt(name, role),
+      arc ? agentTaskSystemPrompt(name, role, rail.label) : agentTaskSystemPrompt(name, role),
       task,
     )
     return attachPaymentResponse(json({ ok: true, agentId, result: output, receipt }), payment.settle)

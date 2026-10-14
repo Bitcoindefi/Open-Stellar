@@ -7,6 +7,8 @@ import { balanceLimits, takeLimits } from "@/lib/agent-wallet/limits"
 import { isSameOrigin } from "@/lib/connections/hydrate"
 import { appendCookies } from "@/lib/connections/sealed-cookie"
 import { microToUsdc, readCaps, spentToday, usdcToMicro } from "@/lib/orchestration/budget"
+import { requestedRailFromUrl } from "@/lib/rails"
+import { arcWalletStatus } from "@/lib/rails/arc/wallet-api"
 import { getKvStore } from "@/lib/security/kv-store"
 import { AGENT_TASK_PRICE, SOLANA_DEVNET_NETWORK, USDC_DEVNET_MINT } from "@/lib/solana/payment-constants"
 
@@ -21,6 +23,10 @@ function json(body: Record<string, unknown>, status = 200) {
 // httpOnly cookie), then its public address, USDC balance and today's spend. Never the secret.
 export async function GET(req: Request) {
   if (!isSameOrigin(req)) return json({ ok: false, error: "Cross-site requests are not allowed." }, 403)
+  // `?network=arc`: the separate Arc testnet agents' wallet (only while NEXT_PUBLIC_ENABLE_ARC is on).
+  const rail = requestedRailFromUrl(req.url)
+  if (!rail.ok) return json({ ok: false, error: rail.error }, 400)
+  if (rail.rail === "arc") return arcWalletStatus(req)
   const browser = await resolveAgentWallet(req, { create: true, refresh: true })
   if (!browser?.wallet) return json({ ok: false, error: "Agents' wallets are not configured on this server." }, 503)
   const store = getKvStore()

@@ -16,6 +16,12 @@ export async function recordAgentPayment(signature: string, agentKey: string): P
   return getKvStore().set(bindingKey(signature), agentKey, PAYMENT_BINDING_TTL_SECONDS, { onlyIfAbsent: true })
 }
 
+/** The same binding for an Arc testnet payment, in its own namespace (ac:arc:*). */
+export async function recordArcAgentPayment(txHash: string, agentKey: string): Promise<boolean> {
+  if (!txHash || !agentKey) return false
+  return getKvStore().set(`ac:arc:x402:paid:${txHash.toLowerCase()}`, agentKey, PAYMENT_BINDING_TTL_SECONDS, { onlyIfAbsent: true })
+}
+
 export async function getPaymentAgent(signature: string): Promise<string | null> {
   if (!signature) return null
   return getKvStore().get(bindingKey(signature))

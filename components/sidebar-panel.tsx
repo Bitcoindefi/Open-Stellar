@@ -14,11 +14,13 @@ import dynamic from "next/dynamic"
 // Wallet Standard discovery only exists in the browser.
 const PaidTaskPanel = dynamic(() => import("./x402/paid-task-panel").then((mod) => mod.PaidTaskPanel), { ssr: false })
 const AgentWalletPanel = dynamic(() => import("./x402/agent-wallet-panel").then((mod) => mod.AgentWalletPanel), { ssr: false })
+const NetworkWalletPanels = dynamic(() => import("./x402/network-wallet-panels").then((mod) => mod.NetworkWalletPanels), { ssr: false })
 import { AppearancePanel } from "./appearance-panel"
 import { QuestsPanel } from "./quests-panel"
 import { MOCK_OFFERS, TaskBoard, getTaskOfferCounts } from "./task-board"
 import { ConnectionsPanel } from "./admin/connections-panel"
 import { STELLAR_ENABLED } from "@/lib/config/chains"
+import { ARC_ENABLED } from "@/lib/rails"
 
 export type SidebarTabId = "overview" | "models" | "connectors" | "chat" | "offers" | "skills" | "quests" | "wallet" | "appearance"
 
@@ -1008,8 +1010,8 @@ export function SidebarPanel({
         )}
         {activeTab === "wallet" && (
           <div className="h-full space-y-3 overflow-y-auto p-3">
-          <AgentWalletPanel />
-          <PaidTaskPanel />
+          {/* "Red de pago: Solana | Arc" only while NEXT_PUBLIC_ENABLE_ARC is on; otherwise Solana as always. */}
+          {ARC_ENABLED ? <NetworkWalletPanels /> : <><AgentWalletPanel /><PaidTaskPanel /></>}
           {/* Legacy Stellar wallet (Freighter, XLM, Friendbot): hidden unless NEXT_PUBLIC_ENABLE_STELLAR is on. */}
           {STELLAR_ENABLED && (
             <WalletPanel

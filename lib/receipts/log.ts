@@ -1,3 +1,5 @@
+import { ARC_RECEIPT_NETWORK, ARC_USDC_ADDRESS, isEvmAddress, isEvmTxHash } from "@/lib/rails/arc/constants"
+import { RECEIPT_NETWORK, addressExplorerUrl, txExplorerUrl } from "@/lib/receipts/explorer-links"
 import { getRedisConfig } from "@/lib/security/kv-store"
 import { USDC_DEVNET_MINT } from "@/lib/solana/payment-constants"
 
@@ -13,8 +15,10 @@ import { USDC_DEVNET_MINT } from "@/lib/solana/payment-constants"
 // because a payment that already settled must not fail over a log line.
 
 export const RECEIPTS_KEY = "ac:receipts:v1"
+/** Arc testnet receipts live in their own list, so the two networks never mix. */
+export const ARC_RECEIPTS_KEY = "ac:arc:receipts:v1"
 export const RECEIPTS_CAP = 500
-export const RECEIPT_NETWORK = "solana:devnet"
+export { RECEIPT_NETWORK, addressExplorerUrl, txExplorerUrl }
 const WRITE_TIMEOUT_MS = 2_000
 
 export type ReceiptType = "payment" | "hire" | "registration" | "review"
@@ -25,7 +29,7 @@ export type ReceiptRecord = {
   /** `${type}:${tx}`: one record per event. */
   id: string
   type: ReceiptType
-  /** Solana transaction signature. */
+  /** Solana transaction signature, or an 0x hash on Arc testnet. */
   tx: string
   network: string
   /** Amount in the asset's base units (USDC has 6 decimals), or null when nothing was paid. */
@@ -62,12 +66,28 @@ export type ReceiptInput = {
   score?: number | null
   timestamp?: number
   source?: ReceiptSource
+  /** Solana devnet unless "arc-testnet". */
+  network?: string | null
 }
 
 const BASE58 = /^[1-9A-HJ-NP-Za-km-z]+$/
 const SIGNATURE = /^[1-9A-HJ-NP-Za-km-z]{32,100}$/
 const ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
 const SHORT_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{4}…[1-9A-HJ-NP-Za-km-z]{4}$/
+const SHORT_EVM_ADDRESS = /^0x[0-9a-fA-F]{4}…[0-9a-fA-F]{4}$/
+
+/** "0x459E…a451" style for an EVM address. Already short ones pass through. */
+export function shortEvmAddress(value: unknown): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  if (SHORT_EVM_ADDRESS.test(trimmed)) return trimmed
+  if (!isEvmAddress(trimmed)) return null
+  return `${trimmed.slice(0, 6)}…${trimmed.slice(-4)}`
+}
+
+export function isArcReceiptNetwork(network: unknown): boolean {
+  return network === ARC_RECEIPT_NETWORK
+}
 
 export function isSignature(value: unknown): value is string {
   return typeof value === "string" && SIGNATURE.test(value)
@@ -101,7 +121,8 @@ function cleanAmount(value: ReceiptInput["amount"]): string | null {
 function cleanAsset(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null
   const asset = value.trim()
-  if (asset === USDC_DEVNET_MINT || asset.toUpperCase() === "USDC") return "USDC"
+  if (asset === USDC_DEVNET_MINT || asset.toUpperCase() === "USDC" || asset.toLowerCase() === ARC_USDC_ADDRESS) return "USDC"
+  if (isEvmAddress(asset)) return shortEvmAddress(asset)
   if (BASE58.test(asset)) return shortAddress(asset)
   return cleanText(asset, 12)
 }
@@ -109,7 +130,9 @@ function cleanAsset(value: unknown): string | null {
 /** Builds a public record from the input, or null when it is not a valid receipt. */
 export function sanitizeReceipt(input: ReceiptInput, now: number = Date.now()): ReceiptRecord | null {
   if (!input || !RECEIPT_TYPES.includes(input.type)) return null
-  if (!isSignature(input.tx)) return null
+  // Arc receipts carry 0x hashes and addresses; anything else is a Solana receipt, as before.
+  const arc = isArcReceiptNetwork(input.network)
+  if (arc ? !isEvmTxHash(input.tx) : !isSignature(input.tx)) return null
   const score = typeof input.score === "number" && Number.isInteger(input.score) && input.score >= 0 && input.score <= 100 ? input.score : null
   const timestamp = typeof input.timestamp === "number" && Number.isFinite(input.timestamp) && input.timestamp > 0 ? Math.floor(input.timestamp) : now
   const amount = cleanAmount(input.amount)
@@ -117,15 +140,15 @@ export function sanitizeReceipt(input: ReceiptInput, now: number = Date.now()): 
     id: `${input.type}:${input.tx}`,
     type: input.type,
     tx: input.tx,
-    network: RECEIPT_NETWORK,
+    network: arc ? ARC_RECEIPT_NETWORK : RECEIPT_NETWORK,
     amount,
     asset: amount === null ? null : cleanAsset(input.asset) ?? "USDC",
     agentId: cleanText(input.agentId, 80),
     agentName: cleanText(input.agentName, 40),
     counterpartId: cleanText(input.counterpartId, 80),
     counterpartName: cleanText(input.counterpartName, 40),
-    payer: shortAddress(input.payer),
-    identity: isAddress(input.identity) ? input.identity : null,
+    payer: arc ? shortEvmAddress(input.payer) : shortAddress(input.payer),
+    identity: arc ? (isEvmAddress(input.identity) ? input.identity : null) : isAddress(input.identity) ? input.identity : null,
     score: input.type === "review" ? score : null,
     timestamp,
     source: input.source === "on-chain" ? "on-chain" : "app",
@@ -223,7 +246,8 @@ export async function recordReceipt(input: ReceiptInput, options: { backend?: Re
     const record = sanitizeReceipt(input, options.now ?? Date.now())
     if (!record) return false
     const backend = options.backend ?? getReceiptBackend()
-    await withTimeout(backend.push(RECEIPTS_KEY, JSON.stringify(record), RECEIPTS_CAP), options.timeoutMs ?? WRITE_TIMEOUT_MS)
+    const key = isArcReceiptNetwork(record.network) ? ARC_RECEIPTS_KEY : RECEIPTS_KEY
+    await withTimeout(backend.push(key,JSON.stringify(record), RECEIPTS_CAP), options.timeoutMs ?? WRITE_TIMEOUT_MS)
     return true
   } catch (error) {
     console.warn("[receipts] could not record a receipt:", error instanceof Error ? error.message : "unknown error")
@@ -232,8 +256,8 @@ export async function recordReceipt(input: ReceiptInput, options: { backend?: Re
 }
 
 /** The log, newest first, deduplicated by record id. Throws when the backend fails. */
-export async function readReceiptLog(backend: ReceiptLogBackend = getReceiptBackend()): Promise<ReceiptRecord[]> {
-  const raw = await backend.range(RECEIPTS_KEY, RECEIPTS_CAP)
+export async function readReceiptLog(backend: ReceiptLogBackend = getReceiptBackend(), key: string = RECEIPTS_KEY): Promise<ReceiptRecord[]> {
+  const raw = await backend.range(key, RECEIPTS_CAP)
   const seen = new Set<string>()
   const records: ReceiptRecord[] = []
   for (const item of raw) {
@@ -243,12 +267,4 @@ export async function readReceiptLog(backend: ReceiptLogBackend = getReceiptBack
     records.push(record)
   }
   return records
-}
-
-export function txExplorerUrl(signature: string): string {
-  return `https://explorer.solana.com/tx/${encodeURIComponent(signature)}?cluster=devnet`
-}
-
-export function addressExplorerUrl(address: string): string {
-  return `https://explorer.solana.com/address/${encodeURIComponent(address)}?cluster=devnet`
 }

@@ -6,7 +6,7 @@ import { approvalKeyFromEnv, createApprovalSigner } from "@/lib/orchestration/ap
 import { readCaps, usdcToMicro } from "@/lib/orchestration/budget"
 import type { ChatRunDeps } from "@/lib/orchestration/chat-run"
 import { DEFAULT_HANDOFF_CAPS, type HandoffDeps } from "@/lib/orchestration/handoff"
-import { createOrchestratorFetch, payAgentTask, type PaidFetch } from "@/lib/orchestration/wallet"
+import { createOrchestratorFetch, payAgentTask, type HireRail, type PaidFetch } from "@/lib/orchestration/wallet"
 import { getKvStore } from "@/lib/security/kv-store"
 import { AGENT_TASK_PRICE } from "@/lib/solana/x402"
 
@@ -26,17 +26,27 @@ export function hireBaseUrl(requestUrl: string, env: Record<string, string | und
  * A balance that cannot be read does not block the hire: the payment itself is the real check.
  */
 export function createWalletHire(input: { signer: KeyPairSigner; rpc: WalletRpc; paidFetch: PaidFetch; baseUrl: string; priceMicro: number }): NonNullable<HandoffDeps["hire"]> {
+  return createBalanceCheckedHire({
+    readBalance: () => getUsdcBalance(input.rpc, input.signer.address),
+    paidFetch: input.paidFetch,
+    baseUrl: input.baseUrl,
+    priceMicro: input.priceMicro,
+  })
+}
+
+/** The chain-neutral part of a hire: balance check (in USDC micro units), then the x402 payment. */
+export function createBalanceCheckedHire(input: { readBalance: () => Promise<bigint>; paidFetch: PaidFetch; baseUrl: string; priceMicro: number; rail?: HireRail }): NonNullable<HandoffDeps["hire"]> {
   return async (agent, task) => {
     let balance: bigint | null = null
     try {
-      balance = await getUsdcBalance(input.rpc, input.signer.address)
+      balance = await input.readBalance()
     } catch {
       balance = null
     }
     if (balance !== null && balance < BigInt(input.priceMicro)) {
       return { ok: false, code: "unfunded", balanceMicro: Number(balance), error: "the agents' wallet does not hold enough USDC" }
     }
-    return payAgentTask({ baseUrl: input.baseUrl, agent, task }, input.paidFetch)
+    return payAgentTask({ baseUrl: input.baseUrl, agent, task, ...(input.rail ? { rail: input.rail } : {}) }, input.paidFetch)
   }
 }
 

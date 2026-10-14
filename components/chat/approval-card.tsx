@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Check, ShieldAlert, X } from "lucide-react"
 import { approvalCapWords, approvalStatusLabel, type ApprovalCardState } from "@/lib/orchestration/events"
+import { networkLabel } from "@/lib/rails"
 
 export type ApprovalState = ApprovalCardState
 
@@ -15,6 +16,8 @@ export type ApprovalCardData = {
   capUsdc: string
   expiresAt: number
   state: ApprovalState
+  /** CAIP-2 network of the hire; absent means Solana devnet. */
+  network?: string
 }
 
 /**
@@ -42,7 +45,7 @@ export function ApprovalCard({ data, onDecide }: { data: ApprovalCardData; onDec
         <ShieldAlert size={12} aria-hidden="true" /> Aprobación necesaria
       </div>
       <p style={{ margin: 0, fontFamily: "monospace", fontSize: 11, lineHeight: 1.5, color: "#e2e8f0" }}>
-        {data.fromName} quiere contratar a {data.toName} por {data.amount} USDC (Solana devnet). Se paga desde la wallet de tus agentes y supera su tope {capWords} de {data.capUsdc} USDC.
+        {data.fromName} quiere contratar a {data.toName} por {data.amount} USDC ({networkLabel(data.network)}). Se paga desde la wallet de tus agentes y supera su tope {capWords} de {data.capUsdc} USDC.
       </p>
       <p style={{ margin: 0, fontFamily: "monospace", fontSize: 10, lineHeight: 1.5, color: "#94a3b8" }}>Tarea: {data.task}</p>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

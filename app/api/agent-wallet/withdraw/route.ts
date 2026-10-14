@@ -6,6 +6,8 @@ import { getFeePayerSigner } from "@/lib/agent-wallet/fee-payer"
 import { takeLimits, withdrawLimits } from "@/lib/agent-wallet/limits"
 import { isStrictSameOrigin } from "@/lib/connections/hydrate"
 import { microToUsdc } from "@/lib/orchestration/budget"
+import { requestedRailFromUrl } from "@/lib/rails"
+import { arcWithdraw } from "@/lib/rails/arc/wallet-api"
 import { getKvStore } from "@/lib/security/kv-store"
 import { explorerTxUrl } from "@/lib/solana/x402"
 
@@ -22,6 +24,9 @@ function json(body: Record<string, unknown>, status = 200) {
 // signs the transfer; the server keypair only pays the network fee.
 export async function POST(req: Request) {
   if (!isStrictSameOrigin(req)) return json({ ok: false, error: "Cross-site requests are not allowed." }, 403)
+  const rail = requestedRailFromUrl(req.url)
+  if (!rail.ok) return json({ ok: false, error: rail.error }, 400)
+  if (rail.rail === "arc") return arcWithdraw(req)
   const opened = readAgentWallet(req)
   if (!opened) return json({ ok: false, error: "This browser has no agents' wallet." }, 404)
 

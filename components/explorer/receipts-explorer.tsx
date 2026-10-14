@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ArrowLeft, ExternalLink, Fingerprint, Handshake, Radio, ReceiptText, Star, X } from "lucide-react"
 import type { ReceiptRecord, ReceiptType } from "@/lib/receipts/log"
 import type { AgentOption, ReceiptTotals } from "@/lib/receipts/query"
+import { ARC_ENABLED, railForNetwork, type RailId } from "@/lib/rails"
 
 // Public receipts explorer: every x402 payment, agent-to-agent hire and 8004 registration or
 // review on Solana devnet, each with its transaction. Polls /api/receipts every 10 seconds.
@@ -45,12 +46,25 @@ function isTypeFilter(value: string): value is TypeFilter {
   return TYPE_FILTERS.some((item) => item.value === value)
 }
 
-function txUrl(signature: string): string {
-  return `https://explorer.solana.com/tx/${encodeURIComponent(signature)}?cluster=devnet`
+// Links follow each receipt's own network (Solana devnet unless "arc-testnet").
+function txUrl(record: ReceiptRecord): string {
+  return railForNetwork(record.network).explorerTx(record.tx)
 }
 
-function addressUrl(address: string): string {
-  return `https://explorer.solana.com/address/${encodeURIComponent(address)}?cluster=devnet`
+function addressUrl(record: ReceiptRecord, address: string): string {
+  return railForNetwork(record.network).explorerAddress(address)
+}
+
+/** Network filter, shown only while Arc is enabled. */
+type NetworkFilter = "all" | RailId
+const NETWORK_FILTERS: Array<{ value: NetworkFilter; label: string }> = [
+  { value: "all", label: "Todas las redes" },
+  { value: "solana", label: "Solana devnet" },
+  { value: "arc", label: "Arc testnet" },
+]
+
+function isNetworkFilter(value: string): value is NetworkFilter {
+  return NETWORK_FILTERS.some((item) => item.value === value)
 }
 
 function shortTx(signature: string): string {
@@ -74,8 +88,9 @@ function timeAgo(timestamp: number, now: number): string {
   return `hace ${days} d`
 }
 
-export function ReceiptsExplorer({ initialAgent = "", initialType = "" }: { initialAgent?: string; initialType?: string }) {
+export function ReceiptsExplorer({ initialAgent = "", initialType = "", initialNetwork = "" }: { initialAgent?: string; initialType?: string; initialNetwork?: string }) {
   const [type, setType] = useState<TypeFilter>(isTypeFilter(initialType) ? initialType : "all")
+  const [network, setNetwork] = useState<NetworkFilter>(ARC_ENABLED && isNetworkFilter(initialNetwork) ? initialNetwork : "all")
   const [agent, setAgent] = useState(initialAgent)
   const [page, setPage] = useState(1)
   const [data, setData] = useState<Payload | null>(null)
@@ -88,6 +103,7 @@ export function ReceiptsExplorer({ initialAgent = "", initialType = "" }: { init
     const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) })
     if (type !== "all") params.set("type", type)
     if (agent) params.set("agent", agent)
+    if (ARC_ENABLED && network !== "all") params.set("network", network)
     try {
       const response = await fetch(`/api/receipts?${params}`, { cache: "no-store" })
       const next = await response.json() as Payload
@@ -100,7 +116,7 @@ export function ReceiptsExplorer({ initialAgent = "", initialType = "" }: { init
     } finally {
       if (id === request.current) setNow(Date.now())
     }
-  }, [agent, page, type])
+  }, [agent, network, page, type])
 
   useEffect(() => {
     void load()
@@ -117,13 +133,20 @@ export function ReceiptsExplorer({ initialAgent = "", initialType = "" }: { init
     else url.searchParams.delete("agent")
     if (type !== "all") url.searchParams.set("type", type)
     else url.searchParams.delete("type")
+    if (ARC_ENABLED && network !== "all") url.searchParams.set("network", network)
+    else url.searchParams.delete("network")
     window.history.replaceState(null, "", `${url.pathname}${url.search}`)
-  }, [agent, type])
+  }, [agent, network, type])
 
   const chooseType = (value: TypeFilter) => {
     setType(value)
     setPage(1)
   }
+  const chooseNetwork = (value: NetworkFilter) => {
+    setNetwork(value)
+    setPage(1)
+  }
+  const networkBadge = !ARC_ENABLED ? "Solana devnet" : network === "all" ? "Solana devnet · Arc testnet" : railForNetwork(network === "arc" ? "arc-testnet" : null).label
   const chooseAgent = (value: string) => {
     setAgent(value)
     setPage(1)
@@ -143,7 +166,7 @@ export function ReceiptsExplorer({ initialAgent = "", initialType = "" }: { init
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.24em] text-emerald-200">
             <Radio className="h-3 w-3 animate-pulse" /> En vivo
           </span>
-          <span className="rounded-full border border-slate-700 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.24em] text-slate-400">Solana devnet</span>
+          <span className="rounded-full border border-slate-700 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.24em] text-slate-400">{networkBadge}</span>
         </div>
         <h1 className="font-mono text-2xl font-bold uppercase text-cyan-100 sm:text-3xl">Recibos en cadena</h1>
         <p className="max-w-3xl text-sm leading-6 text-slate-400">
@@ -175,6 +198,21 @@ export function ReceiptsExplorer({ initialAgent = "", initialType = "" }: { init
             </button>
           ))}
         </div>
+        {ARC_ENABLED ? (
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Red">
+            {NETWORK_FILTERS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                aria-pressed={network === item.value}
+                onClick={() => chooseNetwork(item.value)}
+                className={`min-h-9 rounded-full border px-3 font-mono text-[11px] uppercase tracking-wider transition ${network === item.value ? "border-violet-300/60 bg-violet-300/15 text-violet-100" : "border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200"}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
           <label className="flex min-w-0 flex-1 items-center gap-2">
             <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">Agente</span>
@@ -276,10 +314,11 @@ function ReceiptRow({ record, now, onAgent }: { record: ReceiptRecord; now: numb
           {details.map((item) => <span key={item}>{item}</span>)}
           <span title={new Date(record.timestamp).toLocaleString("es-AR")}>{timeAgo(record.timestamp, now)}</span>
           {record.source === "on-chain" ? <span className="text-slate-500">leído de la cadena</span> : null}
-          {record.identity ? <a href={addressUrl(record.identity)} target="_blank" rel="noreferrer" className="text-cyan-300/80 underline">identidad {shortTx(record.identity)}</a> : null}
+          {ARC_ENABLED ? <span className={railForNetwork(record.network).id === "arc" ? "text-violet-300" : "text-slate-500"}>{railForNetwork(record.network).label}</span> : null}
+          {record.identity ? <a href={addressUrl(record, record.identity)} target="_blank" rel="noreferrer" className="text-cyan-300/80 underline">identidad {shortTx(record.identity)}</a> : null}
         </p>
       </div>
-      <a href={txUrl(record.tx)} target="_blank" rel="noreferrer" className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg border border-cyan-700/60 px-2.5 py-1.5 font-mono text-[11px] text-cyan-200 transition hover:border-cyan-400 hover:text-cyan-100" aria-label={`Ver la transacción ${record.tx} en Solana Explorer`}>
+      <a href={txUrl(record)} target="_blank" rel="noreferrer" className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg border border-cyan-700/60 px-2.5 py-1.5 font-mono text-[11px] text-cyan-200 transition hover:border-cyan-400 hover:text-cyan-100" aria-label={`Ver la transacción ${record.tx} en ${railForNetwork(record.network).id === "arc" ? "Arc Explorer" : "Solana Explorer"}`}>
         tx {shortTx(record.tx)} <ExternalLink className="h-3 w-3" />
       </a>
     </li>

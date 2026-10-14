@@ -15,6 +15,8 @@ import {
   type TranscriptApproval,
   type TranscriptItem,
 } from "@/lib/orchestration/transcript"
+import { networkLabel } from "@/lib/rails"
+import { paymentNetworkRequestFields, usePaymentNetwork } from "@/lib/rails/preference"
 import { ToolLine } from "@/components/chat/tool-line"
 import { ApprovalCard } from "@/components/chat/approval-card"
 import { FundCard } from "@/components/chat/fund-card"
@@ -138,6 +140,7 @@ export function ChatPanel({ messages, onOpenModels }: ChatPanelProps) {
   }, [generativeModels, team])
   const canChat = Boolean(team && orchestrator && members.length > 0)
   const runner = useRunner()
+  const { rail: paymentRail } = usePaymentNetwork()
   const runnerAgents = useMemo(() => (runner.status.state === "ready" ? usableRunnerAgents(runner.status.agents) : []), [runner.status])
   const runnerOptions = useMemo(() => runnerTargetOptions(runnerAgents), [runnerAgents])
   const runnerReady = Boolean(runner.pairing) && runnerOptions.length > 0
@@ -164,6 +167,8 @@ export function ChatPanel({ messages, onOpenModels }: ChatPanelProps) {
   }
 
   const teamPayload = () => ({
+    // "Red de pago": nothing is added for Solana, so those requests are unchanged.
+    ...paymentNetworkRequestFields(),
     context: `Team ${team?.name ?? ""} inside Agentic City. The user is chatting from the app sidebar.`,
     orchestrator: orchestrator ? {
       name: orchestrator.name,
@@ -280,7 +285,7 @@ export function ChatPanel({ messages, onOpenModels }: ChatPanelProps) {
           <a href={`/explorer?agent=${encodeURIComponent(item.toName)}`} style={{ color: "#5eead4", textDecoration: "underline" }}>
             recibos
           </a>
-          <span style={{ marginLeft: "auto", color: "#64748b" }}>Solana devnet</span>
+          <span data-testid="receipt-network" style={{ marginLeft: "auto", color: item.network ? "#c4b5fd" : "#64748b" }}>{networkLabel(item.network)}</span>
         </div>
       )
     }
@@ -316,7 +321,7 @@ export function ChatPanel({ messages, onOpenModels }: ChatPanelProps) {
           <div style={{ fontFamily: "monospace", fontSize: 9, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {onRunner
               ? `Mi PC · ${runnerAgents.length} ${runnerAgents.length === 1 ? "agente local" : "agentes locales"} · sin pagos`
-              : canChat ? `${team?.name} · ${members.length} agentes · contrataciones en USDC en Solana devnet` : "Configurá Modelos IA > Equipo"}
+              : canChat ? `${team?.name} · ${members.length} agentes · contrataciones en USDC en ${paymentRail.label}` : "Configurá Modelos IA > Equipo"}
           </div>
         </div>
         <span style={{ marginLeft: "auto", fontFamily: "monospace", fontSize: 10, color: "#475569" }}>{chat.filter((item) => item.kind === "message").length} msgs</span>
@@ -369,7 +374,7 @@ export function ChatPanel({ messages, onOpenModels }: ChatPanelProps) {
         ) : chat.length === 0 ? (
           <div style={{ margin: "auto 0", border: "1px solid #1e293b", borderRadius: 8, padding: 14, background: "#111827" }}>
             <p style={{ margin: 0, fontFamily: "monospace", fontSize: 11, lineHeight: 1.6, color: "#94a3b8" }}>
-              Tu equipo está listo. Escribí una instrucción, pregunta o misión corta. Si le hablás al equipo completo, el orquestador contrata a cada especialista con un pago x402 en USDC (Solana devnet) desde la wallet de tus agentes, que cargás vos desde tu wallet, y vas a ver cada recibo. Sin login.
+              Tu equipo está listo. Escribí una instrucción, pregunta o misión corta. Si le hablás al equipo completo, el orquestador contrata a cada especialista con un pago x402 en USDC ({paymentRail.label}) desde la wallet de tus agentes, que cargás vos desde tu wallet, y vas a ver cada recibo. Sin login.
             </p>
           </div>
         ) : null}

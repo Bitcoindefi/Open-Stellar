@@ -24,7 +24,12 @@ export type TranscriptMessage = {
   hiredBy?: string
 }
 export type TranscriptTool = { kind: "tool"; id: string; turnId: string; status: ToolLineStatus; label: string; detail?: string }
-export type TranscriptReceipt = { kind: "receipt"; id: string; fromName: string; toName: string; amount: string; transaction: string; explorerUrl: string }
+/** CAIP-2 network of a receipt or approval; absent means Solana devnet. */
+export type TranscriptReceipt = { kind: "receipt"; id: string; fromName: string; toName: string; amount: string; transaction: string; explorerUrl: string; network?: string }
+
+function isEvmNetwork(network: unknown): network is string {
+  return typeof network === "string" && /^eip155:\d+$/.test(network)
+}
 export type TranscriptApproval = {
   kind: "approval"
   id: string
@@ -38,6 +43,7 @@ export type TranscriptApproval = {
   capUsdc: string
   expiresAt: number
   state: "pending" | "working" | "approved" | "rejected" | "expired" | "failed"
+  network?: string
 }
 /** The agents' wallet could not pay a hire: the chat shows the Fund button here. */
 export type TranscriptFund = { kind: "fund"; id: string; address: string; balanceUsdc: string; neededUsdc: string }
@@ -101,6 +107,8 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatStreamEvent, 
         amount: event.amount,
         transaction: event.receipt.transaction,
         explorerUrl: event.receipt.explorerUrl,
+        // Only non-Solana receipts carry their network, so Solana transcripts stay as they were.
+        ...(isEvmNetwork(event.receipt.network) ? { network: event.receipt.network } : {}),
       }]
     case "approval":
       return [...items, {
@@ -116,6 +124,7 @@ export function applyChatEvent(items: TranscriptItem[], event: ChatStreamEvent, 
         capUsdc: event.capUsdc,
         expiresAt: event.expiresAt,
         state: "pending",
+        ...(isEvmNetwork(event.network) ? { network: event.network } : {}),
       }]
     case "wallet": {
       // One Fund card per wallet is enough: a newer one replaces an older one still on screen.

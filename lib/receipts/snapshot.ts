@@ -1,7 +1,8 @@
 import { usdcAccountFor } from "@/lib/agent-wallet/fund-tx"
 import { getKvStore } from "@/lib/security/kv-store"
 import { DEVNET_REGISTRY_PROGRAM, USDC_DEVNET_MINT } from "@/lib/solana/payment-constants"
-import { readReceiptLog, type ReceiptRecord } from "@/lib/receipts/log"
+import { isArcEnabled } from "@/lib/rails"
+import { ARC_RECEIPTS_KEY, readReceiptLog, type ReceiptRecord } from "@/lib/receipts/log"
 import { createRpc, fetchOnchainReceipts, type BackfillConfig, type BackfillResult } from "@/lib/receipts/onchain"
 import { mergeReceipts } from "@/lib/receipts/query"
 
@@ -35,9 +36,22 @@ export async function backfillConfig(env: Record<string, string | undefined> = p
   }
 }
 
+/** The app log: Solana always, plus the separate Arc testnet list while Arc is enabled. */
+async function readAppLog(): Promise<ReceiptRecord[]> {
+  if (!isArcEnabled()) return readReceiptLog()
+  const [solana, arc] = await Promise.all([
+    readReceiptLog(),
+    readReceiptLog(undefined, ARC_RECEIPTS_KEY).catch((error: unknown) => {
+      console.warn("[receipts] could not read the Arc log:", error instanceof Error ? error.message : "unknown error")
+      return [] as ReceiptRecord[]
+    }),
+  ])
+  return [...solana, ...arc].sort((a, b) => b.timestamp - a.timestamp)
+}
+
 function defaultDeps(): SnapshotDeps {
   return {
-    readLog: () => readReceiptLog(),
+    readLog: readAppLog,
     backfill: async () => {
       const config = await backfillConfig()
       if (!config) return { records: [], scanned: 0, pending: 0 }
