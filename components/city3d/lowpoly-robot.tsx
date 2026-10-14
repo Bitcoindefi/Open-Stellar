@@ -301,7 +301,7 @@ function LowPolyRobotView({
   // Status and model changes need a frame even when rendering on demand.
   useLayoutEffect(() => {
     invalidate()
-  }, [model, motion.alert, motion.dim, motion.walk, invalidate])
+  }, [model, motion.alert, motion.dim, motion.walk, emphasized, invalidate])
 
   const ringMaterial = motion.alert ? resources.alertRingMaterial : accentRingMaterial(resources, accent, motion.dim)
 
@@ -342,7 +342,8 @@ function LowPolyRobotView({
         }}
       />
       <group ref={labelRef} position-y={labelHeight}>
-        <Html zIndexRange={[4, 3]} pointerEvents="none">
+        {/* drei only refreshes zIndex when the label moves, so remount it when emphasis changes. */}
+        <Html key={emphasized ? "front" : "base"} zIndexRange={emphasized ? [6, 5] : [4, 3]} pointerEvents="none">
           <AgentLabel agent={agent} emphasized={emphasized} selected={selected} colorBlindMode={colorBlindMode} />
         </Html>
       </group>

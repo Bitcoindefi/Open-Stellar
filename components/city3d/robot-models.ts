@@ -47,8 +47,22 @@ export function createRobotMaterial(glow: number): RobotMaterial {
     metalness: ROBOT_SURFACE.metalness,
   }) as RobotMaterial
   material.userData.glow = { value: glow }
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.robotGlow = material.userData.glow
+  installGlowShader(material)
+  // Clones (the per-robot error flash) get their own glow uniform and the same shader program.
+  const clone = material.clone.bind(material)
+  material.clone = () => {
+    const copy = clone() as RobotMaterial
+    copy.userData = { glow: { value: material.userData.glow.value } }
+    installGlowShader(copy)
+    return copy
+  }
+  return material
+}
+
+/** Injects the glow attribute into the standard shader, bound to the target material's own uniform. */
+function installGlowShader(target: RobotMaterial): void {
+  target.onBeforeCompile = (shader) => {
+    shader.uniforms.robotGlow = target.userData.glow
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nattribute float glow;\nvarying float vRobotGlow;")
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRobotGlow = glow;")
@@ -59,17 +73,7 @@ export function createRobotMaterial(glow: number): RobotMaterial {
         "#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * vRobotGlow * robotGlow;",
       )
   }
-  material.customProgramCacheKey = () => "agentic-city-robot"
-  // Clones (the per-robot error flash) keep their own glow uniform and the same shader.
-  const clone = material.clone.bind(material)
-  material.clone = () => {
-    const copy = clone() as RobotMaterial
-    copy.userData = { glow: { value: material.userData.glow.value } }
-    copy.onBeforeCompile = material.onBeforeCompile
-    copy.customProgramCacheKey = material.customProgramCacheKey
-    return copy
-  }
-  return material
+  target.customProgramCacheKey = () => "agentic-city-robot"
 }
 
 let loader: GLTFLoader | null = null
