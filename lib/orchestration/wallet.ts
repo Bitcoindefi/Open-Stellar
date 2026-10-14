@@ -3,6 +3,7 @@ import { decodePaymentResponseHeader, wrapFetchWithPayment, x402Client, type Pay
 import { SOLANA_DEVNET_CAIP2, USDC_DEVNET_ADDRESS } from "@x402/svm"
 import { ExactSvmScheme } from "@x402/svm/exact/client"
 import type { ByokModelConnection } from "@/lib/ai/byok-provider"
+import type { RailId } from "@/lib/rails"
 import { explorerTxUrl } from "@/lib/solana/x402"
 
 // Paying for a hire: when one agent hires another, the browser's own agents' wallet (see
@@ -50,21 +51,25 @@ export function createOrchestratorFetch(signer: KeyPairSigner, options: { maxAto
   return wrapFetchWithPayment(options.fetchImpl ?? fetch, client)
 }
 
-function receiptFromBody(value: unknown): HopReceipt | null {
+/** Where a hire pays: Solana devnet by default, or Arc testnet (see lib/rails). */
+export type HireRail = { id: RailId; caip2: string; asset: string; explorerTx: (tx: string) => string }
+const SOLANA_HIRE_RAIL: HireRail = { id: "solana", caip2: SOLANA_DEVNET_CAIP2, asset: USDC_DEVNET_ADDRESS, explorerTx: explorerTxUrl }
+
+function receiptFromBody(value: unknown, rail: HireRail): HopReceipt | null {
   if (!value || typeof value !== "object") return null
   const record = value as Record<string, unknown>
   if (typeof record.transaction !== "string" || !record.transaction) return null
   return {
     transaction: record.transaction,
-    network: typeof record.network === "string" ? record.network : SOLANA_DEVNET_CAIP2,
+    network: typeof record.network === "string" ? record.network : rail.caip2,
     payer: typeof record.payer === "string" ? record.payer : null,
     amount: typeof record.amount === "string" ? record.amount : "",
-    asset: typeof record.asset === "string" ? record.asset : USDC_DEVNET_ADDRESS,
-    explorerUrl: explorerTxUrl(record.transaction),
+    asset: typeof record.asset === "string" ? record.asset : rail.asset,
+    explorerUrl: rail.explorerTx(record.transaction),
   }
 }
 
-function receiptFromHeader(response: Response): HopReceipt | null {
+function receiptFromHeader(response: Response, rail: HireRail): HopReceipt | null {
   const header = response.headers.get("payment-response")
   if (!header) return null
   try {
@@ -75,8 +80,8 @@ function receiptFromHeader(response: Response): HopReceipt | null {
       network: settle.network,
       payer: settle.payer ?? null,
       amount: "",
-      asset: USDC_DEVNET_ADDRESS,
-      explorerUrl: explorerTxUrl(settle.transaction),
+      asset: rail.asset,
+      explorerUrl: rail.explorerTx(settle.transaction),
     }
   } catch {
     return null
@@ -88,10 +93,12 @@ function receiptFromHeader(response: Response): HopReceipt | null {
  * Never throws: every failure comes back as a sentence, with the receipt when money did move.
  */
 export async function payAgentTask(
-  input: { baseUrl: string; agent: HireAgent; task: string; timeoutMs?: number },
+  input: { baseUrl: string; agent: HireAgent; task: string; timeoutMs?: number; rail?: HireRail },
   paidFetch: PaidFetch,
 ): Promise<HopResult> {
-  const url = `${input.baseUrl.replace(/\/+$/, "")}/api/x402/agents/${encodeURIComponent(input.agent.id)}/task`
+  const rail = input.rail ?? SOLANA_HIRE_RAIL
+  const query = rail.id === "solana" ? "" : `?network=${rail.id}`
+  const url = `${input.baseUrl.replace(/\/+$/, "")}/api/x402/agents/${encodeURIComponent(input.agent.id)}/task${query}`
   let response: Response
   try {
     response = await paidFetch(url, {
@@ -113,7 +120,7 @@ export async function payAgentTask(
   }
 
   const data = await response.json().catch(() => null) as Record<string, unknown> | null
-  const receipt = receiptFromBody(data?.receipt) ?? receiptFromHeader(response)
+  const receipt = receiptFromBody(data?.receipt, rail) ?? receiptFromHeader(response, rail)
   if (response.ok && data?.ok === true && typeof data.result === "string" && receipt) {
     return { ok: true, answer: data.result, receipt }
   }

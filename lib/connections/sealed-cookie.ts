@@ -9,7 +9,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 // in CONNECTIONS_SECRET and the old one in CONNECTIONS_SECRET_PREVIOUS; cookies sealed with the
 // old secret still open (reported as `stale`) and are re-sealed with the new one when written.
 
-export type SealPurpose = "connections" | "browser-id" | "agent-wallet"
+export type SealPurpose = "connections" | "browser-id" | "agent-wallet" | "agent-wallet:arc"
 
 function currentSecret(env: Record<string, string | undefined> = process.env): string | null {
   return env.CONNECTIONS_SECRET?.trim() || env.BETTER_AUTH_SECRET?.trim() || null

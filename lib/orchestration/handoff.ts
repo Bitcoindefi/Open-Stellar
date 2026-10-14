@@ -22,6 +22,10 @@ import { recordReceipt } from "@/lib/receipts/log"
 export const HANDOFF_TOOL = "message_agent"
 
 export type HandoffCaps = { maxDepth: number; maxPerRun: number }
+
+/** The network hires pay on, for prompts, receipts and the approval card. Absent: Solana devnet. */
+export type HandoffNetwork = { caip2: string; receiptNetwork: string; label: string }
+export const DEFAULT_NETWORK_LABEL = "Solana devnet"
 export const DEFAULT_HANDOFF_CAPS: HandoffCaps = { maxDepth: 2, maxPerRun: 4 }
 
 export type RosterAgent = HireAgent
@@ -58,6 +62,7 @@ export type HandoffDeps = {
   emit: (event: ChatStreamEvent) => void
   newTurnId: (agentId: string) => string
   now?: () => Date
+  network?: HandoffNetwork
 }
 
 export type HandoffOutcome =
@@ -146,6 +151,7 @@ async function payAndRun(deps: HandoffDeps, run: RunState, from: Hirer, agent: R
     counterpartId: from.id,
     counterpartName: from.name,
     payer: result.receipt.payer ?? deps.wallet?.address ?? null,
+    ...(deps.network ? { network: deps.network.receiptNetwork } : {}),
   })
 
   if (!result.ok) {
@@ -166,7 +172,7 @@ async function payAndRun(deps: HandoffDeps, run: RunState, from: Hirer, agent: R
     toName: agent.name,
     answer: result.answer,
     receipt: result.receipt,
-    text: `${agent.name} answered (paid ${amount} USDC on Solana devnet, tx ${result.receipt.transaction}). The person can already read its answer, so do not repeat it; build on it:\n\n${result.answer.slice(0, 4000)}`,
+    text: `${agent.name} answered (paid ${amount} USDC on ${deps.network?.label ?? DEFAULT_NETWORK_LABEL}, tx ${result.receipt.transaction}). The person can already read its answer, so do not repeat it; build on it:\n\n${result.answer.slice(0, 4000)}`,
   }
 }
 
@@ -187,9 +193,11 @@ function requestApproval(deps: HandoffDeps, run: RunState, from: Hirer, agent: R
     task: composeTask(envelope),
     amountMicro: deps.priceMicro,
     reason,
+    // Signed into the token: approving it pays on this network and no other.
+    ...(deps.network ? { network: deps.network.caip2 } : {}),
   }, deps.now?.().getTime())
   run.approvalPending = true
-  deps.emit({ type: "approval", token, runId: run.runId, fromName: from.name, toName: agent.name, task: envelope.task.slice(0, 300), amount, reason, capUsdc: microToUsdc(cap), expiresAt: payload.exp })
+  deps.emit({ type: "approval", token, runId: run.runId, fromName: from.name, toName: agent.name, task: envelope.task.slice(0, 300), amount, reason, capUsdc: microToUsdc(cap), expiresAt: payload.exp, ...(deps.network ? { network: deps.network.caip2 } : {}) })
   return {
     ok: false,
     approval: payload,
@@ -315,7 +323,7 @@ export function handoffTool(
   return tool({
     description:
       "Hire a teammate for a piece of work that needs their role, and get their answer back. " +
-      `Each hire is a real payment of ${microToUsdc(deps.priceMicro)} USDC on Solana devnet from the person's agents' wallet, ` +
+      `Each hire is a real payment of ${microToUsdc(deps.priceMicro)} USDC on ${deps.network?.label ?? DEFAULT_NETWORK_LABEL} from the person's agents' wallet, ` +
       "so hire only when their role is needed, ask each teammate once, and do the work yourself when it is yours. " +
       "If it needs the person's judgement rather than a teammate's, ask the person instead.",
     inputSchema: handoffInput,

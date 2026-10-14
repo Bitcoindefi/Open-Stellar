@@ -17,6 +17,8 @@ export type ApprovalRequestEvent = {
   reason: "run" | "day"
   capUsdc: string
   expiresAt: number
+  /** CAIP-2 network of the hire; absent means Solana devnet. */
+  network?: string
 }
 
 /** The agents' wallet holds less than a hire costs: the chat shows the Fund button. */
@@ -136,9 +138,12 @@ export function approvalCapWords(reason: "run" | "day"): string {
   return reason === "run" ? "por conversación" : "diario"
 }
 
-/** A Solana transaction signature (base58). Tool lines from the local runner carry plain text details instead. */
+/**
+ * A Solana transaction signature (base58) or an Arc (EVM) transaction hash. Tool lines from the
+ * local runner carry plain text details instead.
+ */
 export function looksLikeSignature(value: string): boolean {
-  return /^[1-9A-HJ-NP-Za-km-z]{32,100}$/.test(value)
+  return /^[1-9A-HJ-NP-Za-km-z]{32,100}$/.test(value) || /^0x[0-9a-fA-F]{64}$/.test(value)
 }
 
 export function shortSignature(signature: string): string {

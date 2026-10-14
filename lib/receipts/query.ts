@@ -6,7 +6,16 @@ import { RECEIPT_TYPES, type ReceiptRecord, type ReceiptType } from "@/lib/recei
 export const DEFAULT_PAGE_SIZE = 25
 export const MAX_PAGE_SIZE = 100
 
-export type ReceiptFilters = { type: ReceiptType | "all"; agent: string | null; page: number; pageSize: number }
+/** Receipt network filter values ("solana:devnet" or "arc-testnet"); only present when asked for. */
+export type ReceiptNetworkFilter = "solana:devnet" | "arc-testnet"
+export type ReceiptFilters = { type: ReceiptType | "all"; agent: string | null; page: number; pageSize: number; network?: ReceiptNetworkFilter }
+
+const NETWORK_FILTERS: Record<string, ReceiptNetworkFilter> = {
+  solana: "solana:devnet",
+  "solana:devnet": "solana:devnet",
+  arc: "arc-testnet",
+  "arc-testnet": "arc-testnet",
+}
 
 export type ReceiptTotals = {
   /** x402 payments settled, direct tasks and hires alike (one per transaction). */
@@ -35,13 +44,15 @@ function toInt(value: string | null, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-export function parseFilters(params: URLSearchParams): ReceiptFilters {
+/** `networks`: whether the network filter is honored (only while Arc is enabled). */
+export function parseFilters(params: URLSearchParams, options: { networks?: boolean } = {}): ReceiptFilters {
   const rawType = (params.get("type") ?? "all").trim().toLowerCase()
   const type = (RECEIPT_TYPES as readonly string[]).includes(rawType) ? rawType as ReceiptType : "all"
   const agent = (params.get("agent") ?? "").trim().slice(0, 80) || null
   const page = Math.max(1, toInt(params.get("page"), 1))
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, toInt(params.get("pageSize"), DEFAULT_PAGE_SIZE)))
-  return { type, agent, page, pageSize }
+  const network = options.networks ? NETWORK_FILTERS[(params.get("network") ?? "").trim().toLowerCase()] : undefined
+  return network ? { type, agent, page, pageSize, network } : { type, agent, page, pageSize }
 }
 
 /**
@@ -111,7 +122,9 @@ export function listAgents(records: ReceiptRecord[]): AgentOption[] {
 }
 
 /** Filters and paginates. Totals follow the agent filter (not the type one), so the cards stay meaningful. */
-export function queryReceipts(all: ReceiptRecord[], filters: ReceiptFilters): ReceiptPage {
+export function queryReceipts(everything: ReceiptRecord[], filters: ReceiptFilters): ReceiptPage {
+  // The network filter narrows everything, totals and the agent list included.
+  const all = filters.network ? everything.filter((record) => record.network === filters.network) : everything
   const forAgent = all.filter((record) => matchesAgent(record, filters.agent))
   const filtered = filters.type === "all" ? forAgent : forAgent.filter((record) => record.type === filters.type)
   const total = filtered.length

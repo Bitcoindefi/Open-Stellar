@@ -3,8 +3,11 @@ import { BYOK_PROVIDERS, type ByokModelConnection, type ByokProviderId } from "@
 import { isJevModel } from "@/lib/ai/jev"
 import { resolveAgentWallet } from "@/lib/agent-wallet/cookie"
 import { isStrictSameOrigin, withOAuthCredentials } from "@/lib/connections/hydrate"
-import { appendCookies } from "@/lib/connections/sealed-cookie"
-import { runChat, type ChatHistoryItem, type ChatRunInput, type ChatTarget } from "@/lib/orchestration/chat-run"
+import { appendCookies, type CookieWrite } from "@/lib/connections/sealed-cookie"
+import { runChat, type ChatHistoryItem, type ChatRunDeps, type ChatRunInput, type ChatTarget } from "@/lib/orchestration/chat-run"
+import { requestedRail } from "@/lib/rails"
+import { resolveArcAgentWallet } from "@/lib/rails/arc/agent-wallet"
+import { createArcChatRunDeps } from "@/lib/rails/arc/deps"
 import { createChatRunDeps } from "@/lib/orchestration/deps"
 import { encodeEvent, type ChatStreamEvent } from "@/lib/orchestration/events"
 import type { RosterAgent } from "@/lib/orchestration/handoff"
@@ -114,10 +117,24 @@ export async function POST(request: Request) {
     members,
     ...(approval ? { approval } : {}),
   }
+  // "Red de pago": Solana devnet by default; `network: "arc"` (Arc testnet) only with the flag on.
+  const rail = requestedRail(body.network)
+  if (!rail.ok) return json({ ok: false, error: rail.error }, 400)
+
   // The browser's own agents' wallet pays its hires; the first chat creates it (cookie only).
   // Wallet cookies are only used for requests this site made, never for a cross-site post.
-  const browser = isStrictSameOrigin(req) ? await resolveAgentWallet(req, { create: true }) : null
-  const deps = await createChatRunDeps(req.url, browser ? { uid: browser.uid, wallet: browser.wallet } : { uid: "anonymous", wallet: null })
+  const sameOrigin = isStrictSameOrigin(req)
+  let browser: { uid: string; cookies: CookieWrite[] } | null
+  let deps: ChatRunDeps
+  if (rail.rail === "arc") {
+    const arc = sameOrigin ? resolveArcAgentWallet(req, { create: true }) : null
+    browser = arc
+    deps = createArcChatRunDeps(req.url, arc ? { uid: arc.uid, wallet: arc.wallet } : { uid: "anonymous", wallet: null })
+  } else {
+    const solana = sameOrigin ? await resolveAgentWallet(req, { create: true }) : null
+    browser = solana
+    deps = await createChatRunDeps(req.url, solana ? { uid: solana.uid, wallet: solana.wallet } : { uid: "anonymous", wallet: null })
+  }
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {

@@ -18,7 +18,9 @@ import {
   executeApprovedHandoff,
   handoffTool,
   type HandoffCaps,
+  DEFAULT_NETWORK_LABEL,
   type HandoffDeps,
+  type HandoffNetwork,
   type HandoffOutcome,
   type RosterAgent,
   type RunState,
@@ -56,20 +58,22 @@ export type ChatRunDeps = {
   approvals: ApprovalSigner | null
   now?: () => Date
   newRunId?: () => string
+  /** The payment network of this run's hires. Absent means Solana devnet. */
+  network?: HandoffNetwork
 }
 
 type Mode = "orchestrator" | "team" | "member"
 
-function systemFor(agent: RosterAgent, mode: Mode, teammates: RosterAgent[], canHire: boolean, price: string): string {
+function systemFor(agent: RosterAgent, mode: Mode, teammates: RosterAgent[], canHire: boolean, price: string, networkLabel: string = DEFAULT_NETWORK_LABEL): string {
   const lines = [
-    `You are ${agent.name}, an AI agent in Agentic City, a city of AI agents on Solana. Your role is: ${agent.role}.`,
+    `You are ${agent.name}, an AI agent in Agentic City, a city of AI agents on ${networkLabel === DEFAULT_NETWORK_LABEL ? "Solana" : networkLabel}. Your role is: ${agent.role}.`,
     "Answer the user's latest message as this agent. Stay concise, practical, and honest about limits.",
     "Do not claim blockchain actions, payments, messages, or code changes unless they happened in this conversation.",
   ]
   if (teammates.length > 0 && canHire) {
     lines.push(
       `Your teammates, hired with the ${HANDOFF_TOOL} tool by id or name: ${teammates.map((item) => `${item.name} (id ${item.id}): ${item.role}`).join("; ")}.`,
-      `Each hire pays that teammate ${price} USDC on Solana devnet from the person's agents' wallet, which they fund themselves. The person sees the payment and the teammate's answer, so do not repeat it.`,
+      `Each hire pays that teammate ${price} USDC on ${networkLabel} from the person's agents' wallet, which they fund themselves. The person sees the payment and the teammate's answer, so do not repeat it.`,
     )
     lines.push(mode === "team"
       ? "The person addressed the whole team. Decide which teammates' roles this needs, hire each of them once with a specific task, then write a short synthesis."
@@ -99,6 +103,7 @@ export async function runChat(input: ChatRunInput, deps: ChatRunDeps, emit: (eve
     emit,
     newTurnId,
     now: deps.now,
+    ...(deps.network ? { network: deps.network } : {}),
   }
 
   emit({
@@ -131,7 +136,7 @@ export async function runChat(input: ChatRunInput, deps: ChatRunDeps, emit: (eve
       await streamAgentTurn({
         model: deps.modelFor(agent.connection),
         label: BYOK_PROVIDERS[agent.connection.provider]?.label ?? agent.connection.provider,
-        system: systemFor(agent, mode, teammates, Boolean(hireTool && deps.hire), price),
+        system: systemFor(agent, mode, teammates, Boolean(hireTool && deps.hire), price, deps.network?.label),
         prompt,
         tools: hireTool ? { [HANDOFF_TOOL]: hireTool } : undefined,
         shouldStop: () => run.approvalPending,
@@ -194,6 +199,14 @@ async function resumeApproval(
     return
   }
   const payload = verified.payload
+  // The approval pays on the network its card showed. A decision sent with another "Red de pago"
+  // selected is refused before the token is used, so it can be sent again on the right network.
+  const approvedNetwork = payload.network ?? null
+  const requestNetwork = deps.network?.caip2 ?? null
+  if (approval.decision === "approve" && approvedNetwork !== requestNetwork) {
+    emit({ type: "error", message: "Esta aprobación es para pagar en otra red de pago, así que no se pagó nada. Aprobala de nuevo desde la tarjeta." })
+    return
+  }
   let fresh: boolean
   try {
     fresh = await consumeApproval(deps.store, payload, deps.now?.().getTime())

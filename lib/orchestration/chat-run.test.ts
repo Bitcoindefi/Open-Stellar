@@ -201,6 +201,33 @@ describe("runChat approval resume", () => {
     expect(await collect(input({ message: "", approval: { token: issue().token, runId: "run-1", decision: "approve" } }), none.deps)).toContainEqual({ type: "error", message: "Las aprobaciones no están disponibles en este servidor." })
   })
 
+  it("signs the network into an approval raised on Arc, and refuses it when approved with Solana selected", async () => {
+    const arc = { caip2: "eip155:5042002", receiptNetwork: "eip155:5042002", label: "Arc testnet" }
+    const model = scriptedModel([toolStep([{ id: "c1", input: { agent: "research", task: "Find options" } }]), textStep("never")])
+    const raised = setup({ "anthropic/claude": model }, { network: arc, budget: { perRunMicro: 0, perDayMicro: 500_000, hardDayMicro: 2_000_000 } })
+    const events = await collect(input(), raised.deps)
+    const card = events.find((event) => event.type === "approval") as { token: string; network?: string }
+    expect(card.network).toBe("eip155:5042002")
+    expect(signer.verify(card.token, "run-1", OWNER, day.getTime())).toMatchObject({ ok: true, payload: { network: "eip155:5042002" } })
+
+    // Approved while "Red de pago" says Solana: nothing is paid and the token is not used up.
+    const solana = setup({}, { store: raised.store })
+    const wrong = await collect(input({ message: "", approval: { token: card.token, runId: "run-1", decision: "approve" } }), solana.deps)
+    expect(wrong).toContainEqual({ type: "error", message: expect.stringContaining("otra red de pago") })
+    expect(solana.hire).not.toHaveBeenCalled()
+
+    // The same card approved on Arc pays once, on Arc.
+    const onArc = setup({}, { network: arc, store: raised.store })
+    await collect(input({ message: "", approval: { token: card.token, runId: "run-1", decision: "approve" } }), onArc.deps)
+    expect(onArc.hire).toHaveBeenCalledTimes(1)
+
+    // A Solana card approved with Arc selected is refused too.
+    const arcSelected = setup({}, { network: arc })
+    const fromSolana = await collect(input({ message: "", approval: { token: issue().token, runId: "run-1", decision: "approve" } }), arcSelected.deps)
+    expect(fromSolana).toContainEqual({ type: "error", message: expect.stringContaining("otra red de pago") })
+    expect(arcSelected.hire).not.toHaveBeenCalled()
+  })
+
   it("reports an approved hire that could not be paid, and a store that is down", async () => {
     const failing = setup({}, { hire: vi.fn(async (): Promise<HopResult> => ({ ok: false, error: "facilitator down" })) })
     const events = await collect(input({ message: "", approval: { token: issue().token, runId: "run-1", decision: "approve" } }), failing.deps)

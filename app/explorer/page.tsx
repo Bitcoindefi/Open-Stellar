@@ -17,7 +17,7 @@ export default async function ExplorerPage({ searchParams }: PageProps) {
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#030712] px-4 py-6 text-slate-100 sm:px-6 sm:py-8 lg:px-8">
       <div className="mx-auto max-w-6xl">
-        <ReceiptsExplorer initialAgent={first(params.agent)} initialType={first(params.type)} />
+        <ReceiptsExplorer initialAgent={first(params.agent)} initialType={first(params.type)} initialNetwork={first(params.network)} />
       </div>
     </main>
   )
