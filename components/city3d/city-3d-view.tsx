@@ -155,6 +155,7 @@ export default function City3DView({
             hoveredId={hoveredId}
             reduceMotion={reduceMotion}
             colorBlindMode={colorBlindMode}
+            compactLabels={narrow}
             onHoverStart={handleHoverStart}
             onHoverEnd={handleHoverEnd}
             onSelect={handleSelect}

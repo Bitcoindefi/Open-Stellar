@@ -179,6 +179,8 @@ export interface LowPolyRobotProps {
   labelLift: number
   reduceMotion: boolean
   colorBlindMode: boolean
+  /** Narrow map: the name tag shrinks to a colored dot under the district plates until hovered or selected. */
+  compactLabel: boolean
   /** Where a rigged robot registers its mixer; the robot layer advances them all in one frame callback. */
   animators: RobotAnimatorSet
   onHoverStart: (id: string) => void
@@ -196,6 +198,7 @@ function robotPropsEqual(prev: LowPolyRobotProps, next: LowPolyRobotProps): bool
     prev.labelLift === next.labelLift &&
     prev.reduceMotion === next.reduceMotion &&
     prev.colorBlindMode === next.colorBlindMode &&
+    prev.compactLabel === next.compactLabel &&
     prev.animators === next.animators &&
     prev.onHoverStart === next.onHoverStart &&
     prev.onHoverEnd === next.onHoverEnd &&
@@ -223,6 +226,7 @@ function LowPolyRobotView({
   labelLift,
   reduceMotion,
   colorBlindMode,
+  compactLabel,
   animators,
   onHoverStart,
   onHoverEnd,
@@ -270,9 +274,21 @@ function LowPolyRobotView({
     }
   }, [rig, model, phase, animators])
   // Runs after the effect above (same dependencies plus the mode), so a new animator gets its mode at once.
+  // Repaints too, so a pose frozen under reduced motion (on-demand frames) shows at once.
   useLayoutEffect(() => {
     animatorRef.current?.setMode(animMode, WALK_TIME_SCALE)
-  }, [rig, model, phase, animators, animMode])
+    invalidate()
+  }, [rig, model, phase, animators, animMode, invalidate])
+  // Each clone has its own Skeleton, whose bone texture lives on the GPU until disposed.
+  useEffect(() => {
+    if (!rig) return
+    return () => {
+      rig.root.traverse((object) => {
+        const skinned = object as { isSkinnedMesh?: boolean; skeleton?: { dispose(): void } }
+        if (skinned.isSkinnedMesh) skinned.skeleton?.dispose()
+      })
+    }
+  }, [rig])
 
   // The skinned meshes follow the robot's status: lit, offline gray or its own red flash.
   const rigMaterial = model ? (motion.dim ? model.dim : (alertBody ?? model.lit)) : null
@@ -385,9 +401,18 @@ function LowPolyRobotView({
         }}
       />
       <group ref={labelRef} position-y={labelHeight}>
-        {/* drei only refreshes zIndex when the label moves, so remount it when emphasis changes. */}
-        <Html key={emphasized ? "front" : "base"} zIndexRange={emphasized ? [6, 5] : [4, 3]} pointerEvents="none">
-          <AgentLabel agent={agent} emphasized={emphasized} selected={selected} colorBlindMode={colorBlindMode} />
+        {/* drei only refreshes zIndex when the label moves, so remount it when emphasis or size changes.
+            Compact dots sit under the district plates (zIndex 2..1) so a plate is never covered on a phone. */}
+        <Html
+          key={emphasized ? "front" : compactLabel ? "dot" : "base"}
+          zIndexRange={emphasized ? [6, 5] : compactLabel ? [0, 0] : [4, 3]}
+          pointerEvents="none"
+        >
+          {compactLabel && !emphasized ? (
+            <AgentDot agent={agent} colorBlindMode={colorBlindMode} />
+          ) : (
+            <AgentLabel agent={agent} emphasized={emphasized} selected={selected} colorBlindMode={colorBlindMode} />
+          )}
         </Html>
       </group>
     </group>
@@ -411,6 +436,41 @@ const labelBase: CSSProperties = {
   lineHeight: 1.05,
   pointerEvents: "none",
   userSelect: "none",
+}
+
+/**
+ * Phone-size tag: a dot in the agent's color ringed with its status color, so
+ * a crowded plaza stays readable; tapping the robot brings back the full tag.
+ */
+function AgentDot({ agent, colorBlindMode }: { agent: MoltbotAgent; colorBlindMode: boolean }) {
+  const statusColor = getStatusColor(agent.status)
+  return (
+    <div
+      data-agent-label={agent.name}
+      data-compact="true"
+      title={agent.name}
+      style={{
+        transform: "translate(-50%, -100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 10,
+        height: 10,
+        borderRadius: "50%",
+        background: agent.color,
+        border: `2px solid ${statusColor}`,
+        boxShadow: "0 0 0 1px rgba(2,6,23,0.7)",
+        pointerEvents: "none",
+        userSelect: "none",
+        fontFamily: "var(--font-vt323), monospace",
+        fontSize: 9,
+        lineHeight: 1,
+        color: "#020617",
+      }}
+    >
+      {colorBlindMode ? (STATUS_SYMBOLS[agent.status] ?? "*") : null}
+    </div>
+  )
 }
 
 function AgentLabel({ agent, emphasized, selected, colorBlindMode }: AgentLabelProps) {

@@ -9,8 +9,10 @@ import {
   FALLBACK_MAP_VIEW,
   detectWebGL,
   getBrowserStorage,
+  hasRecent3DFailure,
   readMapViewMode,
   resolveMapView,
+  writeMap3DFailure,
   writeMapViewMode,
   type MapViewMode,
 } from "@/lib/city3d/view-mode"
@@ -90,9 +92,10 @@ export function CityMap(props: PixelCityProps) {
   useEffect(() => {
     const storage = getBrowserStorage()
     const saved = readMapViewMode(storage)
+    const failedRecently = hasRecent3DFailure(storage, Date.now())
     // Probe WebGL only when the 3D view is wanted (the probe creates a context).
-    const needsWebGL = (saved ?? DEFAULT_MAP_VIEW) === "3d"
-    const resolved = resolveMapView(saved, needsWebGL && detectWebGL())
+    const needsWebGL = (saved ?? (failedRecently ? FALLBACK_MAP_VIEW : DEFAULT_MAP_VIEW)) === "3d"
+    const resolved = resolveMapView(saved, needsWebGL && detectWebGL(), failedRecently)
     if (resolved.webglMissing) {
       setNotice(WEBGL_UNAVAILABLE)
       writeMapViewMode(storage, FALLBACK_MAP_VIEW)
@@ -119,8 +122,10 @@ export function CityMap(props: PixelCityProps) {
   const handle3DFailure = useCallback(() => {
     setMode(FALLBACK_MAP_VIEW)
     setNotice(WEBGL_FAILED)
-    // Remembered so a device whose GPU cannot run the scene does not retry it on every visit.
-    writeMapViewMode(getBrowserStorage(), FALLBACK_MAP_VIEW)
+    // Remembered apart from the user's choice and only for a while, so a GPU that
+    // cannot run the scene does not retry on every visit, while a one-off failure
+    // (network blip, stale chunk after a deploy) does not keep 3D away for good.
+    writeMap3DFailure(getBrowserStorage(), Date.now())
   }, [])
 
   const toggle = mode ? <MapViewToggle mode={mode} onChange={changeMode} /> : null

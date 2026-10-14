@@ -32,10 +32,16 @@ export interface ResolvedMapView {
 
 /**
  * Picks the view to show: the saved choice when there is one, the 3D default
- * otherwise, and the 2D map whenever WebGL is missing.
+ * otherwise, and the 2D map whenever WebGL is missing. `failedRecently` (a 3D
+ * crash on this browser within the failure TTL) only steers the default: it
+ * never overrides a choice the user made.
  */
-export function resolveMapView(saved: MapViewMode | null, hasWebGL: boolean): ResolvedMapView {
-  const wanted = saved ?? DEFAULT_MAP_VIEW
+export function resolveMapView(
+  saved: MapViewMode | null,
+  hasWebGL: boolean,
+  failedRecently = false,
+): ResolvedMapView {
+  const wanted = saved ?? (failedRecently ? FALLBACK_MAP_VIEW : DEFAULT_MAP_VIEW)
   if (wanted === "3d" && !hasWebGL) return { mode: FALLBACK_MAP_VIEW, webglMissing: saved === "3d" }
   return { mode: wanted, webglMissing: false }
 }
@@ -66,6 +72,44 @@ export function writeMapViewMode(storage: WritableStorage | null | undefined, mo
   try {
     storage.setItem(MAP_VIEW_STORAGE_KEY, mode)
     return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * A 3D crash (lost GPU context, failed chunk load) is remembered under its own
+ * key, apart from the user's choice, and only for a while: a stale chunk after a
+ * deploy or a network blip must not keep a visitor off the 3D default for good.
+ */
+export const MAP_3D_FAILED_STORAGE_KEY = "agentic-city:3d-failed"
+export const MAP_3D_FAILURE_TTL_MS = 12 * 60 * 60 * 1000
+
+/** Records a 3D failure at `now` (ms). Returns false when storage refuses it. */
+export function writeMap3DFailure(storage: WritableStorage | null | undefined, now: number): boolean {
+  if (!storage) return false
+  try {
+    storage.setItem(MAP_3D_FAILED_STORAGE_KEY, String(Math.floor(now)))
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** True when a 3D failure was recorded less than the TTL before `now`. */
+export function hasRecent3DFailure(
+  storage: ReadableStorage | null | undefined,
+  now: number,
+  ttlMs: number = MAP_3D_FAILURE_TTL_MS,
+): boolean {
+  if (!storage) return false
+  try {
+    const raw = storage.getItem(MAP_3D_FAILED_STORAGE_KEY)
+    if (!raw) return false
+    const at = Number(raw)
+    if (!Number.isFinite(at)) return false
+    const age = now - at
+    return age >= 0 && age < ttlMs
   } catch {
     return false
   }

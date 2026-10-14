@@ -2,13 +2,17 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   DEFAULT_MAP_VIEW,
   FALLBACK_MAP_VIEW,
+  MAP_3D_FAILED_STORAGE_KEY,
+  MAP_3D_FAILURE_TTL_MS,
   MAP_VIEW_MODES,
   MAP_VIEW_STORAGE_KEY,
   detectWebGL,
   getBrowserStorage,
+  hasRecent3DFailure,
   parseMapViewMode,
   readMapViewMode,
   resolveMapView,
+  writeMap3DFailure,
   writeMapViewMode,
 } from "./view-mode"
 
@@ -53,6 +57,54 @@ describe("resolveMapView", () => {
     expect(resolveMapView(null, false)).toEqual({ mode: "2d", webglMissing: false })
     expect(resolveMapView("3d", false)).toEqual({ mode: "2d", webglMissing: true })
     expect(resolveMapView("2d", false)).toEqual({ mode: "2d", webglMissing: false })
+  })
+
+  it("uses 2D after a recent 3D failure only when nothing is saved", () => {
+    expect(resolveMapView(null, true, true)).toEqual({ mode: "2d", webglMissing: false })
+    expect(resolveMapView(null, false, true)).toEqual({ mode: "2d", webglMissing: false })
+    // An explicit choice always wins over the failure flag.
+    expect(resolveMapView("3d", true, true)).toEqual({ mode: "3d", webglMissing: false })
+    expect(resolveMapView("2d", true, true)).toEqual({ mode: "2d", webglMissing: false })
+    expect(resolveMapView(null, true, false)).toEqual({ mode: "3d", webglMissing: false })
+  })
+})
+
+describe("3D failure flag", () => {
+  const now = 1_800_000_000_000
+
+  it("is kept apart from the user's choice", () => {
+    const storage = memoryStorage()
+    expect(writeMap3DFailure(storage, now)).toBe(true)
+    expect(storage.data.get(MAP_3D_FAILED_STORAGE_KEY)).toBe(String(now))
+    expect(readMapViewMode(storage)).toBeNull()
+    expect(storage.data.has(MAP_VIEW_STORAGE_KEY)).toBe(false)
+  })
+
+  it("is honored only within the TTL", () => {
+    const storage = memoryStorage()
+    writeMap3DFailure(storage, now)
+    expect(hasRecent3DFailure(storage, now)).toBe(true)
+    expect(hasRecent3DFailure(storage, now + MAP_3D_FAILURE_TTL_MS - 1)).toBe(true)
+    expect(hasRecent3DFailure(storage, now + MAP_3D_FAILURE_TTL_MS)).toBe(false)
+    // A clock that went backwards does not keep the flag alive.
+    expect(hasRecent3DFailure(storage, now - 1)).toBe(false)
+  })
+
+  it("ignores garbage, missing and throwing storage", () => {
+    expect(hasRecent3DFailure(memoryStorage(), now)).toBe(false)
+    expect(hasRecent3DFailure(memoryStorage({ [MAP_3D_FAILED_STORAGE_KEY]: "soon" }), now)).toBe(false)
+    expect(hasRecent3DFailure(null, now)).toBe(false)
+    const throwing = {
+      getItem: () => {
+        throw new Error("SecurityError")
+      },
+      setItem: () => {
+        throw new Error("QuotaExceededError")
+      },
+    }
+    expect(hasRecent3DFailure(throwing, now)).toBe(false)
+    expect(writeMap3DFailure(throwing, now)).toBe(false)
+    expect(writeMap3DFailure(undefined, now)).toBe(false)
   })
 })
 

@@ -34,6 +34,8 @@ export interface RobotLayerProps {
   hoveredId: string | null
   reduceMotion: boolean
   colorBlindMode: boolean
+  /** Phone-size map: name tags shrink to dots until a robot is hovered or selected. */
+  compactLabels: boolean
   onHoverStart: (id: string) => void
   onHoverEnd: (id: string) => void
   onSelect: (id: string) => void
@@ -47,6 +49,7 @@ export const RobotLayer = memo(function RobotLayer({
   hoveredId,
   reduceMotion,
   colorBlindMode,
+  compactLabels,
   onHoverStart,
   onHoverEnd,
   onSelect,
@@ -95,6 +98,7 @@ export const RobotLayer = memo(function RobotLayer({
             labelLift={lifts.get(agent.id) ?? 0}
             reduceMotion={reduceMotion}
             colorBlindMode={colorBlindMode}
+            compactLabel={compactLabels}
             animators={animators}
             onHoverStart={onHoverStart}
             onHoverEnd={onHoverEnd}
