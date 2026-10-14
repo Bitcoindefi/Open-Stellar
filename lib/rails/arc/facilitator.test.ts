@@ -9,12 +9,14 @@ import {
   SELLER_PROOF_HEADER,
   paymentIdentifierFor,
   settlementPendingOf,
+  signedPaymentHash,
   withPaymentIdentifier,
 } from "@/lib/rails/arc/facilitator"
 
 const seller = privateKeyToAccount(generatePrivateKey())
 const payer = privateKeyToAccount(generatePrivateKey())
 const NONCE = `0x${"0cd165737935feebff31d1876210249aa67bc5efacf4c3d7b14dce28e3d29e5f"}`
+const EXPECTED_ID = `ac_${keccak256(toBytes(`${payer.address.toLowerCase()}:${NONCE}`)).slice(2, 50)}`
 const TX = `0x${"9c5da2f5a1338bcd3fd5673beb22e1ef8f62690185cfb3196712a66128d5df3b"}`
 
 const requirements: PaymentRequirements = {
@@ -93,7 +95,7 @@ describe("Circle facilitator client (Arc testnet)", () => {
     const call = fake.calls[0]
     expect(call.method).toBe("POST")
     const sent = JSON.parse(call.body)
-    expect(sent.paymentPayload.extensions["payment-identifier"].info.id).toBe(`ac_${NONCE.slice(2, 50)}`)
+    expect(sent.paymentPayload.extensions["payment-identifier"].info.id).toBe(EXPECTED_ID)
     const proof = decodeProof(call.headers[SELLER_PROOF_HEADER])
     expect(proof).toMatchObject({ version: 1, network: ARC_TESTNET_CAIP2, payTo: seller.address })
     expect(proof.expiresAt - proof.issuedAt).toBe(300)
@@ -168,12 +170,25 @@ describe("Circle facilitator client (Arc testnet)", () => {
     expect(error).toMatchObject({ status: 403, path: "/settle" })
   })
 
-  it("derives a stable payment-identifier from the EIP-3009 nonce and keeps one already present", () => {
-    expect(paymentIdentifierFor(payload)).toBe(`ac_${NONCE.slice(2, 50)}`)
-    expect(paymentIdentifierFor(withPaymentIdentifier(payload))).toBe(paymentIdentifierFor(payload))
-    const custom = { ...payload, extensions: { "payment-identifier": { info: { required: true, id: "custom_identifier_123" } } } }
-    expect(paymentIdentifierFor(custom)).toBe("custom_identifier_123")
-    expect(withPaymentIdentifier(custom)).toBe(custom)
+  it("derives a stable payment-identifier only from the signed payer and nonce, ignoring the client's", () => {
+    expect(paymentIdentifierFor(payload)).toBe(EXPECTED_ID)
+    expect(paymentIdentifierFor(withPaymentIdentifier(payload))).toBe(EXPECTED_ID)
+    const forged = { ...payload, extensions: { "payment-identifier": { info: { required: true, id: "victims_identifier_123" } } } }
+    expect(paymentIdentifierFor(forged)).toBe(EXPECTED_ID)
+    const rewritten = withPaymentIdentifier(forged)
+    expect((rewritten.extensions?.["payment-identifier"] as { info: { id: string } }).info.id).toBe(EXPECTED_ID)
+    // Another payer with the same nonce gets another id.
+    const other = privateKeyToAccount(generatePrivateKey())
+    const otherPayload = { ...payload, payload: { ...payload.payload, authorization: { ...(payload.payload as { authorization: Record<string, string> }).authorization, from: other.address } } }
+    expect(paymentIdentifierFor(otherPayload)).not.toBe(EXPECTED_ID)
     expect(paymentIdentifierFor({ ...payload, payload: {} })).toBeNull()
+  })
+
+  it("hashes the signed part of a payment and ignores unsigned extensions", () => {
+    const hash = signedPaymentHash(payload)
+    expect(hash).toMatch(/^0x[0-9a-f]{64}$/)
+    expect(signedPaymentHash({ ...payload, extensions: { "payment-identifier": { info: { id: "x".repeat(20) } } } })).toBe(hash)
+    expect(signedPaymentHash({ ...payload, payload: { ...payload.payload, signature: "0x98f5" } })).not.toBe(hash)
+    expect(signedPaymentHash({ ...payload, payload: {} })).toBeNull()
   })
 })

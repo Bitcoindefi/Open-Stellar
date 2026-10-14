@@ -74,23 +74,63 @@ function base64url(text: string): string {
   return Buffer.from(text, "utf8").toString("base64url")
 }
 
-/**
- * The payment-identifier for a payment: "ac_" plus 48 hex characters of the signed EIP-3009
- * nonce. A retry of the same authorization always carries the same id, so Circle settles it once.
- * Extensions are not covered by the buyer's signature, so the seller may add it.
- */
-export function paymentIdentifierFor(payload: PaymentPayload): string | null {
-  const existing = (payload.extensions?.[PAYMENT_IDENTIFIER_EXTENSION] as { info?: { id?: unknown } } | undefined)?.info?.id
-  if (typeof existing === "string" && /^[A-Za-z0-9_-]{16,128}$/.test(existing)) return existing
-  const nonce = (payload.payload as { authorization?: { nonce?: unknown } } | undefined)?.authorization?.nonce
-  if (typeof nonce !== "string" || !/^0x[0-9a-fA-F]{48,}$/.test(nonce)) return null
-  return `ac_${nonce.slice(2, 50).toLowerCase()}`
+type SignedAuthorization = { from: string; to: string; value: string; validAfter: string; validBefore: string; nonce: string }
+
+function signedAuthorizationOf(payload: PaymentPayload): { authorization: SignedAuthorization; signature: string } | null {
+  const inner = payload.payload as { authorization?: Record<string, unknown>; signature?: unknown } | undefined
+  const auth = inner?.authorization
+  if (!auth || typeof auth !== "object") return null
+  const fields = ["from", "to", "value", "validAfter", "validBefore", "nonce"] as const
+  const out: Record<string, string> = {}
+  for (const field of fields) {
+    const value = auth[field]
+    if (typeof value !== "string" && typeof value !== "number" && typeof value !== "bigint") return null
+    out[field] = String(value)
+  }
+  return { authorization: out as SignedAuthorization, signature: typeof inner?.signature === "string" ? inner.signature : "" }
 }
 
+/**
+ * The payment-identifier for a payment, derived ONLY from data the buyer signed: "ac_" plus 48
+ * hex characters of keccak256(from, nonce). EIP-3009 nonces are unique per payer, so a retry of
+ * the same authorization always carries the same id (Circle settles it once), and nobody can
+ * point their payment at someone else's id. Any payment-identifier the client sent is ignored:
+ * extensions are not covered by the buyer's signature.
+ */
+export function paymentIdentifierFor(payload: PaymentPayload): string | null {
+  const signed = signedAuthorizationOf(payload)
+  if (!signed) return null
+  const { from, nonce } = signed.authorization
+  if (!/^0x[0-9a-fA-F]{40}$/.test(from) || !/^0x[0-9a-fA-F]{64}$/.test(nonce)) return null
+  return `ac_${keccak256(toBytes(`${from.toLowerCase()}:${nonce.toLowerCase()}`)).slice(2, 50)}`
+}
+
+/**
+ * keccak256 of the canonical signed part of a payment (authorization fields, signature and the
+ * accepted requirements). Two payloads with the same hash are the same signed payment.
+ */
+export function signedPaymentHash(payload: PaymentPayload): string | null {
+  const signed = signedAuthorizationOf(payload)
+  if (!signed) return null
+  const a = signed.authorization
+  const accepted = (payload as { accepted?: Record<string, unknown> }).accepted ?? {}
+  const canonical = JSON.stringify([
+    a.from.toLowerCase(), a.to.toLowerCase(), a.value, a.validAfter, a.validBefore, a.nonce.toLowerCase(),
+    signed.signature.toLowerCase(),
+    String(accepted.scheme ?? ""), String(accepted.network ?? ""), String(accepted.asset ?? "").toLowerCase(),
+    String(accepted.amount ?? ""), String(accepted.payTo ?? "").toLowerCase(),
+  ])
+  return keccak256(toBytes(canonical))
+}
+
+/** Always sets the server-derived payment-identifier, replacing whatever the client sent. */
 export function withPaymentIdentifier(payload: PaymentPayload): PaymentPayload {
   const id = paymentIdentifierFor(payload)
-  if (!id || payload.extensions?.[PAYMENT_IDENTIFIER_EXTENSION]) return payload
-  return { ...payload, extensions: { ...(payload.extensions ?? {}), [PAYMENT_IDENTIFIER_EXTENSION]: { info: { required: true, id } } } }
+  if (!id && !payload.extensions?.[PAYMENT_IDENTIFIER_EXTENSION]) return payload
+  const extensions = { ...(payload.extensions ?? {}) }
+  delete extensions[PAYMENT_IDENTIFIER_EXTENSION]
+  if (!id) return { ...payload, extensions }
+  return { ...payload, extensions: { ...extensions, [PAYMENT_IDENTIFIER_EXTENSION]: { info: { required: true, id } } } }
 }
 
 /** The pending marker of a settle result, when it is one. */

@@ -199,6 +199,14 @@ async function resumeApproval(
     return
   }
   const payload = verified.payload
+  // The approval pays on the network its card showed. A decision sent with another "Red de pago"
+  // selected is refused before the token is used, so it can be sent again on the right network.
+  const approvedNetwork = payload.network ?? null
+  const requestNetwork = deps.network?.caip2 ?? null
+  if (approval.decision === "approve" && approvedNetwork !== requestNetwork) {
+    emit({ type: "error", message: "Esta aprobación es para pagar en otra red de pago, así que no se pagó nada. Aprobala de nuevo desde la tarjeta." })
+    return
+  }
   let fresh: boolean
   try {
     fresh = await consumeApproval(deps.store, payload, deps.now?.().getTime())

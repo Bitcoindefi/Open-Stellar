@@ -23,6 +23,8 @@ export type ApprovalPayload = {
   task: string
   amountMicro: number
   reason: ApprovalReason
+  /** CAIP-2 network the card showed (absent: Solana devnet). The hire only runs on this network. */
+  network?: string
   /** Epoch ms. */
   exp: number
 }

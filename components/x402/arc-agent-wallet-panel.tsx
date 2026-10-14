@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
 import { useAccount, useConnect, useDisconnect, useSwitchChain, useWriteContract } from "wagmi"
 import { erc20Abi } from "viem"
 import { Activity, Bot, CircleAlert, Copy, Droplets, ExternalLink, RefreshCw } from "lucide-react"
@@ -28,6 +28,21 @@ export type ArcAgentWalletStatus = {
   explorerUrl: string
 }
 
+const noSubscription = () => () => {}
+const browserWalletPresent = () => Boolean((window as { ethereum?: unknown }).ethereum)
+
+/** The Arc wallet API answers in English; the panel speaks Spanish. */
+export function arcWalletErrorEs(message: string): string {
+  if (/no USDC to withdraw/i.test(message)) return "No queda USDC para retirar: lo que hay es la reserva para el gas."
+  if (/Too many withdrawals/i.test(message)) return "Hiciste demasiados retiros seguidos. Probá de nuevo en un rato."
+  if (/Withdrawals are unavailable/i.test(message)) return "Los retiros no están disponibles en este momento. Probá más tarde."
+  if (/cannot cover the withdrawal gas/i.test(message)) return "La wallet de tus agentes no alcanza a pagar el gas del retiro (se paga en USDC). Cargale un poco y probá de nuevo."
+  if (/did not go through/i.test(message)) return "El retiro no se completó. Probá de nuevo."
+  if (/no Arc agents' wallet/i.test(message)) return "Este navegador no tiene wallet de agentes en Arc."
+  if (/not configured on this server/i.test(message)) return "Las wallets de agentes no están configuradas en este servidor."
+  return friendlyProviderError(message)
+}
+
 function short(value: string) {
   return `${value.slice(0, 6)}…${value.slice(-4)}`
 }
@@ -47,7 +62,7 @@ export function ArcAgentWalletPanel({ compact = false }: { compact?: boolean }) 
       setStatus(data)
       setError("")
     } catch (loadError) {
-      setError(loadError instanceof Error ? friendlyProviderError(loadError.message) : "No pudimos abrir la wallet de tus agentes en Arc.")
+      setError(loadError instanceof Error ? arcWalletErrorEs(loadError.message) : "No pudimos abrir la wallet de tus agentes en Arc.")
     } finally {
       setLoading(false)
     }
@@ -108,7 +123,10 @@ function FundActions({ status, onDone }: { status: ArcAgentWalletStatus; onDone:
   const [busy, setBusy] = useState<"connect" | "fund" | "withdraw" | null>(null)
   const [error, setError] = useState("")
   const [last, setLast] = useState<{ label: string; url: string } | null>(null)
-  const injectedConnector = connectors.find((item) => item.type === "injected")
+  // wagmi always lists its injected() connector; only offer it when a browser wallet is really there.
+  const hasBrowserWallet = useSyncExternalStore(noSubscription, browserWalletPresent, () => false)
+  const injectedConnector = hasBrowserWallet ? connectors.find((item) => item.type === "injected") : undefined
+  const canWithdraw = status.withdrawAvailable && mayHoldUsdc(status.balanceUsdc) && Number(status.balanceUsdc) > Number(status.gasReserveUsdc)
 
   const connect = async () => {
     if (!injectedConnector) return
@@ -177,7 +195,7 @@ function FundActions({ status, onDone }: { status: ArcAgentWalletStatus; onDone:
       setLast({ label: `Retiraste ${usdcLabel(data.amountUsdc ?? "0")} USDC a ${short(address)}`, url: data.explorerUrl ?? "" })
       await onDone()
     } catch (withdrawError) {
-      setError(withdrawError instanceof Error ? friendlyProviderError(withdrawError.message) : "No se pudo retirar.")
+      setError(withdrawError instanceof Error ? arcWalletErrorEs(withdrawError.message) : "No se pudo retirar.")
     } finally {
       setBusy(null)
     }
@@ -202,7 +220,7 @@ function FundActions({ status, onDone }: { status: ArcAgentWalletStatus; onDone:
       </div>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={() => void fund()} disabled={busy !== null} className={buttonClass}>{busy === "fund" ? <Activity className="h-4 w-4 animate-pulse" /> : null}{busy === "fund" ? "Firmando…" : `Cargar ${usdcLabel(status.fundUsdc)} USDC`}</button>
-        {status.withdrawAvailable && mayHoldUsdc(status.balanceUsdc) ? <button type="button" onClick={() => void withdraw()} disabled={busy !== null} className={secondaryButtonClass}>{busy === "withdraw" ? "Retirando…" : "Retirar todo"}</button> : null}
+        {canWithdraw ? <button type="button" onClick={() => void withdraw()} disabled={busy !== null} className={secondaryButtonClass}>{busy === "withdraw" ? "Retirando…" : "Retirar todo"}</button> : null}
       </div>
       <p className="text-[10px] leading-4 text-slate-500">Al retirar quedan {usdcLabel(status.gasReserveUsdc)} USDC para pagar el gas de esa transferencia.</p>
       {last ? <a href={last.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-mono text-[11px] text-emerald-200 underline">{last.label} <ExternalLink className="h-3 w-3" /></a> : null}

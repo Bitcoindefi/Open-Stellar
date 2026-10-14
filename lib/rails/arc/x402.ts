@@ -6,7 +6,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server"
 import { privateKeyToAccount } from "viem/accounts"
 import { getAddress } from "viem"
 import { ARC_FACILITATOR_URL, ARC_TESTNET_CAIP2, isEvmAddress, sameEvmAddress } from "@/lib/rails/arc/constants"
-import { CircleFacilitatorClient, FacilitatorHttpError, paymentIdentifierFor, settlementPendingOf } from "@/lib/rails/arc/facilitator"
+import { CircleFacilitatorClient, FacilitatorHttpError, SETTLEMENT_PENDING, paymentIdentifierFor, settlementPendingOf, signedPaymentHash } from "@/lib/rails/arc/facilitator"
 import { getKvStore, type KvStore } from "@/lib/security/kv-store"
 
 // Standard x402 (v2, scheme "exact", EIP-3009) on Arc testnet, paid in USDC and settled by
@@ -20,6 +20,26 @@ export const ARC_PENDING_TTL_SECONDS = 24 * 60 * 60
 export const ARC_SETTLED_TTL_SECONDS = 7 * 24 * 60 * 60
 const pendingKey = (id: string) => `ac:arc:x402:pending:${id}`
 const settledKey = (id: string) => `ac:arc:x402:settled:${id}`
+const MAX_SETTLED_TTL_SECONDS = 366 * 24 * 60 * 60
+
+function pendingPayloadHashOf(record: string | null | undefined): string | null {
+  if (!record) return null
+  try {
+    const parsed = JSON.parse(record) as { payloadHash?: unknown }
+    return typeof parsed.payloadHash === "string" ? parsed.payloadHash : null
+  } catch {
+    return null
+  }
+}
+
+/** Keep the "already used" mark at least as long as the signed authorization stays valid. */
+function settledTtlSeconds(payload: PaymentPayload, nowMs: number = Date.now()): number {
+  const raw = (payload.payload as { authorization?: { validBefore?: unknown } } | undefined)?.authorization?.validBefore
+  const validBefore = Number(raw)
+  if (!Number.isFinite(validBefore)) return ARC_SETTLED_TTL_SECONDS
+  const remaining = Math.ceil(validBefore - nowMs / 1000) + 3600
+  return Math.min(MAX_SETTLED_TTL_SECONDS, Math.max(ARC_SETTLED_TTL_SECONDS, remaining))
+}
 
 export type ArcPaidRequest = { ok: true; settle: SettleResponse; requirements: PaymentRequirements; payer: string | null; paymentId: string | null }
 export type ArcUnpaidRequest = { ok: false; response: Response }
@@ -126,17 +146,29 @@ export async function requireArcPayment(req: Request, options: { price: string; 
   }
   const requirements = server.findMatchingRequirements(accepts, payload)
   if (!requirements) return challenge("The payment does not match what this endpoint accepts")
+  // Both come only from what the buyer signed; a client-supplied payment-identifier is ignored.
   const paymentId = paymentIdentifierFor(payload)
-  if (!paymentId) return challenge("The payment has no EIP-3009 authorization")
+  const payloadHash = signedPaymentHash(payload)
+  if (!paymentId || !payloadHash) return challenge("The payment has no EIP-3009 authorization")
 
   const store = storeFactory()
+  let settling = false
+  let wasPending = false
+  const markPending = async (pending: { paymentId: string; statusUrl?: string } | null) => {
+    await store.set(pendingKey(paymentId), JSON.stringify({ paymentId: pending?.paymentId ?? paymentId, statusUrl: pending?.statusUrl ?? null, payloadHash, at: Date.now() }), ARC_PENDING_TTL_SECONDS)
+    return {
+      ok: false as const,
+      response: noStore({ ok: false, pending: true, error: "The payment is still settling on Arc. Nothing was delivered yet; send the same payment again in a moment." }, 409),
+    }
+  }
   try {
     // A payment that already delivered its task is not accepted again (Circle would answer the
     // same settlement, so without this a copied header could buy the task twice).
     if (await store.get(settledKey(paymentId))) return { ok: false, response: noStore({ ok: false, error: "This payment was already used." }, 409) }
 
-    // The retry of a pending settlement skips verify: its nonce may already be spent on-chain.
-    const wasPending = Boolean(await store.get(pendingKey(paymentId)))
+    // The retry of a pending settlement skips verify (its nonce may already be spent on-chain),
+    // but only when it is byte for byte the same signed payment that went pending.
+    wasPending = pendingPayloadHashOf(await store.get(pendingKey(paymentId))) === payloadHash
     let verifiedPayer: string | null = null
     if (!wasPending) {
       const verified = await server.verifyPayment(payload, requirements)
@@ -144,18 +176,15 @@ export async function requireArcPayment(req: Request, options: { price: string; 
       verifiedPayer = verified.payer ?? null
     }
 
+    settling = true
     const settle = await server.settlePayment(payload, requirements)
     const pending = settlementPendingOf(settle)
-    if (pending) {
-      await store.set(pendingKey(paymentId), JSON.stringify({ paymentId: pending.paymentId, statusUrl: pending.statusUrl ?? null, at: Date.now() }), ARC_PENDING_TTL_SECONDS)
-      return {
-        ok: false,
-        response: noStore({ ok: false, pending: true, error: "The payment is still settling on Arc. Nothing was delivered yet; send the same payment again in a moment." }, 409),
-      }
-    }
+    // A pending result, with or without Circle's status id, is remembered so the same payment can
+    // be sent again: nothing is delivered until it is final.
+    if (pending || (!settle.success && settle.errorReason === SETTLEMENT_PENDING)) return await markPending(pending)
     if (!settle.success) return challenge(settle.errorMessage || settle.errorReason || "Payment could not be settled")
 
-    const claimed = await store.set(settledKey(paymentId), settle.transaction, ARC_SETTLED_TTL_SECONDS, { onlyIfAbsent: true })
+    const claimed = await store.set(settledKey(paymentId), settle.transaction, settledTtlSeconds(payload), { onlyIfAbsent: true })
     if (!claimed) return { ok: false, response: noStore({ ok: false, error: "This payment was already used." }, 409) }
     if (wasPending) await store.del(pendingKey(paymentId)).catch(() => undefined)
     const payer = settle.payer ?? verifiedPayer
@@ -165,6 +194,17 @@ export async function requireArcPayment(req: Request, options: { price: string; 
     // 403 registration_required: the keyless trial allowance for this payTo is used up.
     if (error instanceof FacilitatorHttpError && error.status === 403) {
       return { ok: false, response: noStore({ ok: false, error: "Arc payments are paused on this server (facilitator registration required)." }, 503) }
+    }
+    // A /settle that timed out or answered 5xx may still have settled: treat it as pending so the
+    // buyer sends the same payment again (Circle deduplicates by payment-identifier) instead of
+    // being charged with nothing delivered.
+    const definiteRejection = error instanceof FacilitatorHttpError && error.status >= 400 && error.status < 500
+    if (settling && !definiteRejection) {
+      try {
+        return await markPending(null)
+      } catch {
+        // The store is down too; fall through to a plain failure.
+      }
     }
     return challenge("Payment failed")
   }

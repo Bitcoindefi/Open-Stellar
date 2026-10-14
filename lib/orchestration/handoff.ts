@@ -193,6 +193,8 @@ function requestApproval(deps: HandoffDeps, run: RunState, from: Hirer, agent: R
     task: composeTask(envelope),
     amountMicro: deps.priceMicro,
     reason,
+    // Signed into the token: approving it pays on this network and no other.
+    ...(deps.network ? { network: deps.network.caip2 } : {}),
   }, deps.now?.().getTime())
   run.approvalPending = true
   deps.emit({ type: "approval", token, runId: run.runId, fromName: from.name, toName: agent.name, task: envelope.task.slice(0, 300), amount, reason, capUsdc: microToUsdc(cap), expiresAt: payload.exp, ...(deps.network ? { network: deps.network.caip2 } : {}) })

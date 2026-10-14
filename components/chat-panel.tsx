@@ -166,9 +166,9 @@ export function ChatPanel({ messages, onOpenModels }: ChatPanelProps) {
     if (persist) writeChat(next)
   }
 
-  const teamPayload = () => ({
+  const teamPayload = (rail?: "solana" | "arc") => ({
     // "Red de pago": nothing is added for Solana, so those requests are unchanged.
-    ...paymentNetworkRequestFields(),
+    ...paymentNetworkRequestFields(rail),
     context: `Team ${team?.name ?? ""} inside Agentic City. The user is chatting from the app sidebar.`,
     orchestrator: orchestrator ? {
       name: orchestrator.name,
@@ -261,7 +261,8 @@ export function ChatPanel({ messages, onOpenModels }: ChatPanelProps) {
     setSending(true)
     setError("")
     try {
-      const ok = await runStream({ approval: { token: item.token, runId: item.runId, decision }, ...teamPayload() })
+      // Pay on the network the card showed, not the one selected now.
+      const ok = await runStream({ approval: { token: item.token, runId: item.runId, decision }, ...teamPayload(item.network?.startsWith("eip155:") ? "arc" : "solana") })
       update(setApprovalState(chatRef.current, item.id, ok ? (decision === "approve" ? "approved" : "rejected") : "failed"), true)
     } finally {
       setSending(false)

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { NextResponse } from "next/server"
-import { decodePaymentRequiredHeader } from "@x402/core/http"
+import { decodePaymentRequiredHeader, decodePaymentSignatureHeader, encodePaymentSignatureHeader } from "@x402/core/http"
 import type { PaymentRequirements } from "@x402/core/types"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import { ARC_TESTNET_CAIP2, ARC_USDC_ADDRESS } from "@/lib/rails/arc/constants"
@@ -34,7 +34,9 @@ function fakeCircle(settles: unknown[]) {
     }
     if (path.endsWith("/settle")) {
       seen.settle.push(body.paymentPayload.extensions["payment-identifier"].info.id)
-      return Response.json(settles.length > 1 ? settles.shift() : settles[0])
+      const next = (settles.length > 1 ? settles.shift() : settles[0]) as { __status?: number }
+      if (next.__status) return Response.json({ error: "upstream" }, { status: next.__status })
+      return Response.json(next)
     }
     if (path.includes("/status/")) {
       seen.status += 1
@@ -57,6 +59,21 @@ function setup(settles: unknown[]) {
     return NextResponse.json({ ok: true, result: "done", receipt: { transaction: payment.settle.transaction, payer: payment.payer } })
   }) as typeof fetch
   return { circle, store, endpoint }
+}
+
+/** Rewrites the (unsigned) payment-identifier extension of a PAYMENT-SIGNATURE header. */
+function withForgedId(header: string, id: string): string {
+  const decoded = decodePaymentSignatureHeader(header)
+  return encodePaymentSignatureHeader({ ...decoded, extensions: { ...(decoded.extensions ?? {}), "payment-identifier": { info: { required: true, id } } } })
+}
+
+function forgeId(target: typeof fetch, id: string): typeof fetch {
+  return (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers)
+    const header = headers.get("payment-signature")
+    if (header) headers.set("payment-signature", withForgedId(header, id))
+    return target(input, { ...init, headers })
+  }) as typeof fetch
 }
 
 afterEach(() => setArcPaymentForTests(null))
@@ -117,6 +134,72 @@ describe("x402 on Arc testnet (seller and buyer)", () => {
     expect(await response.json()).toMatchObject({ ok: false, pending: true })
     const saved = JSON.parse((await store.get(`ac:arc:x402:pending:${circle.seen.settle[0]}`))!)
     expect(saved).toMatchObject({ paymentId: "pay_1" })
+  })
+
+  it("a forged payment-identifier cannot take over a victim's pending payment", async () => {
+    const { endpoint, circle } = setup([pendingSettle, doneSettle])
+    const victimPaid = createArcPaidFetch(agent, { maxAtomic: BigInt(10_000), fetchImpl: endpoint, pendingRetries: 0 })
+    expect((await victimPaid(URL_TASK, { method: "POST", body: "{}" })).status).toBe(409)
+    const victimId = circle.seen.settle[0]
+    expect(circle.seen.verify).toBe(1)
+
+    // The attacker signs their own authorization and points the extension at the victim's id.
+    const attacker = privateKeyToAccount(generatePrivateKey())
+    const attackerPaid = createArcPaidFetch(attacker, { maxAtomic: BigInt(10_000), fetchImpl: forgeId(endpoint, victimId), pendingRetries: 0 })
+    const response = await attackerPaid(URL_TASK, { method: "POST", body: "{}" })
+    // Verified like any new payment, and settled under the attacker's own id.
+    expect(circle.seen.verify).toBe(2)
+    expect(circle.seen.settle[1]).not.toBe(victimId)
+    expect(response.status).toBe(200)
+  })
+
+  it("a settled payment replayed with another payment-identifier is still refused", async () => {
+    const { endpoint, circle } = setup([doneSettle])
+    let sentHeader = ""
+    const recording = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const header = new Headers(init?.headers).get("payment-signature")
+      if (header) sentHeader = header
+      return endpoint(input, init)
+    }) as typeof fetch
+    const paid = createArcPaidFetch(agent, { maxAtomic: BigInt(10_000), fetchImpl: recording })
+    expect((await paid(URL_TASK, { method: "POST", body: "{}" })).status).toBe(200)
+    const replay = await endpoint(URL_TASK, { method: "POST", headers: { "payment-signature": withForgedId(sentHeader, "some_other_identifier_42") } })
+    expect(replay.status).toBe(409)
+    expect(await replay.json()).toMatchObject({ error: "This payment was already used." })
+    expect(circle.seen.settle).toHaveLength(1)
+  })
+
+  it("a retry of a pending payment that is not the same signed payment is verified again", async () => {
+    const { endpoint, circle } = setup([pendingSettle, doneSettle])
+    let sentHeader = ""
+    const recording = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const header = new Headers(init?.headers).get("payment-signature")
+      if (header) sentHeader = header
+      return endpoint(input, init)
+    }) as typeof fetch
+    const paid = createArcPaidFetch(agent, { maxAtomic: BigInt(10_000), fetchImpl: recording, pendingRetries: 0 })
+    expect((await paid(URL_TASK, { method: "POST", body: "{}" })).status).toBe(409)
+    const tampered = decodePaymentSignatureHeader(sentHeader)
+    const inner = tampered.payload as { signature: string }
+    const altered = encodePaymentSignatureHeader({ ...tampered, payload: { ...tampered.payload, signature: `${inner.signature.slice(0, -2)}00` } })
+    await endpoint(URL_TASK, { method: "POST", headers: { "payment-signature": altered } })
+    expect(circle.seen.verify).toBe(2)
+  })
+
+  it("a /settle that fails with 5xx is kept pending, and the same payment settles on retry", async () => {
+    const { endpoint, circle, store } = setup([{ __status: 502 }, doneSettle])
+    const statuses: number[] = []
+    const recording = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await endpoint(input, init)
+      statuses.push(response.status)
+      return response
+    }) as typeof fetch
+    const paid = createArcPaidFetch(agent, { maxAtomic: BigInt(10_000), fetchImpl: recording, sleep: async () => {} })
+    const response = await paid(URL_TASK, { method: "POST", body: "{}" })
+    expect(statuses).toEqual([402, 409, 200])
+    expect(response.status).toBe(200)
+    expect(circle.seen.verify).toBe(1)
+    expect(await store.get(`ac:arc:x402:settled:${circle.seen.settle[0]}`)).toBe(TX)
   })
 
   it("the buyer policy refuses another network, token, recipient or a bigger amount", async () => {
