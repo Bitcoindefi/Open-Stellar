@@ -170,7 +170,7 @@ export function ReceiptsExplorer({ initialAgent = "", initialType = "", initialN
         </div>
         <h1 className="font-mono text-2xl font-bold uppercase text-cyan-100 sm:text-3xl">Recibos en cadena</h1>
         <p className="max-w-3xl text-sm leading-6 text-slate-400">
-          Cada pago x402 a un agente, cada contratación entre agentes y cada registro o reseña en el registro 8004 queda en Solana devnet.
+          Cada pago x402 a un agente, cada contratación entre agentes y cada registro o reseña en el registro 8004 queda en {ARC_ENABLED ? "Solana devnet o en Arc testnet, según la red de pago elegida" : "Solana devnet"}.
           Acá los ves todos, con el enlace a su transacción para que lo verifiques vos.
         </p>
       </header>
@@ -264,7 +264,7 @@ export function ReceiptsExplorer({ initialAgent = "", initialType = "", initialN
             {data.sources.onchainPending > 0 ? ` · ${data.sources.onchainPending} transacciones por leer` : ""}
             {" · "}actualizado {timeAgo(Date.parse(data.updatedAt), now)}
           </p>
-          <p>Los mismos datos, en JSON: <a href="/api/receipts" className="text-cyan-300 underline">/api/receipts</a> (filtros <code>type</code>, <code>agent</code>, <code>page</code>).</p>
+          <p>Los mismos datos, en JSON: <a href="/api/receipts" className="text-cyan-300 underline">/api/receipts</a> (filtros <code>type</code>, <code>agent</code>, <code>page</code>{ARC_ENABLED ? <>, <code>network</code></> : null}).</p>
         </footer>
       ) : null}
     </div>

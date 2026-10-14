@@ -25,6 +25,8 @@ test.describe('payment network selector (Arc flag on)', () => {
   test.skip(!arcEnabled, 'needs NEXT_PUBLIC_ENABLE_ARC=true on the dev server');
 
   test.beforeEach(async ({ page }) => {
+    // The dev server compiles the lazy wallet chunks on first use.
+    test.setTimeout(150_000);
     await page.addInitScript(() => window.localStorage.setItem('onboarding-seen', '1'));
     await mockArc(page);
   });
@@ -36,13 +38,14 @@ test.describe('payment network selector (Arc flag on)', () => {
     const selector = page.getByRole('radiogroup', { name: 'Red de pago' });
     const solana = selector.getByRole('radio', { name: 'Solana' });
     const arc = selector.getByRole('radio', { name: 'Arc' });
-    await expect(solana).toHaveAttribute('aria-checked', 'true');
-    await expect(page.getByText(/x402 · Solana devnet/i)).toBeVisible();
+    await expect(solana).toHaveAttribute('aria-checked', 'true', { timeout: 45_000 });
+    await expect(page.getByText(/x402 · Solana devnet/i)).toBeVisible({ timeout: 45_000 });
 
     await arc.click();
     await expect(arc).toHaveAttribute('aria-checked', 'true');
-    await expect(page.getByText('Sin login · Arc testnet')).toBeVisible();
-    await expect(page.getByTestId('arc-wallet-balance')).toHaveText('0.25 USDC');
+    // The Arc panel is a lazy chunk: the dev server may compile it on first use.
+    await expect(page.getByText('Sin login · Arc testnet')).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByTestId('arc-wallet-balance')).toHaveText(/^0[.,]25 USDC$/);
     await expect(page.getByText(/faucet\.circle\.com/)).toBeVisible();
     // The Solana-only pay-per-task panel is not shown on Arc.
     await expect(page.getByText(/x402 · Solana devnet/i)).toHaveCount(0);
@@ -70,8 +73,12 @@ test.describe('payment network selector (Arc flag on)', () => {
     });
     await page.goto('/explorer');
     const networks = page.getByRole('group', { name: 'Red' });
-    await networks.getByRole('button', { name: 'Arc testnet' }).click();
-    await expect(networks.getByRole('button', { name: 'Arc testnet' })).toHaveAttribute('aria-pressed', 'true');
+    // Wait for the first load (the page is hydrated once it has data), then filter.
+    await expect(page.getByText('Pago por una tarea de')).toBeVisible({ timeout: 45_000 });
+    await expect(async () => {
+      await networks.getByRole('button', { name: 'Arc testnet' }).click();
+      await expect(networks.getByRole('button', { name: 'Arc testnet' })).toHaveAttribute('aria-pressed', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
     await expect.poll(() => requested.at(-1)).toBe('arc');
     await expect(page).toHaveURL(/network=arc/);
     const link = page.getByRole('link', { name: new RegExp(`Ver la transacción ${TX} en Arc Explorer`) });
