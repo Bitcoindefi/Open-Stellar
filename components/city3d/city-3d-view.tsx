@@ -22,7 +22,6 @@ import { CityGround } from "./city-ground"
 import { SkyDome, SkylineRing } from "./city-horizon"
 import { disposePartGeometries } from "./instanced-parts"
 import { RobotLayer } from "./robot-layer"
-import { disposeCityTextures } from "./textures"
 
 export interface City3DViewProps extends PixelCityProps {
   /** The 2D / 3D switch, rendered at the end of the control bar. */
@@ -60,13 +59,7 @@ export default function City3DView({
   const blocks = useMemo(() => buildCityBlocks(islands), [islands])
   const props = useMemo(() => buildDistrictProps(islands), [islands])
 
-  useEffect(
-    () => () => {
-      disposeCityTextures()
-      disposePartGeometries()
-    },
-    [],
-  )
+  useEffect(() => () => disposePartGeometries(), [])
 
   // District ambience follows agent presence, like the 2D map does.
   useEffect(() => {

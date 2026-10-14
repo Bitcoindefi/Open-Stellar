@@ -4,7 +4,8 @@ import { memo, useEffect, useRef } from "react"
 import type { MoltbotAgent } from "@/lib/types"
 import { findIsland, mapToWorld, type CityFrame, type IslandLayout, type WorldPoint } from "@/lib/city3d/layout"
 import { getLabelLifts } from "@/lib/city3d/robot-state"
-import { SpriteRobot, disposeRobotResources } from "./sprite-robot"
+import { LowPolyRobot, disposeRobotResources } from "./lowpoly-robot"
+import { disposeRobotModels } from "./robot-models"
 
 /**
  * Mount point for the robots in the 3D city. The environment (sky, terrain,
@@ -12,7 +13,8 @@ import { SpriteRobot, disposeRobotResources } from "./sprite-robot"
  * related lives behind this one component, so the robot renderer can be swapped
  * without touching the scene.
  *
- * Contract for a robot renderer (today SpriteRobot):
+ * Contract for a robot renderer (today LowPolyRobot, the district's low-poly
+ * GLB model, with a faceted placeholder while it loads):
  * - one robot per agent, on `findIsland(islands, agent.district)`;
  * - its walk loop stays inside `island.walkArea`, standing on y = PLAZA_HEIGHT;
  * - the first waypoint is `start` (where the 2D map had the agent);
@@ -58,7 +60,13 @@ export const RobotLayer = memo(function RobotLayer({
     return start
   }
 
-  useEffect(() => () => disposeRobotResources(), [])
+  useEffect(
+    () => () => {
+      disposeRobotResources()
+      disposeRobotModels()
+    },
+    [],
+  )
 
   return (
     <group name="robots">
@@ -66,7 +74,7 @@ export const RobotLayer = memo(function RobotLayer({
         const island = findIsland(islands, agent.district)
         if (!island) return null
         return (
-          <SpriteRobot
+          <LowPolyRobot
             key={agent.id}
             agent={agent}
             island={island}
