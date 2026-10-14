@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import { DISTRICTS } from "@/lib/data"
 import {
   CAMERA_DISTANCE_LIMITS,
+  FIT_MARGIN,
+  FIT_TOWER_HEIGHT,
   ISLAND_INSET,
   LANDSCAPE_AZIMUTH,
   PORTRAIT_AZIMUTH,
@@ -10,12 +12,15 @@ import {
   clamp,
   clampTarget,
   findIsland,
+  fitCameraView,
   getCityFrame,
   getDefaultView,
   getFitDistance,
+  getFitPoints,
   getWalkArea,
   isInsideRect,
   mapToWorld,
+  projectFitBox,
   rectCenter,
   scaleCameraDistance,
   sphericalToPosition,
@@ -186,5 +191,71 @@ describe("camera math", () => {
     expect(clamp(5, 0, 3)).toBe(3)
     expect(clamp(-1, 0, 3)).toBe(0)
     expect(clamp(2, 0, 3)).toBe(2)
+  })
+})
+
+describe("fitCameraView", () => {
+  const points = getFitPoints(islands, () => ({ padX: 55, padBottom: 47 }))
+  const inside = (view: ReturnType<typeof fitCameraView>, viewport: { width: number; height: number }) =>
+    projectFitBox(points, viewport, view.target, view.distance, view.polar, view.azimuth)
+
+  it("projects a point at the target onto the canvas centre", () => {
+    const box = projectFitBox([{ x: 0, y: 0, z: 0 }], { width: 400, height: 300 }, { x: 0, y: 0, z: 0 }, 30, 0.9, 0.4)
+    expect(box.minX).toBeCloseTo(200)
+    expect(box.minY).toBeCloseTo(150)
+  })
+
+  it("keeps every island and plate inside the area the overlays leave free on a phone", () => {
+    const viewport = { width: 390, height: 712 }
+    const insets = { top: 104, right: 0, bottom: 190, left: 0 }
+    const view = fitCameraView(points, { viewport, insets, frame })
+    const box = inside(view, viewport)
+    expect(box.minX).toBeGreaterThanOrEqual(FIT_MARGIN - 1)
+    expect(box.maxX).toBeLessThanOrEqual(viewport.width - FIT_MARGIN + 1)
+    expect(box.minY).toBeGreaterThanOrEqual(insets.top + FIT_MARGIN - 1)
+    expect(box.maxY).toBeLessThanOrEqual(viewport.height - insets.bottom - FIT_MARGIN + 1)
+    // And fills it: the city is not left tiny in the middle.
+    const fillX = (box.maxX - box.minX) / (viewport.width - FIT_MARGIN * 2)
+    const fillY = (box.maxY - box.minY) / (viewport.height - insets.top - insets.bottom - FIT_MARGIN * 2)
+    expect(Math.max(fillX, fillY)).toBeGreaterThan(0.97)
+  })
+
+  it("fits small phones, tablets and desktops", () => {
+    for (const viewport of [
+      { width: 360, height: 648 },
+      { width: 448, height: 1024 },
+      { width: 960, height: 800 },
+      { width: 1120, height: 900 },
+    ]) {
+      const view = fitCameraView(points, { viewport, frame })
+      const box = inside(view, viewport)
+      expect(box.minX).toBeGreaterThanOrEqual(FIT_MARGIN - 1)
+      expect(box.maxX).toBeLessThanOrEqual(viewport.width - FIT_MARGIN + 1)
+      expect(box.minY).toBeGreaterThanOrEqual(FIT_MARGIN - 1)
+      expect(box.maxY).toBeLessThanOrEqual(viewport.height - FIT_MARGIN + 1)
+    }
+  })
+
+  it("keeps the landscape angle on wide screens and picks the bigger of both angles on tall ones", () => {
+    expect(fitCameraView(points, { viewport: { width: 1200, height: 800 }, frame }).azimuth).toBe(LANDSCAPE_AZIMUTH)
+    const tall = fitCameraView(points, { viewport: { width: 400, height: 1000 }, frame })
+    for (const azimuth of [LANDSCAPE_AZIMUTH, PORTRAIT_AZIMUTH]) {
+      expect(tall.distance).toBeLessThanOrEqual(fitCameraView(points, { viewport: { width: 400, height: 1000 }, frame, azimuths: [azimuth] }).distance)
+    }
+  })
+
+  it("ignores insets that would leave too little room and survives an empty city", () => {
+    const viewport = { width: 390, height: 400 }
+    const crowded = fitCameraView(points, { viewport, insets: { top: 200, right: 0, bottom: 150, left: 0 }, frame })
+    const free = fitCameraView(points, { viewport, frame })
+    expect(crowded.distance).toBeCloseTo(free.distance)
+    const empty = fitCameraView([], { viewport, frame: { width: 0, depth: 0 } })
+    expect(Number.isFinite(empty.distance)).toBe(true)
+  })
+
+  it("lists the corners, tower tops and plate of every island", () => {
+    expect(points).toHaveLength(islands.length * 7)
+    expect(points.filter((p) => p.y === FIT_TOWER_HEIGHT)).toHaveLength(islands.length * 2)
+    expect(points.filter((p) => p.padX === 55)).toHaveLength(islands.length)
   })
 })

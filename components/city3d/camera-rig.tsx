@@ -6,10 +6,13 @@ import { OrbitControls } from "@react-three/drei"
 import {
   CAMERA_DISTANCE_LIMITS,
   CAMERA_POLAR_LIMITS,
+  FIT_TARGET_MARGIN,
   clampTarget,
-  getDefaultView,
+  fitCameraView,
   scaleCameraDistance,
   type CityFrame,
+  type FitPoint,
+  type ViewportInsets,
 } from "@/lib/city3d/layout"
 import { FOG_COLOR } from "@/lib/city3d/palette"
 
@@ -22,6 +25,10 @@ export interface CameraApi {
 
 interface CameraRigProps {
   frame: CityFrame
+  /** What the default framing keeps on screen: island corners, tower tops and name plates. */
+  fitPoints: readonly FitPoint[]
+  /** Canvas pixels hidden by overlays; null while they are still being measured. */
+  insets: ViewportInsets | null
   reduceMotion: boolean
   apiRef: MutableRefObject<CameraApi | null>
 }
@@ -36,16 +43,25 @@ const HAZE = FOG_COLOR
  * ground, distance limits, a target that cannot be panned off the map, and damping
  * unless the user prefers reduced motion. Touch works out of the box (one finger
  * orbits, two fingers zoom and pan).
+ *
+ * The default framing fits every district and its name plate into the part of
+ * the canvas that overlays leave free, so a phone shows the whole city between
+ * the top controls and the bottom nav.
  */
-export function CameraRig({ frame, reduceMotion, apiRef }: CameraRigProps) {
+export function CameraRig({ frame, fitPoints, insets, reduceMotion, apiRef }: CameraRigProps) {
   const controlsRef = useRef<OrbitControlsHandle>(null)
   const camera = useThree((state) => state.camera)
   const invalidate = useThree((state) => state.invalidate)
   const width = useThree((state) => state.size.width)
   const height = useThree((state) => state.size.height)
-  const view = useMemo(() => getDefaultView(width / Math.max(1, height), frame), [width, height, frame])
+  const view = useMemo(
+    () => fitCameraView(fitPoints, { viewport: { width, height }, insets: insets ?? undefined, frame }),
+    [fitPoints, width, height, insets, frame],
+  )
   const viewRef = useRef(view)
   viewRef.current = view
+  // Once the user orbits, pans or zooms, layout changes no longer move their camera.
+  const userMovedRef = useRef(false)
 
   const recenter = useCallback(() => {
     const { position, target } = viewRef.current
@@ -57,16 +73,16 @@ export function CameraRig({ frame, reduceMotion, apiRef }: CameraRigProps) {
     } else {
       camera.lookAt(target.x, target.y, target.z)
     }
+    userMovedRef.current = false
     invalidate()
   }, [camera, invalidate])
 
-  // Frame the city once the canvas has a real size; later resizes keep the user's camera.
-  const framedRef = useRef(false)
+  // Frame the city once the canvas has a size and the overlays are measured, and
+  // again when the layout changes (rotation, overlays) until the user takes over.
   useEffect(() => {
-    if (framedRef.current || width === 0 || height === 0) return
-    framedRef.current = true
+    if (width === 0 || height === 0 || insets === null || userMovedRef.current) return
     recenter()
-  }, [width, height, recenter])
+  }, [width, height, insets, view, recenter])
 
   useEffect(() => {
     apiRef.current = {
@@ -76,6 +92,7 @@ export function CameraRig({ frame, reduceMotion, apiRef }: CameraRigProps) {
         const next = scaleCameraDistance(camera.position, controls.target, factor, controls.minDistance, controls.maxDistance)
         camera.position.set(next.x, next.y, next.z)
         controls.update()
+        userMovedRef.current = true
         invalidate()
       },
       recenter,
@@ -85,12 +102,16 @@ export function CameraRig({ frame, reduceMotion, apiRef }: CameraRigProps) {
     }
   }, [apiRef, camera, recenter, invalidate])
 
+  const handleStart = useCallback(() => {
+    userMovedRef.current = true
+  }, [])
+
   // Keep the orbit target over the city: shift camera and target together so panning stops at the edge.
   const handleChange = useCallback(() => {
     const controls = controlsRef.current
     if (!controls) return
     const { target } = controls
-    const clamped = clampTarget(target, frame)
+    const clamped = clampTarget(target, frame, FIT_TARGET_MARGIN)
     const dx = clamped.x - target.x
     const dy = clamped.y - target.y
     const dz = clamped.z - target.z
@@ -116,6 +137,7 @@ export function CameraRig({ frame, reduceMotion, apiRef }: CameraRigProps) {
         maxPolarAngle={CAMERA_POLAR_LIMITS.max}
         minDistance={CAMERA_DISTANCE_LIMITS.min}
         maxDistance={CAMERA_DISTANCE_LIMITS.max}
+        onStart={handleStart}
         onChange={handleChange}
       />
     </>

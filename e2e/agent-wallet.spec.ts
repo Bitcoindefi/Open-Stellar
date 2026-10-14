@@ -4,6 +4,8 @@ test.describe('agent selection and wallet surface', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.setItem('onboarding-seen', '1');
+      // The 3D city is the default; this flow picks agents on the 2D canvas's keyboard listbox.
+      window.localStorage.setItem('agentic-city:map-view', '2d');
     });
     await page.goto('/');
   });
@@ -12,7 +14,10 @@ test.describe('agent selection and wallet surface', () => {
     const cityCanvas = page.getByRole('listbox', { name: 'Agents on city canvas' });
     const nexusAgent = cityCanvas.getByRole('option', { name: /Nexus-7/i });
 
-    await nexusAgent.click();
+    // Keyboard selection: robots walk, so a neighbour (Vertex-11 shares the district) can sit on top of
+    // Nexus-7 at the moment of a pointer click.
+    await nexusAgent.focus();
+    await nexusAgent.press('Enter');
     await expect(nexusAgent).toHaveAttribute('aria-selected', 'true');
 
     const walletTab = page.getByRole('button', { name: 'Wallet tab', exact: true });

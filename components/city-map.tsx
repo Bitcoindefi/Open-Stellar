@@ -6,41 +6,48 @@ import { PixelCity, type PixelCityProps } from "@/components/pixel-city"
 import { MapViewToggle } from "@/components/city3d/map-view-toggle"
 import {
   DEFAULT_MAP_VIEW,
+  FALLBACK_MAP_VIEW,
   detectWebGL,
   getBrowserStorage,
   readMapViewMode,
+  resolveMapView,
   writeMapViewMode,
   type MapViewMode,
 } from "@/lib/city3d/view-mode"
 
-// three.js, react-three-fiber and drei only load when someone opens the 3D view:
-// the 2D map and server rendering never pull them in.
+// three.js, react-three-fiber and drei live in their own chunk, loaded on the
+// client only: server rendering and the 2D map never pull them in.
 const City3DView = dynamic(() => import("@/components/city3d/city-3d-view"), {
   ssr: false,
-  loading: () => <City3DLoading />,
+  loading: () => <CityMapLoading />,
 })
 
 const WEBGL_UNAVAILABLE = "3D view needs WebGL, which this browser does not provide. Showing the 2D map."
 const WEBGL_FAILED = "The 3D view could not start on this device. Showing the 2D map."
 const NOTICE_MS = 6000
 
-function City3DLoading() {
+/**
+ * Light dusk placeholder shown while the view is picked and the 3D chunk loads,
+ * in the same tones as the 3D sky so the switch to the scene never flashes dark.
+ */
+function CityMapLoading() {
   return (
     <div
       role="status"
+      data-testid="city-map-loading"
       style={{
         position: "absolute",
         inset: 0,
         display: "grid",
         placeItems: "center",
-        background: "#020617",
-        color: "#67e8f9",
+        background: "linear-gradient(180deg, #8fb0ee 0%, #c9c6f2 55%, #e9d9f3 100%)",
+        color: "#1e3a8a",
         fontFamily: "var(--font-pixel), monospace",
         fontSize: 10,
         letterSpacing: 1,
       }}
     >
-      Loading 3D city...
+      Loading city...
     </div>
   )
 }
@@ -69,24 +76,28 @@ class City3DBoundary extends Component<BoundaryProps, { failed: boolean }> {
 }
 
 /**
- * City map with an opt-in 3D view. The 2D pixel canvas stays the default; the
- * choice is remembered per browser. Sidebar, chat and wallet live outside and
- * keep working in both views because selection goes through the same callback.
+ * City map: the low-poly 3D city by default, with the 2D pixel canvas one click
+ * away. A choice the user makes is remembered per browser and wins over the
+ * default; without WebGL, or if the 3D view fails, the 2D map takes over.
+ * Sidebar, chat and wallet live outside and keep working in both views because
+ * selection goes through the same callback.
  */
 export function CityMap(props: PixelCityProps) {
-  const [mode, setMode] = useState<MapViewMode>(DEFAULT_MAP_VIEW)
+  // null until the view is picked after hydration, so server and first client render match.
+  const [mode, setMode] = useState<MapViewMode | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
-  // Restore the saved choice after hydration so server and first client render match.
   useEffect(() => {
-    const saved = readMapViewMode(getBrowserStorage())
-    if (saved !== "3d") return
-    if (detectWebGL()) {
-      setMode("3d")
-    } else {
+    const storage = getBrowserStorage()
+    const saved = readMapViewMode(storage)
+    // Probe WebGL only when the 3D view is wanted (the probe creates a context).
+    const needsWebGL = (saved ?? DEFAULT_MAP_VIEW) === "3d"
+    const resolved = resolveMapView(saved, needsWebGL && detectWebGL())
+    if (resolved.webglMissing) {
       setNotice(WEBGL_UNAVAILABLE)
-      writeMapViewMode(getBrowserStorage(), "2d")
+      writeMapViewMode(storage, FALLBACK_MAP_VIEW)
     }
+    setMode(resolved.mode)
   }, [])
 
   useEffect(() => {
@@ -106,16 +117,19 @@ export function CityMap(props: PixelCityProps) {
   }, [])
 
   const handle3DFailure = useCallback(() => {
-    setMode("2d")
+    setMode(FALLBACK_MAP_VIEW)
     setNotice(WEBGL_FAILED)
-    writeMapViewMode(getBrowserStorage(), "2d")
+    // Remembered so a device whose GPU cannot run the scene does not retry it on every visit.
+    writeMapViewMode(getBrowserStorage(), FALLBACK_MAP_VIEW)
   }, [])
 
-  const toggle = <MapViewToggle mode={mode} onChange={changeMode} />
+  const toggle = mode ? <MapViewToggle mode={mode} onChange={changeMode} /> : null
 
   return (
     <>
-      {mode === "3d" ? (
+      {mode === null ? (
+        <CityMapLoading />
+      ) : mode === "3d" ? (
         <City3DBoundary onError={handle3DFailure}>
           <City3DView {...props} viewToggle={toggle} />
         </City3DBoundary>

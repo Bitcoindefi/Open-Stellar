@@ -6,12 +6,13 @@ import { Html, PerformanceMonitor } from "@react-three/drei"
 import { LocateFixed, Minus, Plus } from "lucide-react"
 import type { PixelCityProps } from "@/components/pixel-city"
 import { buildCityBlocks } from "@/lib/city3d/buildings"
-import { FOG_COLOR, LIGHTS } from "@/lib/city3d/palette"
+import { EXPOSURE, FOG_COLOR, LIGHTS } from "@/lib/city3d/palette"
 import { buildDistrictProps } from "@/lib/city3d/props"
 import {
   CAMERA_FOV,
   buildIslandLayouts,
   getCityFrame,
+  getFitPoints,
   type IslandLayout,
 } from "@/lib/city3d/layout"
 import { getInitialDpr, shouldAntialias, stepDpr } from "@/lib/city3d/quality"
@@ -22,6 +23,7 @@ import { CityGround } from "./city-ground"
 import { SkyDome, SkylineRing } from "./city-horizon"
 import { disposePartGeometries } from "./instanced-parts"
 import { RobotLayer } from "./robot-layer"
+import { useOverlayInsets } from "./use-overlay-insets"
 
 export interface City3DViewProps extends PixelCityProps {
   /** The 2D / 3D switch, rendered at the end of the control bar. */
@@ -50,14 +52,24 @@ export default function City3DView({
   viewToggle,
 }: City3DViewProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+  // District plates mount once the canvas is wired to its events container: a plate
+  // mounted earlier (the first one in the tree) could keep an empty DOM root.
+  const [sceneReady, setSceneReady] = useState(false)
   // Client-only module (next/dynamic, ssr: false), so window is available here.
   const [deviceDpr] = useState(() => window.devicePixelRatio || 1)
   const [dpr, setDpr] = useState(() => getInitialDpr(deviceDpr))
   const cameraApi = useRef<CameraApi | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const { insets, narrow } = useOverlayInsets(containerRef)
   const frame = useMemo(() => getCityFrame(districts), [districts])
   const islands = useMemo(() => buildIslandLayouts(districts, frame), [districts, frame])
   const blocks = useMemo(() => buildCityBlocks(islands), [islands])
   const props = useMemo(() => buildDistrictProps(islands), [islands])
+  const hasStandings = districtStandings.length > 0
+  const fitPoints = useMemo(
+    () => getFitPoints(islands, (island) => getLabelPad(island.name, hasStandings)),
+    [islands, hasStandings],
+  )
 
   useEffect(() => () => disposePartGeometries(), [])
 
@@ -82,6 +94,7 @@ export default function City3DView({
 
   return (
     <div
+      ref={containerRef}
       data-testid="city-3d-view"
       style={{
         width: "100%",
@@ -103,6 +116,10 @@ export default function City3DView({
           frameloop={reduceMotion ? "demand" : "always"}
           camera={{ fov: CAMERA_FOV, near: 0.5, far: 600, position: [0, 40, 60] }}
           gl={{ alpha: false, antialias: shouldAntialias(deviceDpr), powerPreference: "high-performance" }}
+          onCreated={({ gl }) => {
+            gl.toneMappingExposure = EXPOSURE
+            setSceneReady(true)
+          }}
           onPointerMissed={() => onSelectAgent(null)}
         >
           {/* Slow GPU: drop the pixel ratio a step at a time (skipped when rendering on demand). */}
@@ -113,7 +130,7 @@ export default function City3DView({
               onIncline={() => setDpr((current) => stepDpr(current, 1, getInitialDpr(deviceDpr)))}
             />
           )}
-          {/* Dusk over the neon city: a sky and ground fill, a warm key light and a cool rim from behind. */}
+          {/* Bright dusk over the neon city: a sky and ground fill, a warm key light and a cool rim from behind. */}
           <color attach="background" args={[FOG_COLOR]} />
           <hemisphereLight args={[LIGHTS.hemisphereSky, LIGHTS.hemisphereGround, LIGHTS.hemisphereIntensity]} />
           <ambientLight intensity={LIGHTS.ambientIntensity} />
@@ -125,7 +142,7 @@ export default function City3DView({
           <SkylineRing islands={islands} reduceMotion={reduceMotion} />
           <CityBlocks blocks={blocks} props={props} reduceMotion={reduceMotion} />
 
-          {islands.map((island) => {
+          {sceneReady && islands.map((island) => {
             const standing = districtStandings.find((s) => s.districtId === island.id)
             return <DistrictLabel key={island.id} island={island} rank={standing?.rank} score={standing?.formattedScore} />
           })}
@@ -143,25 +160,30 @@ export default function City3DView({
             onSelect={handleSelect}
           />
 
-          <CameraRig frame={frame} reduceMotion={reduceMotion} apiRef={cameraApi} />
+          <CameraRig frame={frame} fitPoints={fitPoints} insets={insets} reduceMotion={reduceMotion} apiRef={cameraApi} />
         </Canvas>
       </div>
 
-      <div
-        role="status"
-        aria-label="City map status"
-        style={{ position: "absolute", top: 60, right: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", border: "1px solid rgba(148,163,184,0.25)", borderRadius: 10, background: "rgba(2,6,23,0.9)", boxShadow: "0 8px 24px rgba(0,0,0,0.28)", backdropFilter: "blur(10px)", pointerEvents: "none" }}
-      >
-        <span style={{ display: "grid", placeItems: "center", width: 24, height: 24, borderRadius: 7, background: "rgba(34,211,238,0.12)", color: "#67e8f9", fontSize: 13 }}>✦</span>
-        <span style={{ display: "grid", gap: 2 }}>
-          <strong style={{ color: "#f8fafc", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.1 }}>AGENTIC CITY 3D</strong>
-          <span style={{ color: "#94a3b8", fontFamily: "monospace", fontSize: 9 }}>{agents.length} robots · {activeCount} en actividad</span>
-        </span>
-      </div>
+      {/* On a narrow map the status card would push the controls down over the islands, so only the controls show. */}
+      {!narrow && (
+        <div
+          role="status"
+          aria-label="City map status"
+          data-map-overlay="top"
+          style={{ position: "absolute", top: 60, right: 14, zIndex: 3, display: "flex", alignItems: "center", gap: 10, padding: "8px 11px", border: "1px solid rgba(148,163,184,0.25)", borderRadius: 10, background: "rgba(2,6,23,0.9)", boxShadow: "0 8px 24px rgba(0,0,0,0.28)", backdropFilter: "blur(10px)", pointerEvents: "none" }}
+        >
+          <span style={{ display: "grid", placeItems: "center", width: 24, height: 24, borderRadius: 7, background: "rgba(34,211,238,0.12)", color: "#67e8f9", fontSize: 13 }}>✦</span>
+          <span style={{ display: "grid", gap: 2 }}>
+            <strong style={{ color: "#f8fafc", fontFamily: "monospace", fontSize: 10, letterSpacing: 1.1 }}>AGENTIC CITY 3D</strong>
+            <span style={{ color: "#94a3b8", fontFamily: "monospace", fontSize: 9 }}>{agents.length} robots · {activeCount} en actividad</span>
+          </span>
+        </div>
+      )}
       <div
         role="group"
         aria-label="City map controls"
-        style={{ position: "absolute", top: 112, right: 14, zIndex: 5, display: "flex", gap: 5, padding: 5, border: "1px solid rgba(148,163,184,0.22)", borderRadius: 10, background: "rgba(2,6,23,0.9)", backdropFilter: "blur(10px)", cursor: "default" }}
+        data-map-overlay="top"
+        style={{ position: "absolute", top: narrow ? 60 : 112, right: 14, zIndex: 5, display: "flex", gap: 5, padding: 5, border: "1px solid rgba(148,163,184,0.22)", borderRadius: 10, background: "rgba(2,6,23,0.9)", backdropFilter: "blur(10px)", cursor: "default" }}
       >
         {[
           { label: "Zoom out", icon: Minus, action: () => cameraApi.current?.zoom(ZOOM_STEP) },
@@ -176,6 +198,21 @@ export default function City3DView({
       </div>
     </div>
   )
+}
+
+/** Pixel font glyph width plus letter spacing of the district plates (8px font). */
+const LABEL_CHAR_WIDTH = 8.5
+const LABEL_SIDE_PADDING = 16
+/** Plate offset under its anchor, name row, and the optional rank row. */
+const LABEL_NAME_HEIGHT = 6 + 23
+const LABEL_RANK_HEIGHT = 18
+
+/** Screen room a district plate needs around its anchor, for the default camera fit. */
+function getLabelPad(name: string, withRank: boolean): { padX: number; padBottom: number } {
+  return {
+    padX: (name.length * LABEL_CHAR_WIDTH + LABEL_SIDE_PADDING) / 2,
+    padBottom: LABEL_NAME_HEIGHT + (withRank ? LABEL_RANK_HEIGHT : 0),
+  }
 }
 
 interface DistrictLabelProps {
@@ -193,6 +230,7 @@ const DistrictLabel = memo(function DistrictLabel({ island, rank, score }: Distr
   return (
     <Html position={[island.center.x, 0, island.bounds.maxZ + 0.15]} zIndexRange={[2, 1]} pointerEvents="none">
       <div
+        data-district-label={island.id}
         style={{
           transform: "translate(-50%, 6px)",
           display: "grid",

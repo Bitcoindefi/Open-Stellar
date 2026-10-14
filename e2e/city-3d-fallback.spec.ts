@@ -21,3 +21,17 @@ test('falls back to the 2D map with a notice when WebGL is unavailable', async (
   await expect(controls.getByRole('button', { name: '2D pixel map' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('city-3d-view')).toHaveCount(0);
 });
+
+test('shows the 2D map without a notice when the 3D default cannot run', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('onboarding-seen', '1');
+  });
+  await page.goto('/');
+
+  const cityCanvas = page.getByRole('listbox', { name: 'Agents on city canvas' });
+  await expect(cityCanvas.getByRole('option', { name: /Nexus-7/i })).toBeVisible();
+  await expect(page.getByTestId('city-3d-view')).toHaveCount(0);
+  await expect(page.getByText(/3D view needs WebGL/i)).toHaveCount(0);
+  // The fallback is not saved as a choice: a later visit with WebGL gets the 3D default.
+  expect(await page.evaluate(() => window.localStorage.getItem('agentic-city:map-view'))).toBeNull();
+});

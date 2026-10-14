@@ -162,6 +162,10 @@ export const DEFAULT_CAMERA_POLAR = 0.9
 export const LANDSCAPE_AZIMUTH = 0.42
 /** Portrait screens turn the city so its long side runs into the screen. */
 export const PORTRAIT_AZIMUTH = 1.45
+/** Halfway turn, tried when fitting square-ish free areas. */
+export const DIAGONAL_AZIMUTH = 0.95
+/** Free areas narrower than this aspect ratio also try the turned camera angles. */
+export const TURNED_FIT_ASPECT = 1.3
 /** Viewports narrower than this aspect ratio count as portrait. */
 export const PORTRAIT_ASPECT = 0.9
 /** Rough skyline height used to keep tall buildings inside the default frame. */
@@ -219,6 +223,210 @@ export function getDefaultView(aspect: number, frame: Pick<CityFrame, "width" | 
   const distance = getFitDistance(frame, aspect, polar, azimuth)
   const target = { x: 0, y: 0, z: 0 }
   return { polar, azimuth, distance, position: sphericalToPosition(distance, polar, azimuth, target), target }
+}
+
+// ---------------------------------------------------------------------------
+// Fitting the city into the visible part of the canvas
+// ---------------------------------------------------------------------------
+
+/** Canvas pixels covered by overlays (cards, controls, bottom nav) on each side. */
+export interface ViewportInsets {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+export const NO_INSETS: ViewportInsets = { top: 0, right: 0, bottom: 0, left: 0 }
+
+/**
+ * A world point that has to stay on screen, with room in screen pixels around
+ * its projection (a label plate hanging under its anchor, for instance).
+ */
+export interface FitPoint extends Vec3 {
+  padX?: number
+  padTop?: number
+  padBottom?: number
+}
+
+export interface ScreenBox {
+  minX: number
+  maxX: number
+  minY: number
+  maxY: number
+}
+
+/** Free space kept between the fitted city and the visible area's edges, in pixels. */
+export const FIT_MARGIN = 10
+/** Rough height of the tallest towers at the back of an island (world units). */
+export const FIT_TOWER_HEIGHT = 4.2
+/** The road ring around each island (world units) is part of what the framing keeps in view. */
+export const FIT_GROUND_PAD = 1
+/** How far the orbit target may leave the city footprint (world units), for fitting and panning. */
+export const FIT_TARGET_MARGIN = 6
+
+interface CameraBasis {
+  position: Vec3
+  forward: Vec3
+  right: Vec3
+  up: Vec3
+}
+
+function cameraBasis(target: Vec3, distance: number, polar: number, azimuth: number): CameraBasis {
+  const position = sphericalToPosition(distance, polar, azimuth, target)
+  const f = { x: target.x - position.x, y: target.y - position.y, z: target.z - position.z }
+  const fl = Math.hypot(f.x, f.y, f.z) || 1
+  const forward = { x: f.x / fl, y: f.y / fl, z: f.z / fl }
+  // right = forward x worldUp, up = right x forward (no roll).
+  const r = { x: -forward.z, y: 0, z: forward.x }
+  const rl = Math.hypot(r.x, r.z) || 1
+  const right = { x: r.x / rl, y: 0, z: r.z / rl }
+  const up = {
+    x: right.y * forward.z - right.z * forward.y,
+    y: right.z * forward.x - right.x * forward.z,
+    z: right.x * forward.y - right.y * forward.x,
+  }
+  return { position, forward, right, up }
+}
+
+/**
+ * Screen-space box (canvas pixels, y down) that the points and their padding
+ * cover for a perspective camera orbiting `target`. Points behind the camera are skipped.
+ */
+export function projectFitBox(
+  points: readonly FitPoint[],
+  viewport: { width: number; height: number },
+  target: Vec3,
+  distance: number,
+  polar: number,
+  azimuth: number,
+  fovDeg = CAMERA_FOV,
+): ScreenBox {
+  const { position, forward, right, up } = cameraBasis(target, distance, polar, azimuth)
+  const tanV = Math.tan(((fovDeg * Math.PI) / 180) / 2)
+  const tanH = tanV * (viewport.width / Math.max(1, viewport.height))
+  const box: ScreenBox = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
+  for (const p of points) {
+    const v = { x: p.x - position.x, y: p.y - position.y, z: p.z - position.z }
+    const depth = v.x * forward.x + v.y * forward.y + v.z * forward.z
+    if (depth <= 0.01) continue
+    const nx = (v.x * right.x + v.y * right.y + v.z * right.z) / (depth * tanH)
+    const ny = (v.x * up.x + v.y * up.y + v.z * up.z) / (depth * tanV)
+    const sx = ((nx + 1) / 2) * viewport.width
+    const sy = ((1 - ny) / 2) * viewport.height
+    const padX = p.padX ?? 0
+    box.minX = Math.min(box.minX, sx - padX)
+    box.maxX = Math.max(box.maxX, sx + padX)
+    box.minY = Math.min(box.minY, sy - (p.padTop ?? 0))
+    box.maxY = Math.max(box.maxY, sy + (p.padBottom ?? 0))
+  }
+  return box
+}
+
+/**
+ * Points that must stay in view: every island's footprint, the tops of the
+ * towers at its back, and its name plate (`labelPad` gives the plate size).
+ */
+export function getFitPoints(
+  islands: readonly IslandLayout[],
+  labelPad: (island: IslandLayout) => { padX: number; padBottom: number } = () => ({ padX: 0, padBottom: 0 }),
+): FitPoint[] {
+  const points: FitPoint[] = []
+  for (const island of islands) {
+    const { minX, maxX, minZ, maxZ } = island.bounds
+    const g = FIT_GROUND_PAD
+    points.push(
+      { x: minX - g, y: 0, z: minZ - g },
+      { x: maxX + g, y: 0, z: minZ - g },
+      { x: minX - g, y: 0, z: maxZ + g },
+      { x: maxX + g, y: 0, z: maxZ + g },
+      { x: minX, y: FIT_TOWER_HEIGHT, z: minZ },
+      { x: maxX, y: FIT_TOWER_HEIGHT, z: minZ },
+      { x: island.center.x, y: 0, z: maxZ + 0.15, ...labelPad(island) },
+    )
+  }
+  return points
+}
+
+export interface FitOptions {
+  viewport: { width: number; height: number }
+  insets?: ViewportInsets
+  polar?: number
+  azimuths?: readonly number[]
+  frame: Pick<CityFrame, "width" | "depth">
+  fovDeg?: number
+  margin?: number
+}
+
+/**
+ * Default camera for a viewport: the distance and orbit target that make the
+ * fit points fill the part of the canvas left free by overlays (insets), as
+ * large as possible and centred in it. Tries each candidate azimuth and keeps
+ * the one that shows the city biggest.
+ */
+export function fitCameraView(points: readonly FitPoint[], options: FitOptions): CameraView {
+  const { viewport, frame } = options
+  const insets = options.insets ?? NO_INSETS
+  const polar = options.polar ?? DEFAULT_CAMERA_POLAR
+  const fovDeg = options.fovDeg ?? CAMERA_FOV
+  const margin = options.margin ?? FIT_MARGIN
+  const width = Math.max(1, viewport.width)
+  const height = Math.max(1, viewport.height)
+  // Overlays can never leave less than half the canvas: then fit to the whole canvas instead.
+  const safeLeft = insets.left + margin
+  const safeTop = insets.top + margin
+  let safeW = width - insets.left - insets.right - margin * 2
+  let safeH = height - insets.top - insets.bottom - margin * 2
+  const useInsets = safeW > width * 0.5 && safeH > height * 0.4
+  const area = useInsets
+    ? { left: safeLeft, top: safeTop, w: safeW, h: safeH }
+    : { left: margin, top: margin, w: width - margin * 2, h: height - margin * 2 }
+  safeW = Math.max(1, area.w)
+  safeH = Math.max(1, area.h)
+  const aspect = width / height
+  // Tall or square free areas also try turning the city, then keep the angle that shows it biggest.
+  const azimuths =
+    options.azimuths ?? (safeW / safeH < TURNED_FIT_ASPECT ? [LANDSCAPE_AZIMUTH, DIAGONAL_AZIMUTH, PORTRAIT_AZIMUTH] : [LANDSCAPE_AZIMUTH])
+  const tanV = Math.tan(((fovDeg * Math.PI) / 180) / 2)
+
+  let best: CameraView | null = null
+  for (const azimuth of azimuths) {
+    let distance = getFitDistance(frame, aspect, polar, azimuth, fovDeg)
+    let target: Vec3 = { x: 0, y: 0, z: 0 }
+    if (points.length > 0) {
+      for (let i = 0; i < 24; i++) {
+        const box = projectFitBox(points, { width, height }, target, distance, polar, azimuth, fovDeg)
+        if (!Number.isFinite(box.minX)) break
+        const scale = Math.max((box.maxX - box.minX) / safeW, (box.maxY - box.minY) / safeH)
+        distance = clamp(distance * scale, CAMERA_DISTANCE_LIMITS.min, CAMERA_DISTANCE_LIMITS.max)
+        const dx = area.left + safeW / 2 - (box.minX + box.maxX) / 2
+        const dy = area.top + safeH / 2 - (box.minY + box.maxY) / 2
+        const worldPerPixel = (2 * distance * tanV) / height
+        // Screen right on the ground is (cos az, 0, -sin az); screen up runs along the horizontal view direction.
+        const rx = Math.cos(azimuth)
+        const rz = -Math.sin(azimuth)
+        const fx = -Math.sin(azimuth)
+        const fz = -Math.cos(azimuth)
+        const along = (dy * worldPerPixel) / Math.max(0.2, Math.cos(polar))
+        const next = clampTarget(
+          {
+            x: target.x - rx * dx * worldPerPixel + fx * along,
+            y: 0,
+            z: target.z - rz * dx * worldPerPixel + fz * along,
+          },
+          frame,
+          FIT_TARGET_MARGIN,
+        )
+        const settled = Math.abs(scale - 1) < 0.002 && Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5
+        target = next
+        if (settled) break
+      }
+    }
+    if (!best || distance < best.distance) {
+      best = { polar, azimuth, distance, position: sphericalToPosition(distance, polar, azimuth, target), target }
+    }
+  }
+  return best ?? getDefaultView(aspect, frame)
 }
 
 /**

@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   DEFAULT_MAP_VIEW,
+  FALLBACK_MAP_VIEW,
   MAP_VIEW_MODES,
   MAP_VIEW_STORAGE_KEY,
   detectWebGL,
   getBrowserStorage,
   parseMapViewMode,
   readMapViewMode,
+  resolveMapView,
   writeMapViewMode,
 } from "./view-mode"
 
@@ -22,24 +24,42 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 describe("parseMapViewMode", () => {
-  it("accepts 3d and maps everything else to the 2D default", () => {
+  it("accepts 2d and 3d and treats everything else as no choice", () => {
     expect(parseMapViewMode("3d")).toBe("3d")
     expect(parseMapViewMode("2d")).toBe("2d")
-    expect(parseMapViewMode("3D")).toBe(DEFAULT_MAP_VIEW)
-    expect(parseMapViewMode(null)).toBe(DEFAULT_MAP_VIEW)
-    expect(parseMapViewMode(42)).toBe(DEFAULT_MAP_VIEW)
+    expect(parseMapViewMode("3D")).toBeNull()
+    expect(parseMapViewMode(null)).toBeNull()
+    expect(parseMapViewMode(42)).toBeNull()
   })
 
-  it("defaults to 2D and lists both modes", () => {
-    expect(DEFAULT_MAP_VIEW).toBe("2d")
+  it("defaults to 3D, falls back to 2D and lists both modes", () => {
+    expect(DEFAULT_MAP_VIEW).toBe("3d")
+    expect(FALLBACK_MAP_VIEW).toBe("2d")
     expect(MAP_VIEW_MODES).toEqual(["2d", "3d"])
+  })
+})
+
+describe("resolveMapView", () => {
+  it("shows the 3D default when nothing is saved and WebGL works", () => {
+    expect(resolveMapView(null, true)).toEqual({ mode: "3d", webglMissing: false })
+  })
+
+  it("lets a saved choice win over the default", () => {
+    expect(resolveMapView("2d", true)).toEqual({ mode: "2d", webglMissing: false })
+    expect(resolveMapView("3d", true)).toEqual({ mode: "3d", webglMissing: false })
+  })
+
+  it("falls back to 2D without WebGL, flagging only an explicit 3D choice", () => {
+    expect(resolveMapView(null, false)).toEqual({ mode: "2d", webglMissing: false })
+    expect(resolveMapView("3d", false)).toEqual({ mode: "2d", webglMissing: true })
+    expect(resolveMapView("2d", false)).toEqual({ mode: "2d", webglMissing: false })
   })
 })
 
 describe("readMapViewMode / writeMapViewMode", () => {
   it("round-trips the saved mode", () => {
     const storage = memoryStorage()
-    expect(readMapViewMode(storage)).toBe("2d")
+    expect(readMapViewMode(storage)).toBeNull()
     expect(writeMapViewMode(storage, "3d")).toBe(true)
     expect(storage.data.get(MAP_VIEW_STORAGE_KEY)).toBe("3d")
     expect(readMapViewMode(storage)).toBe("3d")
@@ -48,12 +68,12 @@ describe("readMapViewMode / writeMapViewMode", () => {
   })
 
   it("ignores garbage stored by older builds", () => {
-    expect(readMapViewMode(memoryStorage({ [MAP_VIEW_STORAGE_KEY]: "isometric" }))).toBe("2d")
+    expect(readMapViewMode(memoryStorage({ [MAP_VIEW_STORAGE_KEY]: "isometric" }))).toBeNull()
   })
 
-  it("falls back to 2D when storage is missing or throws", () => {
-    expect(readMapViewMode(null)).toBe("2d")
-    expect(readMapViewMode(undefined)).toBe("2d")
+  it("reports no choice when storage is missing or throws", () => {
+    expect(readMapViewMode(null)).toBeNull()
+    expect(readMapViewMode(undefined)).toBeNull()
     const throwing = {
       getItem: () => {
         throw new Error("SecurityError")
@@ -62,7 +82,7 @@ describe("readMapViewMode / writeMapViewMode", () => {
         throw new Error("QuotaExceededError")
       },
     }
-    expect(readMapViewMode(throwing)).toBe("2d")
+    expect(readMapViewMode(throwing)).toBeNull()
     expect(writeMapViewMode(throwing, "3d")).toBe(false)
     expect(writeMapViewMode(null, "3d")).toBe(false)
   })
