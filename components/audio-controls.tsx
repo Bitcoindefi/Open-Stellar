@@ -16,6 +16,8 @@ const DEFAULT_EFFECTS = 0.72
 interface AudioControlsProps {
   engine: CityAudioEngine
   bottomOffset?: string | number
+  /** Small screens: icon buttons only, no label, so the bar covers less of the map. */
+  compact?: boolean
 }
 
 function readStoredVolume(): number {
@@ -37,7 +39,7 @@ function readStoredLevel(key: string, fallback: number): number {
   return Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : fallback
 }
 
-export function AudioControls({ engine, bottomOffset = 16 }: AudioControlsProps) {
+export function AudioControls({ engine, bottomOffset = 16, compact = false }: AudioControlsProps) {
   const [volume, setVolume] = useState(DEFAULT_VOLUME)
   const [ambience, setAmbience] = useState(DEFAULT_AMBIENCE)
   const [effects, setEffects] = useState(DEFAULT_EFFECTS)
@@ -116,6 +118,7 @@ export function AudioControls({ engine, bottomOffset = 16 }: AudioControlsProps)
 
   return (
     <div
+      data-map-overlay="bottom"
       style={{
         position: "absolute",
         bottom: bottomOffset,
@@ -123,8 +126,8 @@ export function AudioControls({ engine, bottomOffset = 16 }: AudioControlsProps)
         zIndex: 20,
         display: "flex",
         alignItems: "center",
-        gap: 7,
-        padding: "7px 9px",
+        gap: compact ? 4 : 7,
+        padding: compact ? 4 : "7px 9px",
         background: "rgba(3,7,18,0.92)",
         border: "1px solid rgba(34,211,238,0.32)",
         borderRadius: 10,
@@ -155,9 +158,9 @@ export function AudioControls({ engine, bottomOffset = 16 }: AudioControlsProps)
       >
         {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
       </button>
-      <span style={{ color: muted ? "#94a3b8" : "#cbd5e1", fontFamily: "monospace", fontSize: 9, letterSpacing: 1, whiteSpace: "nowrap" }}>
+      {!compact && <span style={{ color: muted ? "#94a3b8" : "#cbd5e1", fontFamily: "monospace", fontSize: 9, letterSpacing: 1, whiteSpace: "nowrap" }}>
         {muted ? "SILENCIO" : "AUDIO"}
-      </span>
+      </span>}
       <button
         type="button"
         onClick={() => setExpanded((value) => !value)}

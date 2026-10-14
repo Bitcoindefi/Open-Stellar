@@ -22,8 +22,8 @@ export const PROPS_PER_ISLAND = 5
 
 type PropBuilder = (x: number, z: number, accent: string, index: number, out: PropParts) => void
 
-const DARK_METAL = "#2b3654"
-const STEEL = "#56678f"
+const DARK_METAL = "#4b5a82"
+const STEEL = "#7b8cb6"
 const LIGHT_SHELL = "#c7d2e8"
 
 const serverRacks: PropBuilder = (x, z, accent, index, out) => {

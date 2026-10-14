@@ -10,6 +10,8 @@ interface DistrictEventOverlayProps {
   standings: DistrictStanding[]
   /** Distance from the top of the map; a narrow map moves the card below the top-right controls. */
   top?: number
+  /** Narrow map: while collapsed the card is a small pill (trophy and countdown) so it never covers the city. */
+  compact?: boolean
 }
 
 function formatCountdown(seconds: number): string {
@@ -22,7 +24,7 @@ function formatCountdown(seconds: number): string {
 
 const noopSubscribe = () => () => {}
 
-export function DistrictEventOverlay({ event, standings, top = 12 }: DistrictEventOverlayProps) {
+export function DistrictEventOverlay({ event, standings, top = 12, compact = false }: DistrictEventOverlayProps) {
   const [expanded, setExpanded] = useState(false)
   // Standings can differ between the server render and the browser (the server
   // and client agent rosters drift), which made React throw a hydration error and
@@ -31,16 +33,45 @@ export function DistrictEventOverlay({ event, standings, top = 12 }: DistrictEve
   if (!event) return null
 
   const leader = isClient ? standings[0] : undefined
+  const countdown = formatCountdown(event.secondsRemaining)
+
+  if (compact && !expanded) {
+    return (
+      <section
+        aria-label="Active district competition"
+        data-map-overlay="top"
+        style={{ position: "absolute", top, left: 12, zIndex: 6, fontFamily: "monospace" }}
+      >
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-expanded={false}
+          aria-label={`District challenge: ${event.challenge.name}, ends in ${countdown}. Show standings`}
+          title={event.challenge.name}
+          style={{ display: "flex", alignItems: "center", gap: 6, height: 44, boxSizing: "border-box", padding: "0 9px 0 6px", border: "1px solid rgba(34,211,238,0.35)", borderRadius: 10, background: "rgba(3,7,18,0.86)", boxShadow: "0 8px 24px rgba(0,0,0,0.28)", backdropFilter: "blur(8px)", color: "#67e8f9", cursor: "pointer" }}
+        >
+          <span style={{ display: "grid", placeItems: "center", width: 28, height: 28, borderRadius: 8, background: "rgba(34,211,238,0.12)" }}><Trophy size={14} aria-hidden="true" /></span>
+          <span style={{ display: "grid", gap: 2, textAlign: "left" }}>
+            <span style={{ fontSize: 8, color: "#22d3ee", textTransform: "uppercase", letterSpacing: 1.1 }}>Challenge</span>
+            <span style={{ fontSize: 10, color: "#f8fafc", fontWeight: 800 }}>{countdown}</span>
+          </span>
+          <ChevronDown size={14} aria-hidden="true" />
+        </button>
+      </section>
+    )
+  }
 
   return (
     <section
       aria-label="Active district competition"
+      data-map-overlay={expanded ? undefined : "top"}
       style={{
         position: "absolute",
         top,
         left: 12,
         right: 12,
-        zIndex: 6,
+        // Opened from the pill on a narrow map: above the map controls it overlaps.
+        zIndex: compact ? 13 : 6,
         width: "min(280px, calc(100vw - 24px))",
         maxHeight: expanded ? "min(42dvh, 320px)" : undefined,
         overflow: "auto",
@@ -57,7 +88,7 @@ export function DistrictEventOverlay({ event, standings, top = 12 }: DistrictEve
       <button type="button" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: 0, border: 0, background: "transparent", color: "inherit", textAlign: "left", cursor: "pointer" }}>
         <span style={{ display: "grid", placeItems: "center", width: 28, height: 28, flex: "0 0 auto", borderRadius: 8, background: "rgba(34,211,238,0.12)", color: "#67e8f9" }}><Trophy size={14} aria-hidden="true" /></span>
         <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: "block", fontSize: 8, color: "#22d3ee", textTransform: "uppercase", letterSpacing: 1.3 }}>District challenge · {formatCountdown(event.secondsRemaining)}</span>
+          <span style={{ display: "block", fontSize: 8, color: "#22d3ee", textTransform: "uppercase", letterSpacing: 1.3 }}>District challenge · {countdown}</span>
           <span style={{ display: "block", marginTop: 3, fontSize: 11, color: "#f8fafc", fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{event.challenge.name}</span>
           {!expanded && <span style={{ display: "block", marginTop: 2, fontSize: 9, color: "#94a3b8" }}>{leader ? `${leader.districtName} leads` : event.challenge.metric}</span>}
         </span>
@@ -65,7 +96,7 @@ export function DistrictEventOverlay({ event, standings, top = 12 }: DistrictEve
       </button>
       {expanded && <>
       <div style={{ fontSize: 10, color: "#94a3b8", lineHeight: 1.5, margin: "10px 0" }}>
-        {event.challenge.metric} · ends in {formatCountdown(event.secondsRemaining)}
+        {event.challenge.metric} · ends in {countdown}
       </div>
       <div style={{ display: "grid", gap: 6 }}>
         {standings.slice(0, 5).map((standing) => (

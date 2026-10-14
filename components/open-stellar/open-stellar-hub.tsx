@@ -74,8 +74,9 @@ const MOBILE_NAV_ROWS = Math.ceil((SIDEBAR_TABS.length + 1) / 3)
 const MOBILE_NAV_HEIGHT = MOBILE_NAV_ROWS * 56 + (MOBILE_NAV_ROWS - 1) * 6 + 18
 // Challenge card (12 + 280px) plus the widest top-right overlay (city status, about 220px) and gaps.
 const NARROW_MAP_WIDTH = 540
-// Below the top-right column: the map controls end near 160px.
-const CHALLENGE_TOP_NARROW = 168
+// On a narrow map the challenge card folds into a small pill on the second row, left of the map
+// controls, so the islands below stay uncovered.
+const CHALLENGE_TOP_NARROW = 60
 
 interface AgentHealthApiSnapshot {
   agentId: string
@@ -302,7 +303,8 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
-  const challengeTop = canvasWidth !== null && canvasWidth < NARROW_MAP_WIDTH ? CHALLENGE_TOP_NARROW : 12
+  const narrowMap = canvasWidth !== null && canvasWidth < NARROW_MAP_WIDTH
+  const challengeTop = narrowMap ? CHALLENGE_TOP_NARROW : 12
 
   // Show onboarding once on first visit
   useEffect(() => {
@@ -1064,7 +1066,7 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
       <div ref={canvasAreaRef} style={{ flex: 1, minWidth: 0, minHeight: 0, position: "relative" }}>
         {/* Top-right group: the admin link and the theme toggle share one row so neither covers
             the other. On a phone the admin link lives in the bottom nav, so only the toggle shows. */}
-        <div style={{ position: "absolute", top: 14, right: 14, zIndex: 12, display: "flex", alignItems: "center", gap: 8 }}>
+        <div data-map-overlay="top" style={{ position: "absolute", top: 14, right: 14, zIndex: 12, display: "flex", alignItems: "center", gap: 8 }}>
           {isMobile === false && (
             <a
               href="/explorer"
@@ -1134,11 +1136,12 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
           districtStandings={districtStandings}
         />
 
-        <DistrictEventOverlay event={activeDistrictEvent} standings={districtStandings} top={challengeTop} />
+        <DistrictEventOverlay event={activeDistrictEvent} standings={districtStandings} top={challengeTop} compact={narrowMap} />
 
         <AudioControls
           engine={audioEngine}
           bottomOffset={isMobile ? "calc(148px + env(safe-area-inset-bottom))" : 16}
+          compact={isMobile === true || narrowMap}
         />
 
         {isMobile === false && (
@@ -1228,6 +1231,7 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
             type="button"
             onClick={() => setMobileControlsOpen(true)}
             aria-label="Open agent controls"
+            data-map-overlay="bottom"
             style={{
               position: "fixed",
               // Above the nav grid, not on it: at 144px it covered the Skills tab on a 390px phone.
@@ -1253,6 +1257,7 @@ export function OpenStellarHub({ initialDistrictEvent }: { initialDistrictEvent:
 
           <nav
             aria-label="Agent controls"
+            data-map-overlay="bottom"
             style={{
               position: "fixed",
               left: 0,
