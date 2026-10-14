@@ -2,8 +2,11 @@ import { expect, test } from '@playwright/test';
 
 test.describe('onboarding modal', () => {
   test.beforeEach(async ({ page }) => {
+    // A first visit: clear storage on the first load only, so a reload keeps what the page saved.
     await page.addInitScript(() => {
+      if (window.sessionStorage.getItem('e2e-storage-cleared')) return;
       window.localStorage.clear();
+      window.sessionStorage.setItem('e2e-storage-cleared', '1');
     });
   });
 

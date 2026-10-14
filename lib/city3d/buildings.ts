@@ -263,12 +263,12 @@ export interface CityBlocks {
   beacons: GlowInstance[]
 }
 
-const PLATFORM_SIDE_BASE = "#94a3b8"
+const PLATFORM_SIDE_BASE = "#c3cde6"
 const RIM_THICKNESS = 0.09
 
-/** Island side color: the district base tone lifted toward slate, tinted with the district color. */
+/** Island side color: the district base tone lifted toward a light slate, tinted with the district color. */
 export function getPlatformColor(island: Pick<IslandLayout, "baseColor" | "color">): string {
-  return mixHex(mixHex(island.baseColor, PLATFORM_SIDE_BASE, 0.45), island.color, 0.25)
+  return mixHex(mixHex(island.baseColor, PLATFORM_SIDE_BASE, 0.72), island.color, 0.25)
 }
 
 /** Island top: neutral slate with a hint of the district accent. */

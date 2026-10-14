@@ -37,6 +37,10 @@ describe("robot models", () => {
       const json = bytes.toString("utf8", 20, 20 + bytes.readUInt32LE(12))
       expect(json).toContain("EXT_meshopt_compression")
       expect(json).not.toContain('"images"')
+      // Rigged: a skin and the Walk and Idle clips the 3D view plays.
+      const gltf = JSON.parse(json) as { skins?: unknown[]; animations?: { name: string }[] }
+      expect(gltf.skins?.length).toBe(1)
+      expect(gltf.animations?.map((clip) => clip.name).sort()).toEqual(["Idle", "Walk"])
     }
   })
 
